@@ -1,0 +1,22 @@
+# Normalize line endings: store text as LF in the repository, check out
+# native on each platform. Keeps a Windows-authored repo clean on Linux/macOS CI.
+* text=auto
+
+# Shell scripts must stay LF even on Windows checkouts (CRLF breaks bash).
+*.sh    text eol=lf
+
+# Explicit binary types — never apply EOL conversion or textual diffs.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.icns  binary
+*.ttf   binary
+*.otf   binary
+*.a     binary
+*.lib   binary
+*.dll   binary
+*.dylib binary
+*.so    binary
+*.pdf   binary

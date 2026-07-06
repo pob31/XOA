@@ -1,0 +1,77 @@
+# Build outputs
+build/
+Builds/
+out/
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.app
+
+# Object files
+*.obj
+*.o
+*.lo
+*.slo
+
+# Debug symbols
+*.pdb
+*.ilk
+*.map
+
+# Build logs and temporary files
+*.log
+*.tlog
+*.recipe
+*.lastbuildstate
+*.FileListAbsolute.txt
+*.Build.CppClean.log
+
+# Visual Studio temporary files
+*.vcxproj.user
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Xcode temporary files
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+
+# CMake in-source leftovers (builds belong in build/)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# IDE files
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python cache
+__pycache__/
+.pytest_cache/
+
+# Claude Code temporary files
+tmpclaude-*
+**/tmpclaude-*
