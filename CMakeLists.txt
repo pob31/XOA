@@ -14,6 +14,15 @@ cmake_minimum_required(VERSION 3.22)
 
 project(XOA VERSION 0.1.0 LANGUAGES C CXX)
 
+# spatcore-audio compiles Metal .mm (Objective-C++) backends on Apple and
+# enables OBJCXX from its own add_subdirectory scope. CMake only reliably
+# populates the OBJCXX compile rules (CMAKE_OBJCXX_COMPILE_OBJECT) when the
+# language is enabled at the top level, so do it here — otherwise macOS
+# configure fails at generate with "Missing variable: CMAKE_OBJCXX_COMPILE_OBJECT".
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
