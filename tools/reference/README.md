@@ -2,8 +2,17 @@
 
 Reference ("golden") data for the unit tests in `tests/` is **committed** to
 the repo, and so is the code that produced it. The tests themselves stay
-dependency-free C++ (`tests/XoaTests.cpp` CHECK pattern); Python + scipy are
-needed only when *regenerating* data, never to build or run the tests.
+dependency-free C++ (`tests/XoaTests.cpp` CHECK pattern); Python (scipy/numpy
+**or mpmath**, pinned per script) is needed only when *regenerating* data,
+never to build or run the tests. The WP3 generators use mpmath 1.3.0 (pure
+Python, arbitrary precision — ~40-digit references make golden rounding error
+negligible next to the C++ tolerance budget). Local setup:
+
+```
+py -3.14 -m venv .venv
+.venv\Scripts\python -m pip install mpmath==1.3.0
+.venv\Scripts\python tools\reference\gen_sh_reference.py
+```
 
 ## The convention
 
@@ -30,7 +39,9 @@ needed only when *regenerating* data, never to build or run the tests.
 | Script | Produces | Arrives with |
 |---|---|---|
 | `gen_sh_reference.py` | real-SH values (ACN/SN3D, no CS phase) | WP3 |
-| `gen_maxre_weights.py` | exact max-rE weights, orders 1–10 | WP3 |
+| `gen_sh_quadrature.py` | Gauss-Legendre×azimuth quadrature grid (orthonormality test; exact for band-20 products) | WP3 |
+| `gen_maxre_weights.py` | exact max-rE + in-phase weights, orders 1–10 | WP3 |
+| `gen_fuma_reference.py` | FuMa→AmbiX conversion table (from the maxN rule) + test vectors | WP3 |
 | `gen_rotation_reference.py` | rotation/Wigner-D matrices, random orientations | WP4 |
 | `gen_decoder_reference.py` | SAD/mode-matching golden matrices (ring + dome fixtures) | WP5 |
 | `gen_tdesign_tables.py` | virtual-layout t-design coordinates + provenance | WP7 |

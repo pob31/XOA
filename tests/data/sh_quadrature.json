@@ -1,0 +1,1336 @@
+{
+ "provenance": {
+  "script": "tools/reference/gen_sh_quadrature.py",
+  "command": ".venv/Scripts/python tools/reference/gen_sh_quadrature.py",
+  "python": "3.14.6",
+  "mpmath": "1.3.0",
+  "generatedUtc": "2026-07-07T17:37:41.533619+00:00",
+  "grid": "Gauss-Legendre(11) in cos-colatitude x 24 uniform azimuths",
+  "exactness": "exact for products of SH up to order 10 (band 20 < azimuth count 24; GL-11 exact to polynomial degree 21)",
+  "weightNormalization": "sum(w) = 1 (mean over the sphere)",
+  "testTolerance": 1e-10
+ },
+ "numPoints": 264,
+ "points": [
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": -78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": -62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": -46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": -31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": -15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": -2.786960125778271e-49,
+   "weight": 0.0056859393078729295
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": 15.637083785285284,
+   "weight": 0.005475094677296805
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": 31.271641141730832,
+   "weight": 0.004858203428999802
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": 46.89913873044247,
+   "weight": 0.0038810460609944634
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": 62.50642411583019,
+   "weight": 0.002616257697185513
+  },
+  {
+   "azimuthDeg": -180.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -165.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -150.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -135.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -120.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -105.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -90.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -75.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -60.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -45.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -30.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": -15.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 0.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 15.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 30.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 45.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 60.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 75.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 90.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 105.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 120.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 135.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 150.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  },
+  {
+   "azimuthDeg": 165.0,
+   "elevationDeg": 78.02235812097533,
+   "weight": 0.0011597618149202847
+  }
+ ]
+}

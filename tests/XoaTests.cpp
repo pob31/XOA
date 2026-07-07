@@ -14,6 +14,9 @@
       3. WP2 suite           schema tables, coordinates, parameter store,
                              project file I/O, WFS-DIY layout import
                              (XoaParameterTests.cpp)
+      4. WP3 suite           SH evaluation, conventions (N3D/SN3D, FuMa),
+                             order weights, FR-7 order adaptation
+                             (XoaShTests.cpp)
 */
 
 #include <juce_core/juce_core.h>
@@ -28,6 +31,7 @@
 #include <limits>
 
 void runXoaParameterTests();
+void runXoaShTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -81,6 +85,7 @@ int main()
         testXoaConstants();
         testSpatcoreSmoke();
         runXoaParameterTests();
+        runXoaShTests();
     }
     catch (const std::exception& e)
     {

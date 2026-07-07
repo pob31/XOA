@@ -8,6 +8,7 @@ juce_add_console_app(xoa-tests PRODUCT_NAME "xoa-tests")
 target_sources(xoa-tests PRIVATE
     XoaTests.cpp
     XoaParameterTests.cpp
+    XoaShTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp)
 

@@ -68,9 +68,10 @@ cmake_install.cmake
 ehthumbs.db
 Thumbs.db
 
-# Python cache
+# Python cache / local env (generators only; goldens are committed)
 __pycache__/
 .pytest_cache/
+.venv/
 
 # Claude Code temporary files
 tmpclaude-*
