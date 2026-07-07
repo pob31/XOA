@@ -84,3 +84,10 @@ target_link_libraries(XOA PRIVATE
 # were baselined with (spatcore's DSP is header-only from the consumer's
 # point of view, so the app's flags are the flags it compiles under).
 spatcore_apply_compile_flags(XOA)
+
+# ---------------------------------------------------------------------------
+# Tests — the xoa-tests console app, registered with ctest.
+# (After the JUCE/spatcore subdirectories: tests/ needs their targets.)
+# ---------------------------------------------------------------------------
+enable_testing()
+add_subdirectory(tests)
