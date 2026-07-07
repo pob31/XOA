@@ -42,7 +42,7 @@ py -3.14 -m venv .venv
 | `gen_sh_quadrature.py` | Gauss-Legendre×azimuth quadrature grid (orthonormality test; exact for band-20 products) | WP3 |
 | `gen_maxre_weights.py` | exact max-rE + in-phase weights, orders 1–10 | WP3 |
 | `gen_fuma_reference.py` | FuMa→AmbiX conversion table (from the maxN rule) + test vectors | WP3 |
-| `gen_rotation_reference.py` | rotation/Wigner-D matrices, random orientations | WP4 |
+| `gen_rotation_reference.py` | real-SH rotation blocks via exact quadrature projection (GL(11)×24; independent of Ivanic–Ruedenberg) | WP4 |
 | `gen_decoder_reference.py` | SAD/mode-matching golden matrices (ring + dome fixtures) | WP5 |
 | `gen_tdesign_tables.py` | virtual-layout t-design coordinates + provenance | WP7 |
 | `gen_bessel_roots.py` | reverse-Bessel polynomial roots ℓ = 1…10 | WP8 |

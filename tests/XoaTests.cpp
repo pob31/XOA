@@ -17,6 +17,8 @@
       4. WP3 suite           SH evaluation, conventions (N3D/SN3D, FuMa),
                              order weights, FR-7 order adaptation
                              (XoaShTests.cpp)
+      5. WP4 suite           SO(3) rotation (Ivanic-Ruedenberg + 1998 erratum),
+                             mirror planes (XoaRotationTests.cpp)
 */
 
 #include <juce_core/juce_core.h>
@@ -32,6 +34,7 @@
 
 void runXoaParameterTests();
 void runXoaShTests();
+void runXoaRotationTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -86,6 +89,7 @@ int main()
         testSpatcoreSmoke();
         runXoaParameterTests();
         runXoaShTests();
+        runXoaRotationTests();
     }
     catch (const std::exception& e)
     {

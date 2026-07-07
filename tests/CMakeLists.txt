@@ -9,6 +9,7 @@ target_sources(xoa-tests PRIVATE
     XoaTests.cpp
     XoaParameterTests.cpp
     XoaShTests.cpp
+    XoaRotationTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp)
 
