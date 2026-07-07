@@ -6,7 +6,10 @@
 juce_add_console_app(xoa-tests PRODUCT_NAME "xoa-tests")
 
 target_sources(xoa-tests PRIVATE
-    XoaTests.cpp)
+    XoaTests.cpp
+    XoaParameterTests.cpp
+    ../Source/Parameters/XoaValueTreeState.cpp
+    ../Source/Parameters/XoaFileManager.cpp)
 
 # XoaConstants.h and, later, the Source/DSP/Ambi* headers under test.
 target_include_directories(xoa-tests PRIVATE
@@ -20,7 +23,9 @@ target_link_libraries(xoa-tests PRIVATE
 
 target_compile_definitions(xoa-tests PRIVATE
     JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0)
+    JUCE_USE_CURL=0
+    XOA_VERSION_STRING="${PROJECT_VERSION}"
+    XOA_TESTS_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 # Test TUs compile under the same transcribed app flags as the app itself
 # (the optimization/FP flags spatcore's bit-exactness gates were baselined

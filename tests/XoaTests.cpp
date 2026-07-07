@@ -1,42 +1,33 @@
 /*
-    XoaTests.cpp - minimal, dependency-free unit tests for XOA
-    (no gtest; plain CHECK macro + exit code). Built as the `xoa-tests`
-    console app and registered with ctest; run it -> exit 0 = pass.
+    XoaTests.cpp - entry point for the xoa-tests console app.
+    Dependency-free CHECK pattern (see XoaTestFramework.h); exit 0 = pass.
 
-    Golden reference data, when tests start needing it (WP3+), lives as
-    committed JSON in tests/data/, produced by the generator scripts in
-    tools/reference/ (see tools/reference/README.md for the convention).
+    Headless JUCE note: the parameter store's UndoManager is a
+    ChangeBroadcaster whose async updates assert without a MessageManager in
+    Debug builds, so main() creates the instance up front (no run loop is
+    needed — the creating thread counts as the message thread) and tears it
+    down cleanly before returning.
 
-    Coverage (WP1 seed - scaffolding proof, not a suite):
+    Coverage:
       1. XoaConstants        order/channel-count invariants
-      2. spatcore smoke      include+link proof across the consumed libs:
-                             dsp::WFSHelpers::safeClamp behavior (the same
-                             symbol the app exercises) and an
-                             rt::RtSnapshot<T> publish/acquire roundtrip
+      2. spatcore smoke      include+link proof across the consumed libs
+      3. WP2 suite           schema tables, coordinates, parameter store,
+                             project file I/O, WFS-DIY layout import
+                             (XoaParameterTests.cpp)
 */
 
 #include <juce_core/juce_core.h>
+#include <juce_events/juce_events.h>
 
 #include "spatcore/rt/RtSnapshot.h"
 #include "spatcore/dsp/NumericGuards.h"
 
 #include "XoaConstants.h"
+#include "XoaTestFramework.h"
 
-#include <cstdio>
 #include <limits>
 
-static int failures = 0;
-
-#define CHECK(expr)                                                          \
-    do                                                                       \
-    {                                                                        \
-        if (!(expr))                                                         \
-        {                                                                    \
-            std::fprintf (stderr, "FAIL %s:%d: %s\n",                        \
-                          __FILE__, __LINE__, #expr);                        \
-            ++failures;                                                      \
-        }                                                                    \
-    } while (false)
+void runXoaParameterTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -44,6 +35,8 @@ static void testXoaConstants()
     CHECK (xoa::kAmbisonicOrder == 10);
     CHECK (xoa::kNumSHChannels == (xoa::kAmbisonicOrder + 1) * (xoa::kAmbisonicOrder + 1));
     CHECK (xoa::kNumSHChannels == 121);
+    CHECK (xoa::kDefaultInputs <= xoa::kMaxInputs);
+    CHECK (xoa::kDefaultSpeakers <= xoa::kMaxSpeakers);
 }
 
 //==============================================================================
@@ -81,16 +74,22 @@ static void testSpatcoreSmoke()
 //==============================================================================
 int main()
 {
+    juce::MessageManager::getInstance();
+
     try
     {
         testXoaConstants();
         testSpatcoreSmoke();
+        runXoaParameterTests();
     }
     catch (const std::exception& e)
     {
         std::fprintf (stderr, "FAIL: unexpected exception: %s\n", e.what());
         ++failures;
     }
+
+    juce::DeletedAtShutdown::deleteAll();
+    juce::MessageManager::deleteInstance();
 
     if (failures == 0)
     {

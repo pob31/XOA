@@ -1,0 +1,103 @@
+#pragma once
+
+#include <juce_core/juce_core.h>
+
+//==============================================================================
+// XOA — parameter and node-type identifiers.
+//
+// One inline const juce::Identifier per ValueTree node type and per parameter
+// (C++17 inline variables: one instance program-wide). Scope routing is by
+// name prefix (see XoaValueTreeState::getParameterScope): "input*" = per-input,
+// "speaker*"/"eq*" = per-speaker, "decoder*" = decoder section, everything
+// else = Config. Keep new parameter names inside that convention.
+//
+// Rule: no other namespace-scope global may construct from these ids at
+// static-init time (the constraints table is a function-local static for
+// exactly this reason).
+//==============================================================================
+
+namespace xoa::ids
+{
+
+// ValueTree node types
+inline const juce::Identifier root       { "XOA" };
+inline const juce::Identifier config     { "Config" };
+inline const juce::Identifier inputs     { "Inputs" };
+inline const juce::Identifier input      { "Input" };
+inline const juce::Identifier speakers   { "Speakers" };
+inline const juce::Identifier speaker    { "Speaker" };
+inline const juce::Identifier decoder    { "Decoder" };
+inline const juce::Identifier monitoring { "Monitoring" };
+inline const juce::Identifier channel    { "Channel" };
+inline const juce::Identifier position   { "Position" };
+inline const juce::Identifier encoder    { "Encoder" };
+inline const juce::Identifier eq         { "EQ" };
+inline const juce::Identifier band       { "Band" };
+
+// Section-file / manifest root node types
+inline const juce::Identifier configFileRoot   { "XOAConfig" };
+inline const juce::Identifier inputsFileRoot   { "XOAInputs" };
+inline const juce::Identifier speakersFileRoot { "XOASpeakers" };
+inline const juce::Identifier decoderFileRoot  { "XOADecoder" };
+inline const juce::Identifier projectManifest  { "XOAProject" };
+
+// Bookkeeping properties
+inline const juce::Identifier idProp        { "id" };
+inline const juce::Identifier schemaVersion { "schemaVersion" };
+inline const juce::Identifier inputCount    { "inputCount" };
+inline const juce::Identifier speakerCount  { "speakerCount" };
+
+// Config
+inline const juce::Identifier showName         { "showName" };
+inline const juce::Identifier masterGain       { "masterGain" };
+inline const juce::Identifier oscEnabled       { "oscEnabled" };
+inline const juce::Identifier oscReceivePort   { "oscReceivePort" };
+inline const juce::Identifier oscSendPort      { "oscSendPort" };
+inline const juce::Identifier oscSendAddress   { "oscSendAddress" };
+inline const juce::Identifier audioDeviceState { "audioDeviceState" };
+
+// Input / Channel
+inline const juce::Identifier inputName { "inputName" };
+inline const juce::Identifier inputGain { "inputGain" };
+inline const juce::Identifier inputMute { "inputMute" };
+
+// Input / Position (canonical cartesian meters; mode is display-only)
+inline const juce::Identifier inputPositionX      { "inputPositionX" };
+inline const juce::Identifier inputPositionY      { "inputPositionY" };
+inline const juce::Identifier inputPositionZ      { "inputPositionZ" };
+inline const juce::Identifier inputCoordinateMode { "inputCoordinateMode" };
+
+// Input / Encoder
+inline const juce::Identifier inputSpread     { "inputSpread" };
+inline const juce::Identifier inputNfcEnabled { "inputNfcEnabled" };
+
+// Speaker / Channel
+inline const juce::Identifier speakerName  { "speakerName" };
+inline const juce::Identifier speakerGain  { "speakerGain" };
+inline const juce::Identifier speakerDelay { "speakerDelay" };
+inline const juce::Identifier speakerMute  { "speakerMute" };
+inline const juce::Identifier speakerSolo  { "speakerSolo" };   // transient: stripped on save
+
+// Speaker / Position
+inline const juce::Identifier speakerPositionX      { "speakerPositionX" };
+inline const juce::Identifier speakerPositionY      { "speakerPositionY" };
+inline const juce::Identifier speakerPositionZ      { "speakerPositionZ" };
+inline const juce::Identifier speakerCoordinateMode { "speakerCoordinateMode" };
+
+// Speaker / EQ ("eq*" band names match WFS-DIY verbatim so the FR-16 EQ
+// import is a later name-for-name copy)
+inline const juce::Identifier speakerEqEnabled { "speakerEqEnabled" };
+inline const juce::Identifier eqShape          { "eqShape" };
+inline const juce::Identifier eqFrequency      { "eqFrequency" };
+inline const juce::Identifier eqGain           { "eqGain" };
+inline const juce::Identifier eqQ              { "eqQ" };
+inline const juce::Identifier eqSlope          { "eqSlope" };
+
+// Decoder
+inline const juce::Identifier decoderType               { "decoderType" };
+inline const juce::Identifier decoderWeighting          { "decoderWeighting" };
+inline const juce::Identifier decoderDualBandEnabled    { "decoderDualBandEnabled" };
+inline const juce::Identifier decoderCrossoverFrequency { "decoderCrossoverFrequency" };
+inline const juce::Identifier decoderNormalization      { "decoderNormalization" };
+
+} // namespace xoa::ids

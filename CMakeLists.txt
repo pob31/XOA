@@ -62,13 +62,16 @@ juce_add_gui_app(XOA
 
 target_sources(XOA PRIVATE
     Source/Main.cpp
-    Source/MainComponent.cpp)
+    Source/MainComponent.cpp
+    Source/Parameters/XoaValueTreeState.cpp
+    Source/Parameters/XoaFileManager.cpp)
 
 target_include_directories(XOA PRIVATE Source)
 
 target_compile_definitions(XOA PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:XOA,JUCE_PRODUCT_NAME>"
     JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:XOA,JUCE_VERSION>"
+    XOA_VERSION_STRING="${PROJECT_VERSION}"
     $<$<PLATFORM_ID:Linux>:JUCE_JACK=1>)
 
 target_link_libraries(XOA PRIVATE

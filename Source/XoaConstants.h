@@ -21,4 +21,20 @@ constexpr int kNumSHChannels = (kAmbisonicOrder + 1) * (kAmbisonicOrder + 1);
 
 static_assert (kNumSHChannels == 121, "10th-order Ambisonics carries 121 SH channels");
 
+//==============================================================================
+// Channel-count ceilings and fresh-project defaults.
+//
+// kMaxSpeakers is the v1 validation clamp (PRD FR-20: 256 outputs v1,
+// architecture clean to 512) — no arrays are sized by it; raising it later is
+// a one-line change plus merge-backfill of older project files.
+//==============================================================================
+
+constexpr int kMaxInputs       = 64;
+constexpr int kMaxSpeakers     = 256;
+constexpr int kDefaultInputs   = 8;
+constexpr int kDefaultSpeakers = 24;   // the M1 24-ring validation fixture
+
+/** Per-speaker EQ band count (matches spatcore's per-output EQ chain). */
+constexpr int kNumEqBands = 6;
+
 } // namespace xoa

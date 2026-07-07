@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- xoa-tests fixture: hand-written to mirror the WFS-DIY v1 outputs.xml -->
+<!-- schema (OutputConfig/Outputs/Output{Channel,Position,Options,EQ/Band}) -->
+<!-- as documented from d:/dev/WFS_DIY_v1 control-replay golden fixtures.  -->
+<!-- Output 3 carries outputCoordinateMode="1" to exercise the non-       -->
+<!-- cartesian import warning path. Not a copy of any real project file.  -->
+
+<OutputConfig version="1.0">
+  <Outputs count="4">
+    <Output id="1">
+      <Channel outputName="Front Left" outputArray="0" outputApplyToArray="1"
+               outputAttenuation="-3.0" outputDelayLatency="1.5" outputMapVisible="1"
+               outputArrayMapVisible="1"/>
+      <Position outputPositionX="-2.0" outputPositionY="3.0" outputPositionZ="0.5"
+                outputOrientation="0" outputAngleOn="86" outputAngleOff="90"
+                outputPitch="0" outputHFdamping="0.0" outputCoordinateMode="0"/>
+      <Options outputMiniLatencyEnable="1" outputLSattenEnable="1" outputFRenable="1"
+               outputDistanceAttenPercent="100" outputHparallax="0.0" outputVparallax="0.0"/>
+      <EQ outputEQenabled="0">
+        <Band id="1" eqShape="0" eqFrequency="80.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="2" eqShape="2" eqFrequency="250.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="3" eqShape="3" eqFrequency="630.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="4" eqShape="3" eqFrequency="1600.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="5" eqShape="5" eqFrequency="4000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="6" eqShape="0" eqFrequency="10000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+      </EQ>
+    </Output>
+    <Output id="2">
+      <Channel outputName="Front Right" outputArray="0" outputApplyToArray="1"
+               outputAttenuation="-3.0" outputDelayLatency="1.5" outputMapVisible="1"
+               outputArrayMapVisible="1"/>
+      <Position outputPositionX="2.0" outputPositionY="3.0" outputPositionZ="0.5"
+                outputOrientation="0" outputAngleOn="86" outputAngleOff="90"
+                outputPitch="0" outputHFdamping="0.0" outputCoordinateMode="0"/>
+      <Options outputMiniLatencyEnable="1" outputLSattenEnable="1" outputFRenable="1"
+               outputDistanceAttenPercent="100" outputHparallax="0.0" outputVparallax="0.0"/>
+      <EQ outputEQenabled="0">
+        <Band id="1" eqShape="0" eqFrequency="80.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="2" eqShape="0" eqFrequency="250.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="3" eqShape="0" eqFrequency="630.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="4" eqShape="0" eqFrequency="1600.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="5" eqShape="0" eqFrequency="4000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="6" eqShape="0" eqFrequency="10000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+      </EQ>
+    </Output>
+    <Output id="3">
+      <Channel outputName="Ceiling" outputArray="0" outputApplyToArray="1"
+               outputAttenuation="999.0" outputDelayLatency="2.25" outputMapVisible="1"
+               outputArrayMapVisible="1"/>
+      <Position outputPositionX="0.0" outputPositionY="0.0" outputPositionZ="4.0"
+                outputOrientation="0" outputAngleOn="86" outputAngleOff="90"
+                outputPitch="-90" outputHFdamping="0.0" outputCoordinateMode="1"/>
+      <Options outputMiniLatencyEnable="1" outputLSattenEnable="1" outputFRenable="1"
+               outputDistanceAttenPercent="100" outputHparallax="0.0" outputVparallax="0.0"/>
+      <EQ outputEQenabled="0">
+        <Band id="1" eqShape="0" eqFrequency="80.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="2" eqShape="0" eqFrequency="250.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="3" eqShape="0" eqFrequency="630.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="4" eqShape="0" eqFrequency="1600.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="5" eqShape="0" eqFrequency="4000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="6" eqShape="0" eqFrequency="10000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+      </EQ>
+    </Output>
+    <Output id="4">
+      <Channel outputName="Sub" outputArray="0" outputApplyToArray="1"
+               outputAttenuation="0.0" outputDelayLatency="0.0" outputMapVisible="1"
+               outputArrayMapVisible="1"/>
+      <Position outputPositionX="0.0" outputPositionY="-3.5" outputPositionZ="-0.25"
+                outputOrientation="180" outputAngleOn="86" outputAngleOff="90"
+                outputPitch="0" outputHFdamping="0.0" outputCoordinateMode="0"/>
+      <Options outputMiniLatencyEnable="1" outputLSattenEnable="1" outputFRenable="1"
+               outputDistanceAttenPercent="100" outputHparallax="0.0" outputVparallax="0.0"/>
+      <EQ outputEQenabled="0">
+        <Band id="1" eqShape="0" eqFrequency="80.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="2" eqShape="0" eqFrequency="250.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="3" eqShape="0" eqFrequency="630.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="4" eqShape="0" eqFrequency="1600.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="5" eqShape="0" eqFrequency="4000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+        <Band id="6" eqShape="0" eqFrequency="10000.0" eqGain="0.0" eqQ="0.699999988079071" eqSlope="0.699999988079071"/>
+      </EQ>
+    </Output>
+  </Outputs>
+</OutputConfig>
