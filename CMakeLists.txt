@@ -14,14 +14,17 @@ cmake_minimum_required(VERSION 3.22)
 
 project(XOA VERSION 0.1.0 LANGUAGES C CXX)
 
-# spatcore-audio compiles Metal .mm (Objective-C++) backends on Apple and
-# enables OBJCXX from its own add_subdirectory scope. CMake only reliably
-# populates the OBJCXX compile rules (CMAKE_OBJCXX_COMPILE_OBJECT) when the
-# language is enabled at the top level, so do it here — otherwise macOS
-# configure fails at generate with "Missing variable: CMAKE_OBJCXX_COMPILE_OBJECT".
-if(APPLE)
-    enable_language(OBJCXX)
-endif()
+# spatcore's CMake-native consumer helpers — OBJCXX enable, juce_simpleweb and
+# hidapi wiring. Centralized in the submodule (spatcore/cmake/SpatcoreConsumer.cmake)
+# so these fiddly, drift-prone, platform-specific bits live in ONE place across
+# XOA / Tight-WFS / spatcore's own example, and a fix arrives on a pin bump.
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/spatcore/cmake")
+include(SpatcoreConsumer)
+
+# Enable OBJCXX at this top level on Apple (spatcore's Metal backends AND JUCE's
+# module sources are .mm and compile into this app's own targets). Must run
+# before add_subdirectory(JUCE).
+spatcore_enable_consumer_languages()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,50 +35,16 @@ if(APPLE)
 endif()
 
 # ---------------------------------------------------------------------------
-# JUCE (submodule) — must exist before spatcore per its consumer contract
+# Consumer-provides dependencies (see spatcore/README.md). The helpers apply
+# the required fixups: juce_simpleweb gets the JuceHeader stub + OpenSSL strip;
+# hidapi is built static (hidraw on Linux) and its header dir exported to
+# spatcore. JUCE and roli_blocks_basics need no fixups.
 # ---------------------------------------------------------------------------
 add_subdirectory(ThirdParty/JUCE "${CMAKE_BINARY_DIR}/juce" EXCLUDE_FROM_ALL)
-
-# ---------------------------------------------------------------------------
-# juce_simpleweb (vendored module) — required by spatcore-control's MCP
-# transport. Same two consumer-side fixups as spatcore's reference wiring:
-#  1. its .cpps were authored for Projucer and include "JuceHeader.h" — give
-#     the module a minimal stub on its interface include path;
-#  2. its module header declares libssl/libcrypto/z link libs unconditionally,
-#     but spatcore builds it with SIMPLEWEB_SECURE_SUPPORTED=0 (no TLS), so
-#     strip them to avoid an OpenSSL SDK requirement.
-# ---------------------------------------------------------------------------
-juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/juce_simpleweb")
-target_include_directories(juce_simpleweb INTERFACE
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/JuceHeaderStub")
-get_target_property(_sw_libs juce_simpleweb INTERFACE_LINK_LIBRARIES)
-if(_sw_libs)
-    list(REMOVE_ITEM _sw_libs libssl libcrypto z)
-    set_target_properties(juce_simpleweb PROPERTIES INTERFACE_LINK_LIBRARIES "${_sw_libs}")
-endif()
-
-# ---------------------------------------------------------------------------
-# roli_blocks_basics (vendored module) — Lightpad support in spatcore-controllers
-# ---------------------------------------------------------------------------
+spatcore_add_juce_simpleweb("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/juce_simpleweb")
 juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/roli_blocks_basics")
+spatcore_add_hidapi("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/hidapi")
 
-# ---------------------------------------------------------------------------
-# hidapi (submodule) — spatcore-controllers needs the HEADERS only; the
-# platform implementation is built here (static) and linked into the app.
-# ---------------------------------------------------------------------------
-set(BUILD_SHARED_LIBS OFF)
-set(HIDAPI_BUILD_HIDTEST OFF)
-set(HIDAPI_WITH_LIBUSB OFF)   # Linux: hidraw backend only (matches WFS-DIY)
-# hidapi declares cmake_minimum_required(3.1.3...) — CMake 4.x refuses
-# minimums below 3.5 without this floor (no effect on CMake < 4).
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-add_subdirectory(ThirdParty/hidapi "${CMAKE_BINARY_DIR}/hidapi" EXCLUDE_FROM_ALL)
-unset(CMAKE_POLICY_VERSION_MINIMUM)
-set(SPATCORE_HIDAPI_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/hidapi")
-
-# ---------------------------------------------------------------------------
-# spatcore (submodule) — spatcore-audio / spatcore-control / spatcore-controllers
-# ---------------------------------------------------------------------------
 add_subdirectory(spatcore "${CMAKE_BINARY_DIR}/spatcore")
 
 # ---------------------------------------------------------------------------
