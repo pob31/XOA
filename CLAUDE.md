@@ -18,10 +18,12 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to a released tag (currently v0.1.0).
-  rt/dsp/wfs/reverb/gpu + control (osc/state/mcp) + controllers. Dependency
-  direction is strictly app → spatcore; never modify spatcore from here —
-  changes go to the spatcore repo and arrive via a pin bump.
+- `spatcore/` — **submodule**, pinned (currently `9053821` on main — 0.1.1
+  pre-tag, which added the macOS consumer contracts: top-level OBJCXX check +
+  hidapi header staging). rt/dsp/wfs/reverb/gpu + control (osc/state/mcp) +
+  controllers. Dependency direction is strictly app → spatcore; never modify
+  spatcore from here — changes go to the spatcore repo and arrive via a pin
+  bump.
 - `ThirdParty/JUCE` — submodule (JUCE 8, same pin as WFS-DIY).
 - `ThirdParty/hidapi` — submodule (headers for spatcore-controllers; static
   lib linked into the app via hidapi's own CMake).

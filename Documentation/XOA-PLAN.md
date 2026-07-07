@@ -78,10 +78,10 @@ every experiment.
 ## 4. Roadmap
 
 - **P0 — Bootstrap (this repo state).** Submodules (JUCE 8.0.14 @2cdfca8f,
-  spatcore @v0.1.0, hidapi @0.15.0), vendored juce_simpleweb +
+  spatcore @9053821 / 0.1.1-pre, hidapi @0.15.0), vendored juce_simpleweb +
   roli_blocks_basics, CMake build of a minimal JUCE app linking
-  spatcore-audio/-control/-controllers, GPLv3, CI build sanity on the three
-  OSes.
+  spatcore-audio/-control/-controllers, GPLv3, CI build sanity green on the
+  three OSes.
 - **P1 — Parameter store & schema.** `XoaValueTreeState :
   TreeParameterStore`; sections: Config (show/IO/stage/master/network),
   Inputs (position in cart/cyl/spherical via `CoordinateConverter`, gain,
