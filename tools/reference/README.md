@@ -44,6 +44,6 @@ py -3.14 -m venv .venv
 | `gen_fuma_reference.py` | FuMa→AmbiX conversion table (from the maxN rule) + test vectors | WP3 |
 | `gen_rotation_reference.py` | real-SH rotation blocks via exact quadrature projection (GL(11)×24; independent of Ivanic–Ruedenberg) | WP4 |
 | `gen_decoder_reference.py` | SAD/mode-matching golden matrices (ring + dome fixtures) | WP5 |
-| `gen_tdesign_tables.py` | virtual-layout t-design coordinates + provenance | WP7 |
+| `gen_tdesign_tables.py` | virtual-layout t-design (Womersley symmetric, t=33, 564 pts; emits `Source/DSP/TDesignTables.h` + `tdesign_data.json`; source cached as `ss033.00564`) | WP7 |
 | `gen_bessel_roots.py` | reverse-Bessel polynomial roots ℓ = 1…10 | WP8 |
 | `gen_nfc_reference.py` | NFC magnitude curves (Daniel) across SR/radius | WP8 |

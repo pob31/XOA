@@ -14,12 +14,14 @@
 #include "DSP/AmbiRvReAnalysis.h"
 #include "DSP/AmbiSphericalHarmonics.h"
 #include "DSP/DecoderMatrixBuilder.h"
+#include "DSP/TDesignTables.h"
 #include "DSP/XoaLinearAlgebra.h"
 #include "Helpers/XoaCoordinates.h"
 #include "Parameters/XoaParameterIDs.h"
 #include "Parameters/XoaValueTreeState.h"
 #include "XoaConstants.h"
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -786,6 +788,74 @@ static void testStoreReaders()
 }
 
 //==============================================================================
+//==============================================================================
+// WP7 T1 — the committed t-design table, re-verified with the production SH
+// evaluator (independent of the generator's 40-digit mpmath check). The
+// production evaluator caps at order 10, so strength >= 21 is established in
+// two steps that only need order-10 evaluations:
+//   1. Discrete orthogonality (Gram): sum_i Y_c1(x_i) Y_c2(x_i) ==
+//      N * delta_{c1,c2} / (2 l_c + 1) under SN3D. Products of two
+//      degree-<=10 SHs span degrees <= 20, so this proves exact quadrature
+//      through degree 20 — and it is precisely the property that makes the
+//      AllRAD virtual sampling decode exact.
+//   2. Antipodal symmetry (checked structurally): Y_l(-x) = (-1)^l Y_l(x),
+//      so every ODD degree — including 21 — sums to zero by construction.
+//==============================================================================
+static void testTDesignTable()
+{
+    using xoa::tdesign::kCount;
+    using xoa::tdesign::kPoints;
+
+    CHECK (xoa::tdesign::kStrength >= 2 * xoa::kAmbisonicOrder + 1);
+    CHECK (kCount >= 4);
+
+    // Unit norms + antipodal pairing (structural half of the proof).
+    double worstNorm = 0.0;
+    int unpaired = 0;
+    for (int i = 0; i < kCount; ++i)
+    {
+        const double* p = kPoints[i];
+        worstNorm = std::max (worstNorm,
+                              std::abs (std::sqrt (p[0]*p[0] + p[1]*p[1] + p[2]*p[2]) - 1.0));
+
+        bool found = false;
+        for (int j = 0; j < kCount && ! found; ++j)
+            found = std::abs (kPoints[j][0] + p[0]) < 1.0e-12
+                 && std::abs (kPoints[j][1] + p[1]) < 1.0e-12
+                 && std::abs (kPoints[j][2] + p[2]) < 1.0e-12;
+        if (! found)
+            ++unpaired;
+    }
+    CHECK (worstNorm < 1.0e-13);
+    CHECK (unpaired == 0);
+
+    // Gram check at order 10 (proves quadrature exactness through degree 20).
+    constexpr int order = xoa::kAmbisonicOrder;
+    constexpr int K = xoa::kNumSHChannels;
+    std::vector<double> y ((size_t) kCount * K);
+    double shBuf[xoa::kNumSHChannels];
+    for (int i = 0; i < kCount; ++i)
+    {
+        const double* p = kPoints[i];
+        dsh::evaluate (xoa::coords::Cartesian { p[0], p[1], p[2] }, order, shBuf);
+        std::copy (shBuf, shBuf + K, y.begin() + (size_t) i * K);
+    }
+
+    double worst = 0.0;
+    for (int c1 = 0; c1 < K; ++c1)
+        for (int c2 = c1; c2 < K; ++c2)
+        {
+            double acc = 0.0;
+            for (int i = 0; i < kCount; ++i)
+                acc += y[(size_t) i * K + c1] * y[(size_t) i * K + c2];
+            const double expected = (c1 == c2)
+                ? (double) kCount / (2.0 * dsh::acnToOrder (c1) + 1.0)
+                : 0.0;
+            worst = std::max (worst, std::abs (acc - expected));
+        }
+    CHECK (worst < 1.0e-9 * kCount);
+}
+
 void runXoaDecoderTests()
 {
     testSvdClosedForms();
@@ -802,4 +872,5 @@ void runXoaDecoderTests()
     testExports();
     testBuilder();
     testStoreReaders();
+    testTDesignTable();
 }
