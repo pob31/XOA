@@ -44,6 +44,14 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::oscReceivePort, { d::oscPortMin, d::oscPortMax, d::oscReceivePortDefault, true } },
         { ids::oscSendPort,    { d::oscPortMin, d::oscPortMax, d::oscSendPortDefault, true } },
 
+        // Config / scene rotation + playback (playbackLoop is bool and
+        // playbackFilePath is string -> unbounded by convention)
+        { ids::rotationYaw,          { d::rotationYawMin, d::rotationYawMax, d::rotationYawDefault, false } },
+        { ids::rotationPitch,        { d::rotationPitchMin, d::rotationPitchMax, d::rotationPitchDefault, false } },
+        { ids::rotationRoll,         { d::rotationRollMin, d::rotationRollMax, d::rotationRollDefault, false } },
+        { ids::playbackContentOrder, { d::playbackContentOrderMin, d::playbackContentOrderMax, d::playbackContentOrderDefault, true } },
+        { ids::playbackConvention,   { d::playbackConventionMin, d::playbackConventionMax, d::playbackConventionDefault, true } },
+
         // Structural counts
         { ids::inputCount,   { 1.0, (double) xoa::kMaxInputs,   (double) xoa::kDefaultInputs,   true } },
         { ids::speakerCount, { 1.0, (double) xoa::kMaxSpeakers, (double) xoa::kDefaultSpeakers, true } },

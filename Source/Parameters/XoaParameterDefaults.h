@@ -35,6 +35,22 @@ constexpr double oscReceivePortDefault = 9000.0, oscPortMin = 1.0, oscPortMax = 
 constexpr double oscSendPortDefault    = 9001.0;
 inline const juce::String oscSendAddressDefault { "127.0.0.1" };
 
+// Config / Scene rotation (degrees, WP4 yaw-pitch-roll convention: intrinsic
+// Z-Y'-X''). Pitch is limited to +/-90 so every orientation has exactly one
+// representation (and WP9's quaternion decomposition lands in range).
+constexpr double rotationYawDefault   = 0.0, rotationYawMin   = -180.0, rotationYawMax   = 180.0;
+constexpr double rotationPitchDefault = 0.0, rotationPitchMin =  -90.0, rotationPitchMax =  90.0;
+constexpr double rotationRollDefault  = 0.0, rotationRollMin  = -180.0, rotationRollMax  = 180.0;
+
+// Config / Playback. Content order 0 means "auto-detect from channel count";
+// the max is the bus order (order-generic rule FR-3).
+inline const juce::String playbackFilePathDefault {};
+constexpr bool   playbackLoopDefault = false;
+constexpr double playbackContentOrderDefault = 0.0, playbackContentOrderMin = 0.0,
+                 playbackContentOrderMax = (double) xoa::kAmbisonicOrder;
+constexpr double playbackConventionDefault = 0.0,
+                 playbackConventionMin = 0.0, playbackConventionMax = 2.0;   // 0 SN3D, 1 N3D, 2 FuMa
+
 // Inputs ----------------------------------------------------------------
 constexpr double inputGainDefault = 0.0, inputGainMin = -60.0, inputGainMax = 12.0;       // dB
 constexpr bool   inputMuteDefault = false;

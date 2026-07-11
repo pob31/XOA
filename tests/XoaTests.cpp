@@ -24,7 +24,8 @@
                              WFS import completion (XoaDecoderTests.cpp)
       7. WP6 suite           file-I/O spike: 121/128-ch WAV + 8-ch FLAC
                              round-trips, garbage rejection
-                             (XoaFilePlayerTests.cpp)
+                             (XoaFilePlayerTests.cpp); RT snapshot composers
+                             (rotation state, gather table) (XoaBusTests.cpp)
 */
 
 #include <juce_core/juce_core.h>
@@ -43,6 +44,7 @@ void runXoaShTests();
 void runXoaRotationTests();
 void runXoaDecoderTests();
 void runXoaFilePlayerTests();
+void runXoaBusTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -100,6 +102,7 @@ int main()
         runXoaRotationTests();
         runXoaDecoderTests();
         runXoaFilePlayerTests();
+        runXoaBusTests();
     }
     catch (const std::exception& e)
     {

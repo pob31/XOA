@@ -51,6 +51,13 @@ void XoaValueTreeState::initializeDefaultState()
     config.setProperty (ids::oscSendPort, static_cast<int> (d::oscSendPortDefault), nullptr);
     config.setProperty (ids::oscSendAddress, d::oscSendAddressDefault, nullptr);
     config.setProperty (ids::audioDeviceState, juce::String(), nullptr);
+    config.setProperty (ids::rotationYaw, d::rotationYawDefault, nullptr);
+    config.setProperty (ids::rotationPitch, d::rotationPitchDefault, nullptr);
+    config.setProperty (ids::rotationRoll, d::rotationRollDefault, nullptr);
+    config.setProperty (ids::playbackFilePath, d::playbackFilePathDefault, nullptr);
+    config.setProperty (ids::playbackLoop, d::playbackLoopDefault, nullptr);
+    config.setProperty (ids::playbackContentOrder, static_cast<int> (d::playbackContentOrderDefault), nullptr);
+    config.setProperty (ids::playbackConvention, static_cast<int> (d::playbackConventionDefault), nullptr);
     state.appendChild (config, nullptr);
 
     juce::ValueTree inputs (ids::inputs);

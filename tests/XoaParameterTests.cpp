@@ -227,6 +227,91 @@ static void testDefaultSchema()
 }
 
 //==============================================================================
+// T4b — WP6 Config additions: scene rotation + playback parameters
+//==============================================================================
+static void testWp6ConfigParameters()
+{
+    XoaValueTreeState s;
+
+    // Defaults present in a fresh project
+    CHECK (s.getFloatParameter (ids::rotationYaw) == 0.0f);
+    CHECK (s.getFloatParameter (ids::rotationPitch) == 0.0f);
+    CHECK (s.getFloatParameter (ids::rotationRoll) == 0.0f);
+    CHECK (s.getStringParameter (ids::playbackFilePath).isEmpty());
+    CHECK (! static_cast<bool> (s.getParameter (ids::playbackLoop)));
+    CHECK (s.getIntParameter (ids::playbackContentOrder) == 0);   // auto
+    CHECK (s.getIntParameter (ids::playbackConvention) == 0);     // SN3D
+
+    // Gate-1 live clamps from the bounds table
+    s.setParameter (ids::rotationYaw, 500.0);
+    CHECK (s.getFloatParameter (ids::rotationYaw) == 180.0f);
+    s.setParameter (ids::rotationPitch, -123.0);
+    CHECK (s.getFloatParameter (ids::rotationPitch) == -90.0f);
+    s.setParameter (ids::playbackContentOrder, 99.0);
+    CHECK (s.getIntParameter (ids::playbackContentOrder) == xoa::kAmbisonicOrder);
+
+    // In-range writes land verbatim; strings/bools stay unbounded
+    s.setParameter (ids::rotationRoll, -45.0);
+    CHECK (s.getFloatParameter (ids::rotationRoll) == -45.0f);
+    s.setParameter (ids::playbackFilePath, "d:/scenes/dome.wav");
+    CHECK (s.getStringParameter (ids::playbackFilePath) == "d:/scenes/dome.wav");
+    s.setParameter (ids::playbackLoop, true);
+    CHECK (static_cast<bool> (s.getParameter (ids::playbackLoop)));
+}
+
+//==============================================================================
+// T4c — WP6 Config additions: persistence + Gate-2 load validation + backfill
+// (the paths T4b's in-memory clamps do not reach)
+//==============================================================================
+static void testWp6ConfigPersistence()
+{
+    ScopedTempDir tmp;
+
+    // Non-default, in-range values load verbatim; an out-of-range angle is
+    // clamped by Gate-2 (validateLoadedProperty), not rejected to default.
+    const auto cfgFile = tmp.dir.getChildFile ("wp6_config.xml");
+    cfgFile.replaceWithText (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<XOAConfig schemaVersion=\"1\">\n"
+        "  <Config rotationYaw=\"45.0\" rotationPitch=\"9999.0\" rotationRoll=\"-30.0\""
+        " playbackFilePath=\"d:/scenes/dome.wav\" playbackLoop=\"1\""
+        " playbackContentOrder=\"3\" playbackConvention=\"2\"/>\n"
+        "</XOAConfig>\n");
+
+    XoaValueTreeState s;
+    XoaFileManager fm (s);
+    CHECK (fm.importConfig (cfgFile));
+
+    CHECK (s.getFloatParameter (ids::rotationYaw) == 45.0f);        // in-range verbatim
+    CHECK (s.getFloatParameter (ids::rotationPitch) == 90.0f);      // 9999 -> clamped to +90
+    CHECK (s.getFloatParameter (ids::rotationRoll) == -30.0f);
+    CHECK (s.getStringParameter (ids::playbackFilePath) == "d:/scenes/dome.wav");
+    CHECK (static_cast<bool> (s.getParameter (ids::playbackLoop)));
+    CHECK (s.getIntParameter (ids::playbackContentOrder) == 3);
+    CHECK (s.getIntParameter (ids::playbackConvention) == 2);
+
+    // A legacy config that predates these params must not lose them: the merge
+    // leaves each at its default rather than dropping it from the tree.
+    const auto legacyFile = tmp.dir.getChildFile ("legacy_config.xml");
+    legacyFile.replaceWithText (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<XOAConfig schemaVersion=\"1\">\n"
+        "  <Config showName=\"Legacy\"/>\n"
+        "</XOAConfig>\n");
+
+    XoaValueTreeState s2;
+    XoaFileManager fm2 (s2);
+    CHECK (fm2.importConfig (legacyFile));
+
+    CHECK (s2.getStringParameter (ids::showName) == "Legacy");      // file value applied
+    CHECK (s2.getConfigSection().hasProperty (ids::rotationYaw));   // param survived the merge
+    CHECK (s2.getFloatParameter (ids::rotationYaw) == 0.0f);        // at its default
+    CHECK (s2.getStringParameter (ids::playbackFilePath).isEmpty());
+    CHECK (s2.getIntParameter (ids::playbackContentOrder) == 0);    // auto
+    CHECK (s2.getIntParameter (ids::playbackConvention) == 0);      // SN3D
+}
+
+//==============================================================================
 // T5 — typed get/set, addressing, live clamp, EQ helpers
 //==============================================================================
 static void testGetSet()
@@ -702,6 +787,8 @@ void runXoaParameterTests()
     testValidationGates();
     testCoordinates();
     testDefaultSchema();
+    testWp6ConfigParameters();
+    testWp6ConfigPersistence();
     testGetSet();
     testUndoDomains();
     testListenerRegistry();

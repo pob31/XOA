@@ -56,6 +56,19 @@ inline const juce::Identifier oscSendPort      { "oscSendPort" };
 inline const juce::Identifier oscSendAddress   { "oscSendAddress" };
 inline const juce::Identifier audioDeviceState { "audioDeviceState" };
 
+// Config / Scene rotation (FR-9/FR-10 — the runtime SO(3) orientation;
+// "rotation*"/"playback*" ride the everything-else-is-Config scope rule)
+inline const juce::Identifier rotationYaw   { "rotationYaw" };
+inline const juce::Identifier rotationPitch { "rotationPitch" };
+inline const juce::Identifier rotationRoll  { "rotationRoll" };
+
+// Config / Playback (FR-8). Play state and transport position are
+// deliberately runtime-only: persisting them would pollute undo/dirty.
+inline const juce::Identifier playbackFilePath     { "playbackFilePath" };
+inline const juce::Identifier playbackLoop         { "playbackLoop" };
+inline const juce::Identifier playbackContentOrder { "playbackContentOrder" };  // 0 = auto-detect
+inline const juce::Identifier playbackConvention   { "playbackConvention" };    // 0 SN3D, 1 N3D, 2 FuMa
+
 // Input / Channel
 inline const juce::Identifier inputName { "inputName" };
 inline const juce::Identifier inputGain { "inputGain" };
