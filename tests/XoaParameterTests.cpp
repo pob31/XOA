@@ -579,32 +579,54 @@ static void testWfsImport()
     XoaValueTreeState s;
     XoaFileManager fm (s);
 
-    const auto result = fm.importWfsSpeakerLayout (fixture);
+    const auto result = fm.importWfsSpeakerLayout (fixture);   // default rotate90 remap
     CHECK (result.ok);
     CHECK (result.speakersImported == 4);
     CHECK (s.getNumSpeakers() == 4);
 
-    // Geometry landed (meters, verbatim)
+    // Name/gain/delay landed
     CHECK (s.getStringParameter (ids::speakerName, 0) == "Front Left");
     CHECK (static_cast<double> (s.getParameter (ids::speakerGain, 0)) == -3.0);
     CHECK (static_cast<double> (s.getParameter (ids::speakerDelay, 0)) == 1.5);
-    CHECK (static_cast<double> (s.getParameter (ids::speakerPositionX, 0)) == -2.0);
-    CHECK (static_cast<double> (s.getParameter (ids::speakerPositionY, 0)) == 3.0);
+
+    // Positions remapped: rotate90 maps WFS (x,y,z) -> XOA (y,-x,z).
+    // Front Left WFS (-2,3,0.5) -> XOA (3,2,0.5).
+    CHECK (static_cast<double> (s.getParameter (ids::speakerPositionX, 0)) == 3.0);
+    CHECK (static_cast<double> (s.getParameter (ids::speakerPositionY, 0)) == 2.0);
     CHECK (static_cast<double> (s.getParameter (ids::speakerPositionZ, 0)) == 0.5);
+    // Sub WFS (0,-3.5,-0.25) -> XOA (-3.5,0,-0.25)  (z preserved)
+    CHECK (static_cast<double> (s.getParameter (ids::speakerPositionX, 3)) == -3.5);
+    CHECK (static_cast<double> (s.getParameter (ids::speakerPositionY, 3)) == 0.0);
     CHECK (static_cast<double> (s.getParameter (ids::speakerPositionZ, 3)) == -0.25);
 
-    // Out-of-range attenuation (999 dB on output 3) clamped by the live gate
+    // Out-of-range attenuation (999 dB on Ceiling) clamped by the live gate
     CHECK (s.getFloatParameter (ids::speakerGain, 2) == 12.0f);
 
-    // Exactly one warning: the single mode-1 output. The three mode-0 outputs
-    // must NOT warn, and the out-of-range 999 dB attenuation is clamped by the
-    // parameter gate (not a warning).
-    CHECK (result.warnings.size() == 1);
-    CHECK (result.warnings[0].contains ("outputCoordinateMode=1"));
+    // Coordinate mode is a 1:1 display preference (Ceiling carries mode 1) and
+    // is NOT a warning — WFS positions are always cartesian.
+    CHECK (static_cast<int> (s.getParameter (ids::speakerCoordinateMode, 2)) == 1);
+    CHECK (result.warnings.isEmpty());
+
+    // EQ imported name-for-name: Front Left band shapes {0,2,3,3,5,0}, and the
+    // WFS shelf slope 0.6999... now lands in range (post eqSlope bounds fix).
+    CHECK (static_cast<int> (s.getEqBandParameter (0, 1, ids::eqShape)) == 2);   // LowShelf
+    CHECK (static_cast<int> (s.getEqBandParameter (0, 2, ids::eqShape)) == 3);   // Peak
+    CHECK (static_cast<int> (s.getEqBandParameter (0, 4, ids::eqShape)) == 5);   // HighShelf
+    CHECK (std::abs (static_cast<double> (s.getEqBandParameter (0, 0, ids::eqSlope)) - 0.699999988079071) < 1e-9);
 
     // WFS DSP knobs did not leak into the XOA schema
     CHECK (! s.getSpeakerTree (0).getChildWithName (ids::position)
                 .hasProperty (juce::Identifier ("outputOrientation")));
+
+    // verbatim remap: positions copied without the frame rotation
+    {
+        XoaValueTreeState sv;
+        XoaFileManager fmv (sv);
+        const auto rv = fmv.importWfsSpeakerLayout (fixture, XoaFileManager::WfsAxisRemap::verbatim);
+        CHECK (rv.ok);
+        CHECK (static_cast<double> (sv.getParameter (ids::speakerPositionX, 0)) == -2.0);
+        CHECK (static_cast<double> (sv.getParameter (ids::speakerPositionY, 0)) == 3.0);
+    }
 
     // Error paths are clean
     const auto missing = fm.importWfsSpeakerLayout (

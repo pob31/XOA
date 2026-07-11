@@ -83,8 +83,15 @@ public:
     bool importDecoder (const juce::File& f)   { return loadSectionFrom (Section::decoder, f); }
 
     //==========================================================================
-    // WFS-DIY speaker-layout import (FR-16, WP2 slice: parse + geometry)
+    // WFS-DIY speaker-layout import (FR-16)
     //==========================================================================
+
+    /** Maps the WFS-DIY stage frame (+X map-right, +Y upstage, +Z up) onto
+        XOA's listener frame (+X front, +Y left, +Z up).
+        rotate90 (default): the listener faces upstage, so front = +Y_wfs, left =
+        -X_wfs -> (x,y,z)_xoa = (y, -x, z)_wfs (a proper -90deg rotation, det +1).
+        verbatim: identity (XOA +X then points at WFS map-right). */
+    enum class WfsAxisRemap { rotate90, verbatim };
 
     struct WfsImportResult
     {
@@ -94,9 +101,11 @@ public:
         juce::String error;
     };
 
-    /** Import speaker geometry (name, gain, delay, position) from a WFS-DIY
-        outputs.xml. WFS DSP knobs, Options, and EQ are ignored in WP2. */
-    WfsImportResult importWfsSpeakerLayout (const juce::File& wfsOutputsXml);
+    /** Import speaker geometry (name, gain, delay, remapped position, display
+        coordinate mode) and per-band EQ (name-for-name) from a WFS-DIY
+        outputs.xml. WFS DSP knobs and <Options> are ignored. */
+    WfsImportResult importWfsSpeakerLayout (const juce::File& wfsOutputsXml,
+                                            WfsAxisRemap remap = WfsAxisRemap::rotate90);
 
     //==========================================================================
     // Paths and diagnostics

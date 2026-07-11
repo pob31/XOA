@@ -1,0 +1,708 @@
+/*
+    XoaDecoderTests.cpp - WP5 tests: linear algebra (Jacobi SVD/pinv), decoder
+    design (SAD + mode-matching), regularity classification, rV/rE analysis,
+    the non-RT matrix builder, and WFS import completion.
+
+    Golden data tests/data/decoder_reference.json is produced by
+    tools/reference/gen_decoder_reference.py (mpmath svd_r, ~40 digits).
+*/
+
+#include "XoaTestFramework.h"
+
+#include "DSP/AmbiConventions.h"
+#include "DSP/AmbiDecoderDesigner.h"
+#include "DSP/AmbiRvReAnalysis.h"
+#include "DSP/AmbiSphericalHarmonics.h"
+#include "DSP/DecoderMatrixBuilder.h"
+#include "DSP/XoaLinearAlgebra.h"
+#include "Helpers/XoaCoordinates.h"
+#include "Parameters/XoaParameterIDs.h"
+#include "Parameters/XoaValueTreeState.h"
+#include "XoaConstants.h"
+
+#include <cmath>
+#include <vector>
+
+namespace linalg = xoa::linalg;
+namespace dsh = xoa::sh;
+namespace dconv = xoa::conv;
+namespace dec = xoa::decoder;
+namespace ana = xoa::analysis;
+
+//==============================================================================
+static juce::var loadDecoderJson()
+{
+    const auto file = juce::File (XOA_TESTS_DATA_DIR).getChildFile ("decoder_reference.json");
+    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    CHECK (parsed.isObject());
+    return parsed;
+}
+
+static double dnum (const juce::var& v) { return static_cast<double> (v); }
+static bool dapprox (double a, double b, double tol) noexcept { return std::abs (a - b) <= tol; }
+
+// Reconstruct A' = U diag(sigma) V^T and return max|A' - A|.
+static double reconstructionError (const double* a, const linalg::SvdResult& s)
+{
+    double worst = 0.0;
+    for (int i = 0; i < s.m; ++i)
+        for (int j = 0; j < s.n; ++j)
+        {
+            double acc = 0.0;
+            for (int k = 0; k < s.n; ++k)
+                acc += s.u[(size_t) i * s.n + k] * s.sigma[(size_t) k] * s.v[(size_t) j * s.n + k];
+            worst = std::max (worst, std::abs (acc - a[(size_t) i * s.n + j]));
+        }
+    return worst;
+}
+
+// max |(M^T M) - I| for an m x n column-orthonormal M (only columns with sigma>tol).
+static double orthonormalityError (const std::vector<double>& mtx, int m, int n,
+                                   const std::vector<double>& sigma, double sigTol)
+{
+    double worst = 0.0;
+    for (int p = 0; p < n; ++p)
+        for (int q = 0; q < n; ++q)
+        {
+            if (sigma[(size_t) p] <= sigTol || sigma[(size_t) q] <= sigTol)
+                continue;
+            double acc = 0.0;
+            for (int i = 0; i < m; ++i)
+                acc += mtx[(size_t) i * n + p] * mtx[(size_t) i * n + q];
+            worst = std::max (worst, std::abs (acc - (p == q ? 1.0 : 0.0)));
+        }
+    return worst;
+}
+
+// Read a fixture's speaker positions from the golden JSON.
+static std::vector<xoa::coords::Cartesian> fixturePositions (const juce::var& fixture)
+{
+    const auto pos = fixture["positions"];
+    std::vector<xoa::coords::Cartesian> out;
+    for (int s = 0; s < pos.size(); ++s)
+        out.push_back ({ dnum (pos[s][0]), dnum (pos[s][1]), dnum (pos[s][2]) });
+    return out;
+}
+
+// Build A = (Y^N3D)^T, an L x K matrix (tall, L >= K) row-major, so its
+// singular values equal Y^N3D's. A[s][c] = sqrt(2 l_c + 1) * Y^SN3D_c(u_s).
+static std::vector<double> buildYn3dTransposed (const std::vector<xoa::coords::Cartesian>& pos,
+                                                int order, int& outL, int& outK)
+{
+    const int L = (int) pos.size();
+    const int K = dsh::numChannels (order);
+    outL = L; outK = K;
+    std::vector<double> a ((size_t) L * K);
+    double sh[xoa::kNumSHChannels];
+    for (int s = 0; s < L; ++s)
+    {
+        dsh::evaluate (pos[(size_t) s], order, sh);
+        for (int c = 0; c < K; ++c)
+            a[(size_t) s * K + c] = dconv::sn3dToN3d (dsh::acnToOrder (c)) * sh[c];
+    }
+    return a;
+}
+
+static juce::var findFixture (const juce::var& doc, const juce::String& name)
+{
+    const auto fixtures = doc["fixtures"];
+    for (int i = 0; i < fixtures.size(); ++i)
+        if (fixtures[i]["name"].toString() == name)
+            return fixtures[i];
+    CHECK (false);
+    return {};
+}
+
+static dec::SpeakerLayout layoutFromFixture (const juce::var& fixture)
+{
+    dec::SpeakerLayout layout;
+    const auto pos = fixturePositions (fixture);
+    layout.count = (int) pos.size();
+    for (int s = 0; s < layout.count; ++s)
+        layout.positions[s] = pos[(size_t) s];
+    return layout;
+}
+
+// max |D - golden| over the whole matrix
+static double matrixError (const dec::DecoderMatrix& d, const juce::var& golden)
+{
+    double worst = 0.0;
+    const int K = dsh::numChannels (d.order);
+    CHECK (golden.size() == d.numSpeakers);
+    for (int s = 0; s < d.numSpeakers; ++s)
+    {
+        const auto row = golden[s];
+        CHECK (row.size() == K);
+        for (int c = 0; c < K; ++c)
+            worst = std::max (worst, std::abs (d.at (s, c) - dnum (row[c])));
+    }
+    return worst;
+}
+
+//==============================================================================
+// D1 - SVD closed forms
+//==============================================================================
+static void testSvdClosedForms()
+{
+    // identity 3x3
+    {
+        const double a[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+        const auto s = linalg::jacobiSvd (a, 3, 3);
+        CHECK (s.converged);
+        for (int i = 0; i < 3; ++i) CHECK (dapprox (s.sigma[(size_t) i], 1.0, 1e-14));
+        CHECK (reconstructionError (a, s) < 1e-14);
+    }
+
+    // diagonal with known descending singular values (2, then 3 -> sorted 3,2)
+    {
+        const double a[4] = { 2, 0, 0, 3 };
+        const auto s = linalg::jacobiSvd (a, 2, 2);
+        CHECK (dapprox (s.sigma[0], 3.0, 1e-14));
+        CHECK (dapprox (s.sigma[1], 2.0, 1e-14));
+        CHECK (reconstructionError (a, s) < 1e-14);
+    }
+
+    // rank-1 (outer product) 3x2: sigma = {sqrt(sum), 0}
+    {
+        const double col[3] = { 1, 2, 2 }, row[2] = { 3, 4 };
+        double a[6];
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 2; ++j)
+                a[i * 2 + j] = col[i] * row[j];
+        const auto s = linalg::jacobiSvd (a, 3, 2);
+        const double expected = std::sqrt ((1.0 + 4 + 4) * (9.0 + 16));   // ||col||*||row||
+        CHECK (dapprox (s.sigma[0], expected, 1e-13));
+        CHECK (std::abs (s.sigma[1]) < 1e-13);
+        CHECK (reconstructionError (a, s) < 1e-13);
+    }
+
+    // symmetric 2x2 [[2,1],[1,2]]: singular values 3 and 1
+    {
+        const double a[4] = { 2, 1, 1, 2 };
+        const auto s = linalg::jacobiSvd (a, 2, 2);
+        CHECK (dapprox (s.sigma[0], 3.0, 1e-14));
+        CHECK (dapprox (s.sigma[1], 1.0, 1e-14));
+        CHECK (orthonormalityError (s.u, 2, 2, s.sigma, 1e-12) < 1e-14);
+        CHECK (orthonormalityError (s.v, 2, 2, s.sigma, 1e-12) < 1e-14);
+    }
+
+    // pseudo-inverse of a full-rank tall matrix == left inverse: pinv(A) A = I
+    {
+        const double a[6] = { 1, 0, 0, 1, 1, 1 };   // 3x2, rank 2
+        const auto p = linalg::pseudoInverse (a, 3, 2);
+        CHECK (p.effectiveRank == 2);
+        CHECK (std::isfinite (p.conditionNumber));
+        // (pinv * A) should be 2x2 identity
+        for (int i = 0; i < 2; ++i)
+            for (int j = 0; j < 2; ++j)
+            {
+                double acc = 0.0;
+                for (int k = 0; k < 3; ++k)
+                    acc += p.pinv[(size_t) i * 3 + k] * a[(size_t) k * 2 + j];
+                CHECK (dapprox (acc, (i == j ? 1.0 : 0.0), 1e-13));
+            }
+    }
+
+    // rank-deficient: two identical columns -> effectiveRank 1
+    {
+        const double a[6] = { 1, 1, 2, 2, 3, 3 };   // 3x2, both cols equal-ish (col0==col1)
+        const auto p = linalg::pseudoInverse (a, 3, 2);
+        CHECK (p.effectiveRank == 1);
+        CHECK (! std::isfinite (p.conditionNumber));   // sigmaMin == 0
+    }
+}
+
+//==============================================================================
+// D2 - Jacobi SVD on the fixture Y^N3D matrices vs mpmath goldens
+//==============================================================================
+static void testSvdOnFixtures()
+{
+    const auto doc = loadDecoderJson();
+    const auto fixtures = doc["fixtures"];
+    for (int fi = 0; fi < fixtures.size(); ++fi)
+    {
+        const auto fx = fixtures[fi];
+        const int order = (int) dnum (fx["designOrder"]);
+        const auto pos = fixturePositions (fx);
+        int L, K;
+        const auto a = buildYn3dTransposed (pos, order, L, K);
+        const auto s = linalg::jacobiSvd (a.data(), L, K);
+        CHECK (s.converged);
+
+        const auto goldSigma = fx["singularValues"];
+        CHECK (goldSigma.size() == K);
+        const double sMax = dnum (goldSigma[0]);
+        for (int j = 0; j < K; ++j)
+            CHECK (dapprox (s.sigma[(size_t) j], dnum (goldSigma[j]), 1e-12 * sMax + 1e-13));
+
+        // orthonormality of retained columns + reconstruction
+        CHECK (orthonormalityError (s.u, L, K, s.sigma, 1e-9 * sMax) < 1e-12);
+        CHECK (orthonormalityError (s.v, K, K, s.sigma, 1e-9 * sMax) < 1e-12);
+        CHECK (reconstructionError (a.data(), s) < 1e-11 * sMax);
+
+        // effective rank via the pinv path
+        const auto p = linalg::pseudoInverse (a.data(), L, K);
+        CHECK (p.effectiveRank == (int) dnum (fx["effectiveRank"]));
+    }
+
+    // ring is severely rank-deficient: rank 7, nine tiny singular values
+    const auto ring = findFixture (doc, "ring24");
+    int L, K;
+    const auto a = buildYn3dTransposed (fixturePositions (ring), 3, L, K);
+    const auto s = linalg::jacobiSvd (a.data(), L, K);
+    int tiny = 0;
+    for (int j = 0; j < K; ++j)
+        if (s.sigma[(size_t) j] < 1e-9 * s.sigma[0]) ++tiny;
+    CHECK (tiny == 9);
+}
+
+//==============================================================================
+// D3 - Moore-Penrose properties on the rank-deficient ring
+//==============================================================================
+static void testMoorePenrose()
+{
+    const auto doc = loadDecoderJson();
+    const auto ring = findFixture (doc, "ring24");
+    int L, K;
+    const auto a = buildYn3dTransposed (fixturePositions (ring), 3, L, K);   // L x K
+    const auto p = linalg::pseudoInverse (a.data(), L, K);                   // K x L
+    const double sMax = p.sigmaMax;
+
+    // A A+ A == A  (K columns, L rows; A is L x K, A+ is K x L)
+    double worstAPA = 0.0;
+    for (int i = 0; i < L; ++i)
+        for (int j = 0; j < K; ++j)
+        {
+            double ap = 0.0;                       // (A A+)_{i,k}
+            for (int k = 0; k < L; ++k)
+            {
+                double aap = 0.0;
+                for (int t = 0; t < K; ++t)
+                    aap += a[(size_t) i * K + t] * p.pinv[(size_t) t * L + k];
+                ap += aap * a[(size_t) k * K + j];
+            }
+            worstAPA = std::max (worstAPA, std::abs (ap - a[(size_t) i * K + j]));
+        }
+    CHECK (worstAPA < 1e-10 * sMax);
+
+    // (A A+) symmetric
+    std::vector<double> aap ((size_t) L * L, 0.0);
+    for (int i = 0; i < L; ++i)
+        for (int k = 0; k < L; ++k)
+        {
+            double acc = 0.0;
+            for (int t = 0; t < K; ++t)
+                acc += a[(size_t) i * K + t] * p.pinv[(size_t) t * L + k];
+            aap[(size_t) i * L + k] = acc;
+        }
+    double worstSym = 0.0;
+    for (int i = 0; i < L; ++i)
+        for (int k = 0; k < L; ++k)
+            worstSym = std::max (worstSym, std::abs (aap[(size_t) i * L + k] - aap[(size_t) k * L + i]));
+    CHECK (worstSym < 1e-12);
+}
+
+//==============================================================================
+// D4 - golden decoder matrices, all fixtures x types x weightings x norms
+//==============================================================================
+static void testGoldenMatrices()
+{
+    const auto doc = loadDecoderJson();
+    const auto fixtures = doc["fixtures"];
+    const dec::Type types[] = { dec::Type::sad, dec::Type::modeMatch };
+    const char* typeName[] = { "sad", "modeMatch" };
+    const dec::Weighting wts[] = { dec::Weighting::basic, dec::Weighting::maxRe };
+    const char* wtName[] = { "basic", "maxRe" };
+    const dec::NormalizationMode norms[] = { dec::NormalizationMode::amplitude, dec::NormalizationMode::energy };
+    const char* normName[] = { "amplitude", "energy" };
+
+    for (int fi = 0; fi < fixtures.size(); ++fi)
+    {
+        const auto fx = fixtures[fi];
+        const auto layout = layoutFromFixture (fx);
+        const auto matrices = fx["matrices"];
+
+        for (int ti = 0; ti < 2; ++ti)
+            for (int wi = 0; wi < 2; ++wi)
+                for (int ni = 0; ni < 2; ++ni)
+                {
+                    dec::DesignOptions o;
+                    o.type = types[ti]; o.weighting = wts[wi]; o.normalization = norms[ni];
+                    const auto res = dec::design (layout, o);
+                    const juce::Identifier key (juce::String (typeName[ti]) + "_" + wtName[wi] + "_" + normName[ni]);
+                    CHECK (matrixError (res.matrix, matrices[key]) < 1e-12);
+                }
+    }
+
+    // ring Tikhonov config
+    const auto ring = findFixture (doc, "ring24");
+    const auto tik = ring["tikhonov"];
+    dec::DesignOptions o;
+    o.type = dec::Type::modeMatch; o.weighting = dec::Weighting::basic;
+    o.normalization = dec::NormalizationMode::energy;
+    o.tikhonovLambdaRel = dnum (tik["lambdaRel"]);
+    const auto res = dec::design (layoutFromFixture (ring), o);
+    CHECK (matrixError (res.matrix, tik["matrix"]) < 1e-12);
+}
+
+//==============================================================================
+// D5 - SAD == mode-matching on the icosahedron (spherical 5-design), N=2
+//==============================================================================
+static void testSadEqualsModeMatch()
+{
+    const auto doc = loadDecoderJson();
+    const auto layout = layoutFromFixture (findFixture (doc, "icosahedron12"));
+
+    for (auto w : { dec::Weighting::basic, dec::Weighting::maxRe })
+        for (auto n : { dec::NormalizationMode::amplitude, dec::NormalizationMode::energy })
+        {
+            dec::DesignOptions os; os.type = dec::Type::sad; os.weighting = w; os.normalization = n;
+            dec::DesignOptions om; om.type = dec::Type::modeMatch; om.weighting = w; om.normalization = n;
+            const auto rs = dec::design (layout, os);
+            const auto rm = dec::design (layout, om);
+            double worst = 0.0;
+            for (size_t i = 0; i < rs.matrix.d.size(); ++i)
+                worst = std::max (worst, std::abs (rs.matrix.d[i] - rm.matrix.d[i]));
+            CHECK (worst < 1e-12);
+        }
+
+    // kappa(icosa) == 1
+    dec::DesignOptions o; o.type = dec::Type::modeMatch;
+    const auto r = dec::design (layout, o);
+    CHECK (dapprox (r.conditionNumber, 1.0, 1e-10));
+    CHECK (! r.conditionWarning);
+    CHECK (r.effectiveRank == 9);
+}
+
+//==============================================================================
+// D6 - condition number, warnings, order clamp
+//==============================================================================
+static void testConditionAndClamp()
+{
+    const auto doc = loadDecoderJson();
+
+    // ring: severely rank-deficient -> warning, huge kappa, rank 7
+    {
+        const auto r = dec::design (layoutFromFixture (findFixture (doc, "ring24")),
+                                    { dec::Type::modeMatch });
+        CHECK (r.conditionWarning);
+        CHECK (r.effectiveRank == 7);
+        CHECK (! std::isfinite (r.conditionNumber) || r.conditionNumber > 1e12);
+    }
+    // dome: full rank 16 but kappa ~107 (> threshold) -> warning fires (honest hemisphere)
+    {
+        const auto r = dec::design (layoutFromFixture (findFixture (doc, "dome24")),
+                                    { dec::Type::modeMatch });
+        CHECK (r.effectiveRank == 16);
+        CHECK (std::isfinite (r.conditionNumber));
+        CHECK (r.conditionNumber > dec::kKappaWarnThreshold);   // ~107
+        CHECK (r.conditionWarning);
+    }
+    // icosa: kappa 1 -> no warning
+    {
+        const auto r = dec::design (layoutFromFixture (findFixture (doc, "icosahedron12")),
+                                    { dec::Type::modeMatch });
+        CHECK (! r.conditionWarning);
+    }
+    // order clamp: requesting order 10 on 24 speakers -> design order 3
+    {
+        dec::DesignOptions o; o.requestedOrder = 10;
+        const auto r = dec::design (layoutFromFixture (findFixture (doc, "ring24")), o);
+        CHECK (r.designOrder == 3);
+        CHECK (r.orderClamped);
+        CHECK (! r.warnings.isEmpty());
+    }
+    CHECK (dec::maxDesignOrderForSpeakerCount (24) == 3);
+    CHECK (dec::maxDesignOrderForSpeakerCount (12) == 2);
+    CHECK (dec::maxDesignOrderForSpeakerCount (121) == 10);   // (11^2) -> min(10, 10)
+    CHECK (dec::maxDesignOrderForSpeakerCount (3) == 0);
+}
+
+//==============================================================================
+// D7 - normalization anchors (exact, any layout)
+//==============================================================================
+static void testNormalizationAnchors()
+{
+    const auto doc = loadDecoderJson();
+    const auto layout = layoutFromFixture (findFixture (doc, "dome24"));
+    const int order = 3, K = dsh::numChannels (order);
+
+    // SAD + amplitude: sum_s D[s][0] == 1
+    {
+        dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::basic;
+        o.normalization = dec::NormalizationMode::amplitude;
+        const auto r = dec::design (layout, o);
+        double wsum = 0.0;
+        for (int s = 0; s < r.matrix.numSpeakers; ++s) wsum += r.matrix.at (s, 0);
+        CHECK (dapprox (wsum, 1.0, 1e-12));
+    }
+    // SAD + energy: sum_s sum_c D^2/(2l+1) == 1
+    {
+        dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::maxRe;
+        o.normalization = dec::NormalizationMode::energy;
+        const auto r = dec::design (layout, o);
+        double acc = 0.0;
+        for (int s = 0; s < r.matrix.numSpeakers; ++s)
+            for (int c = 0; c < K; ++c)
+            {
+                const double v = r.matrix.at (s, c);
+                acc += v * v / (2.0 * dsh::acnToOrder (c) + 1.0);
+            }
+        CHECK (dapprox (acc, 1.0, 1e-12));
+    }
+}
+
+//==============================================================================
+// D8 - regularity classification
+//==============================================================================
+static void testClassify()
+{
+    const auto doc = loadDecoderJson();
+    CHECK (dec::classify (layoutFromFixture (findFixture (doc, "ring24"))).layoutClass == dec::LayoutClass::ring);
+    CHECK (dec::classify (layoutFromFixture (findFixture (doc, "dome24"))).layoutClass == dec::LayoutClass::dome);
+    CHECK (dec::classify (layoutFromFixture (findFixture (doc, "icosahedron12"))).layoutClass == dec::LayoutClass::sphere);
+
+    // suggestions
+    CHECK (dec::classify (layoutFromFixture (findFixture (doc, "ring24"))).suggestedDecoderType == 0);
+    CHECK (dec::classify (layoutFromFixture (findFixture (doc, "icosahedron12"))).suggestedDecoderType == 1);
+
+    // hardcoded 8-corner shoebox -> irregular/allRAD
+    {
+        dec::SpeakerLayout box; box.count = 8;
+        int i = 0;
+        for (double x : { -3.0, 3.0 }) for (double y : { -2.0, 2.0 }) for (double z : { 0.0, 2.5 })
+            box.positions[i++] = { x, y, z };
+        const auto c = dec::classify (box);
+        CHECK (c.layoutClass == dec::LayoutClass::irregular);
+        CHECK (c.suggestedDecoderType == 2);
+    }
+    // elevated coplanar ring -> still ring
+    {
+        dec::SpeakerLayout r; r.count = 12;
+        for (int k = 0; k < 12; ++k)
+        {
+            const double az = juce::degreesToRadians (k * 30.0);
+            const double el = juce::degreesToRadians (25.0);
+            r.positions[k] = { 2.0 * std::cos (el) * std::cos (az), 2.0 * std::cos (el) * std::sin (az), 2.0 * std::sin (el) };
+        }
+        CHECK (dec::classify (r).layoutClass == dec::LayoutClass::ring);
+    }
+    // non-concentric -> irregular
+    {
+        dec::SpeakerLayout r; r.count = 8;
+        for (int k = 0; k < 8; ++k)
+        {
+            const double az = juce::degreesToRadians (k * 45.0);
+            const double rad = (k % 2 == 0) ? 2.0 : 4.0;   // alternating radius
+            r.positions[k] = { rad * std::cos (az), rad * std::sin (az), 0.0 };
+        }
+        CHECK (dec::classify (r).layoutClass == dec::LayoutClass::irregular);
+    }
+}
+
+//==============================================================================
+// D9 - ring analytic rV/rE properties
+//==============================================================================
+static void testRingAnalytics()
+{
+    const auto doc = loadDecoderJson();
+    const auto ring = findFixture (doc, "ring24");
+    const auto layout = layoutFromFixture (ring);
+
+    // SAD basic: rV direction error 0 for horizontal sources (regular rig)
+    {
+        dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::basic;
+        o.normalization = dec::NormalizationMode::amplitude;
+        const auto r = dec::design (layout, o);
+        const auto gold = ring["ringRvBasicSad"];
+        const double az[] = { 0.0, 7.5, 33.1 };
+        for (int i = 0; i < 3; ++i)
+        {
+            const auto smp = ana::analyzeDirection (r.matrix, layout, az[i], 0.0);
+            CHECK (smp.rvDirErrorDeg < 1e-5);                                   // localises correctly
+            CHECK (dapprox (smp.rvMagnitude, dnum (gold[i]["rvMagnitude"]), 1e-9));  // pinned (~1.25)
+        }
+    }
+    // mode-matching basic: velocity matched -> ||rV|| = 1, dir 0
+    {
+        dec::DesignOptions o; o.type = dec::Type::modeMatch; o.weighting = dec::Weighting::basic;
+        o.normalization = dec::NormalizationMode::amplitude;
+        const auto r = dec::design (layout, o);
+        for (double az : { 0.0, 7.5, 33.1 })
+        {
+            const auto smp = ana::analyzeDirection (r.matrix, layout, az, 0.0);
+            CHECK (dapprox (smp.rvMagnitude, 1.0, 1e-9));
+            CHECK (smp.rvDirErrorDeg < 1e-5);
+            CHECK (smp.rvMagnitude >= ana::kRvMagnitudeMin && smp.rvMagnitude <= ana::kRvMagnitudeMax);
+        }
+    }
+    // maxRe: rE direction error within acceptance for horizontal sources
+    {
+        dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::maxRe;
+        o.normalization = dec::NormalizationMode::energy;
+        const auto r = dec::design (layout, o);
+        for (double az : { 0.0, 20.0, 137.0 })
+        {
+            const auto smp = ana::analyzeDirection (r.matrix, layout, az, 0.0);
+            CHECK (smp.reDirErrorDeg < ana::kReDirectionErrorMaxDeg);
+        }
+        // elevated source: a coplanar ring cannot image elevation -> large error
+        const auto elevated = ana::analyzeDirection (r.matrix, layout, 40.0, 30.0);
+        CHECK (elevated.reDirErrorDeg > 20.0);
+    }
+}
+
+//==============================================================================
+// D10 - rV/rE golden spot values (SAD maxRe energy) across fixtures
+//==============================================================================
+static void testRvReGoldens()
+{
+    const auto doc = loadDecoderJson();
+    const auto fixtures = doc["fixtures"];
+    for (int fi = 0; fi < fixtures.size(); ++fi)
+    {
+        const auto fx = fixtures[fi];
+        const auto layout = layoutFromFixture (fx);
+        dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::maxRe;
+        o.normalization = dec::NormalizationMode::energy;
+        const auto r = dec::design (layout, o);
+
+        const auto samples = fx["rvre"]["samples"];
+        for (int si = 0; si < samples.size(); ++si)
+        {
+            const auto gs = samples[si];
+            const auto smp = ana::analyzeDirection (r.matrix, layout,
+                                                    dnum (gs["azimuthDeg"]), dnum (gs["elevationDeg"]));
+            CHECK (dapprox (smp.rvMagnitude, dnum (gs["rvMagnitude"]), 1e-9));
+            CHECK (dapprox (smp.reMagnitude, dnum (gs["reMagnitude"]), 1e-9));
+            CHECK (dapprox (smp.energy, dnum (gs["energy"]), 1e-9));
+            CHECK (dapprox (smp.rvDirErrorDeg, dnum (gs["rvDirErrorDeg"]), 1e-5));
+            CHECK (dapprox (smp.reDirErrorDeg, dnum (gs["reDirErrorDeg"]), 1e-5));
+        }
+    }
+}
+
+//==============================================================================
+// D11 - export round-trips
+//==============================================================================
+static void testExports()
+{
+    const auto doc = loadDecoderJson();
+    const auto layout = layoutFromFixture (findFixture (doc, "dome24"));
+    dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::maxRe;
+    const auto r = dec::design (layout, o);
+
+    // matrix JSON round-trip is faithful to ~1 ULP (%.17g writes exact digits;
+    // juce::JSON's number parser is not correctly-rounded to the last bit, so a
+    // few values differ by an ULP -- fine for FR-18 interchange).
+    const auto json = ana::decoderMatrixToJsonString (r.matrix);
+    dec::DecoderMatrix loaded;
+    CHECK (ana::decoderMatrixFromJson (json, loaded));
+    CHECK (loaded.numSpeakers == r.matrix.numSpeakers && loaded.order == r.matrix.order);
+    for (size_t i = 0; i < r.matrix.d.size(); ++i)
+        CHECK (std::abs (loaded.d[i] - r.matrix.d[i]) <= 1e-13);
+
+    // analysis CSV: header + 72*37 rows
+    const auto grid = ana::analyzeGrid (r.matrix, layout);
+    CHECK ((int) grid.size() == 72 * 37);
+    const auto csv = ana::toCsv (grid);
+    const auto lines = juce::StringArray::fromLines (csv);
+    // header + N rows + trailing empty from the final newline
+    CHECK (lines[0].startsWith ("azimuthDeg,elevationDeg"));
+    int dataRows = 0;
+    for (int i = 1; i < lines.size(); ++i)
+        if (lines[i].isNotEmpty()) ++dataRows;
+    CHECK (dataRows == 72 * 37);
+
+    // matrix CSV row/col count
+    const auto mcsv = ana::decoderMatrixToCsv (r.matrix);
+    const auto mlines = juce::StringArray::fromLines (mcsv);
+    int mrows = 0;
+    for (const auto& ln : mlines) if (ln.isNotEmpty()) ++mrows;
+    CHECK (mrows == r.matrix.numSpeakers);
+    CHECK (juce::StringArray::fromTokens (mlines[0], ",", "").size() == dsh::numChannels (r.matrix.order));
+}
+
+//==============================================================================
+// D12 - builder rebuild -> publish -> acquire, double-buffer hot-swap
+//==============================================================================
+static void testBuilder()
+{
+    const auto doc = loadDecoderJson();
+    const auto ring = layoutFromFixture (findFixture (doc, "ring24"));   // 24 spk, order 3
+    const auto icosa = layoutFromFixture (findFixture (doc, "icosahedron12"));   // 12 spk, order 2
+
+    xoa::DecoderMatrixBuilder builder;
+    dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::maxRe;
+
+    const auto res1 = builder.rebuild (ring, o);
+    builder.publish();
+    const auto h1 = builder.acquire();
+    CHECK (h1.epoch == 1);
+    CHECK (h1.numSpeakers == 24 && h1.designOrder == 3);
+
+    // float RT copy == (float) double master, zero-padded above the design order
+    const int K1 = dsh::numChannels (3);
+    for (int s = 0; s < 24; ++s)
+    {
+        for (int c = 0; c < K1; ++c)
+            CHECK (h1.matrix[(size_t) s * xoa::kNumSHChannels + c] == (float) res1.matrix.at (s, c));
+        for (int c = K1; c < xoa::kNumSHChannels; ++c)
+            CHECK (h1.matrix[(size_t) s * xoa::kNumSHChannels + c] == 0.0f);   // zero-pad
+    }
+
+    // capture the epoch-1 buffer pointer + a sentinel value
+    const float* oldBuf = h1.matrix;
+    const float oldVal = h1.matrix[0];
+
+    // second layout -> epoch 2, new dims; the OLD buffer must be untouched
+    builder.rebuild (icosa, o);
+    builder.publish();
+    const auto h2 = builder.acquire();
+    CHECK (h2.epoch == 2);
+    CHECK (h2.numSpeakers == 12 && h2.designOrder == 2);
+    CHECK (h2.matrix != oldBuf);                // flipped to the other buffer
+    CHECK (oldBuf[0] == oldVal);                // epoch-1 data intact (double-buffer)
+
+    // an unpublished rebuild does not change what acquire() sees
+    builder.rebuild (ring, o);
+    CHECK (builder.acquire().epoch == 2);
+}
+
+//==============================================================================
+// D14 - store readers
+//==============================================================================
+static void testStoreReaders()
+{
+    xoa::XoaValueTreeState state;   // fresh project = 24-speaker ring
+
+    const auto layout = xoa::DecoderMatrixBuilder::layoutFromStore (state);
+    CHECK (layout.count == xoa::kDefaultSpeakers);   // 24
+    CHECK (dapprox (layout.positions[0].x, 2.0, 1e-9));   // spk0 at (2,0,0) front
+    CHECK (std::abs (layout.positions[0].y) < 1e-9);
+    CHECK (dapprox (layout.positions[6].y, 2.0, 1e-9));   // spk6 at (0,2,0) left
+    CHECK (std::abs (layout.positions[6].x) < 1e-9);
+
+    const auto opts = xoa::DecoderMatrixBuilder::optionsFromStore (state);
+    CHECK (opts.type == dec::Type::sad);                    // decoderType default 0
+    CHECK (opts.weighting == dec::Weighting::maxRe);        // decoderWeighting default 1
+    CHECK (opts.normalization == dec::NormalizationMode::energy);   // decoderNormalization default 1
+}
+
+//==============================================================================
+void runXoaDecoderTests()
+{
+    testSvdClosedForms();
+    testSvdOnFixtures();
+    testMoorePenrose();
+    testGoldenMatrices();
+    testSadEqualsModeMatch();
+    testConditionAndClamp();
+    testNormalizationAnchors();
+    testClassify();
+    testRingAnalytics();
+    testRvReGoldens();
+    testExports();
+    testBuilder();
+    testStoreReaders();
+}

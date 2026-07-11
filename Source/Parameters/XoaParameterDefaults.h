@@ -62,7 +62,11 @@ constexpr double eqFrequencyMin = 20.0, eqFrequencyMax = 20000.0;               
 constexpr double kEqBandDefaultHz[xoa::kNumEqBands] = { 63.0, 160.0, 400.0, 1000.0, 2500.0, 6300.0 };
 constexpr double eqGainDefault  = 0.0,   eqGainMin  = -24.0, eqGainMax  = 24.0;           // dB
 constexpr double eqQDefault     = 0.707, eqQMin     = 0.1,   eqQMax     = 10.0;
-constexpr double eqSlopeDefault = 12.0,  eqSlopeMin = 6.0,   eqSlopeMax = 48.0;           // dB/oct
+// eqSlope is the RBJ shelf slope S consumed by spatcore::dsp::OutputEQBiquadFilter
+// (the (1/slope - 1) term), NOT a dB/octave figure. Range matches WFS-DIY's stored
+// slope (S in [0.1, 1.0], no shelf peaking) and sits inside spatcore's [0.1, 20]
+// clamp, so WFS EQ import lands in range name-for-name.
+constexpr double eqSlopeDefault = 0.7,   eqSlopeMin = 0.1,   eqSlopeMax = 1.0;
 
 // Decoder ---------------------------------------------------------------
 constexpr double decoderTypeDefault = 0.0, decoderTypeMin = 0.0, decoderTypeMax = 2.0;    // 0 SAD, 1 mode-match, 2 AllRAD

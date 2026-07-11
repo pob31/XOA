@@ -19,6 +19,9 @@
                              (XoaShTests.cpp)
       5. WP4 suite           SO(3) rotation (Ivanic-Ruedenberg + 1998 erratum),
                              mirror planes (XoaRotationTests.cpp)
+      6. WP5 suite           linear algebra (SVD/pinv), decoder design
+                             (SAD + mode-matching), rV/rE, matrix builder,
+                             WFS import completion (XoaDecoderTests.cpp)
 */
 
 #include <juce_core/juce_core.h>
@@ -35,6 +38,7 @@
 void runXoaParameterTests();
 void runXoaShTests();
 void runXoaRotationTests();
+void runXoaDecoderTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -90,6 +94,7 @@ int main()
         runXoaParameterTests();
         runXoaShTests();
         runXoaRotationTests();
+        runXoaDecoderTests();
     }
     catch (const std::exception& e)
     {

@@ -329,7 +329,8 @@ void XoaFileManager::sanitizeForSave (juce::ValueTree& sectionCopy)
 // WFS-DIY speaker-layout import (FR-16, WP2 slice)
 //==============================================================================
 
-XoaFileManager::WfsImportResult XoaFileManager::importWfsSpeakerLayout (const juce::File& wfsOutputsXml)
+XoaFileManager::WfsImportResult XoaFileManager::importWfsSpeakerLayout (const juce::File& wfsOutputsXml,
+                                                                       WfsAxisRemap remap)
 {
     // WFS-DIY outputs.xml attribute names, verbatim (case-sensitive).
     static const juce::Identifier wfsOutputConfig   { "OutputConfig" };
@@ -344,6 +345,13 @@ XoaFileManager::WfsImportResult XoaFileManager::importWfsSpeakerLayout (const ju
     static const juce::Identifier wfsPositionY      { "outputPositionY" };
     static const juce::Identifier wfsPositionZ      { "outputPositionZ" };
     static const juce::Identifier wfsCoordinateMode { "outputCoordinateMode" };
+    static const juce::Identifier wfsEq             { "EQ" };
+    static const juce::Identifier wfsEqEnabled      { "outputEQenabled" };
+    static const juce::Identifier wfsBand           { "Band" };
+    // EQ band attribute names are shared verbatim between WFS-DIY and XOA
+    // (eqShape/eqFrequency/eqGain/eqQ/eqSlope) — same spatcore OutputEQBiquadFilter.
+    static const juce::Identifier eqBandIds[] = { ids::eqShape, ids::eqFrequency,
+                                                  ids::eqGain, ids::eqQ, ids::eqSlope };
 
     WfsImportResult result;
 
@@ -413,30 +421,54 @@ XoaFileManager::WfsImportResult XoaFileManager::importWfsSpeakerLayout (const ju
 
         if (positionNode.isValid())
         {
-            // WP5 TO-DO (G8): WFS-DIY's cartesian axis semantics vs XOA's
-            // X = front / Y = left / Z = up frame are not yet verified — the
-            // verbatim copy below may need an axis remap once the WFS stage
-            // frame is pinned down against real rigs. WP2's contract is
-            // "parses + geometry lands"; orientation correctness is WP5's
-            // import-semantics job.
-            if (positionNode.hasProperty (wfsPositionX))
-                state.setParameter (ids::speakerPositionX, positionNode.getProperty (wfsPositionX), i);
-            if (positionNode.hasProperty (wfsPositionY))
-                state.setParameter (ids::speakerPositionY, positionNode.getProperty (wfsPositionY), i);
-            if (positionNode.hasProperty (wfsPositionZ))
-                state.setParameter (ids::speakerPositionZ, positionNode.getProperty (wfsPositionZ), i);
+            // WFS-DIY stores positions ALWAYS cartesian (outputCoordinateMode is
+            // a display preference only). Apply the frame remap: rotate90 maps
+            // the WFS stage frame onto XOA's listener frame (x,y,z)_xoa =
+            // (y,-x,z)_wfs; verbatim is identity.
+            const double wx = static_cast<double> (positionNode.getProperty (wfsPositionX, 0.0));
+            const double wy = static_cast<double> (positionNode.getProperty (wfsPositionY, 0.0));
+            const double wz = static_cast<double> (positionNode.getProperty (wfsPositionZ, 0.0));
+            const double xoaX = (remap == WfsAxisRemap::rotate90) ? wy : wx;
+            const double xoaY = (remap == WfsAxisRemap::rotate90) ? -wx : wy;
+            state.setParameter (ids::speakerPositionX, xoaX, i);
+            state.setParameter (ids::speakerPositionY, xoaY, i);
+            state.setParameter (ids::speakerPositionZ, wz, i);
 
-            const int coordinateMode = static_cast<int> (positionNode.getProperty (wfsCoordinateMode, 0));
-            if (coordinateMode != 0)
-                result.warnings.add ("Output " + output.getProperty (ids::idProp).toString()
-                                     + ": outputCoordinateMode=" + juce::String (coordinateMode)
-                                     + " (non-cartesian) — position imported verbatim; polar semantics"
-                                       " are interpreted at WP5");
+            // Coordinate mode is a 1:1 display preference (same 0/1/2 enum).
+            if (positionNode.hasProperty (wfsCoordinateMode))
+                state.setParameter (ids::speakerCoordinateMode,
+                                    positionNode.getProperty (wfsCoordinateMode), i);
+        }
+
+        // Per-band EQ, name-for-name (eqShape/eqFrequency/eqGain/eqQ/eqSlope).
+        const auto eqNode = output.getChildWithName (wfsEq);
+        if (eqNode.isValid())
+        {
+            if (eqNode.hasProperty (wfsEqEnabled))
+                state.setParameter (ids::speakerEqEnabled, eqNode.getProperty (wfsEqEnabled), i);
+
+            int bandOrdinal = 0;
+            for (int b = 0; b < eqNode.getNumChildren(); ++b)
+            {
+                const auto band = eqNode.getChild (b);
+                if (band.getType() != wfsBand)
+                    continue;
+                if (bandOrdinal >= xoa::kNumEqBands)
+                {
+                    result.warnings.add ("Output " + output.getProperty (ids::idProp).toString()
+                                         + ": more than " + juce::String (xoa::kNumEqBands)
+                                         + " EQ bands; extra bands ignored");
+                    break;
+                }
+                for (const auto& eqId : eqBandIds)
+                    if (band.hasProperty (eqId))
+                        state.setEqBandParameter (i, bandOrdinal, eqId, band.getProperty (eqId));
+                ++bandOrdinal;
+            }
         }
 
         // WFS DSP knobs (outputOrientation, outputAngleOn/Off, outputPitch,
-        // outputHFdamping), <Options>, and <EQ> are deliberately ignored in
-        // the WP2 slice.
+        // outputHFdamping) and <Options> are deliberately ignored.
     }
 
     result.ok = true;
