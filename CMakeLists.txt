@@ -65,7 +65,8 @@ target_sources(XOA PRIVATE
     Source/MainComponent.cpp
     Source/Parameters/XoaValueTreeState.cpp
     Source/Parameters/XoaFileManager.cpp
-    Source/Audio/FilePlayer.cpp)
+    Source/Audio/FilePlayer.cpp
+    Source/Audio/AudioEngine.cpp)
 
 target_include_directories(XOA PRIVATE Source)
 

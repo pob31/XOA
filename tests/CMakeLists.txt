@@ -14,9 +14,11 @@ target_sources(xoa-tests PRIVATE
     XoaFilePlayerTests.cpp
     XoaBusTests.cpp
     XoaSceneTests.cpp
+    XoaEngineTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
-    ../Source/Audio/FilePlayer.cpp)
+    ../Source/Audio/FilePlayer.cpp
+    ../Source/Audio/AudioEngine.cpp)
 
 # XoaConstants.h and, later, the Source/DSP/Ambi* headers under test.
 target_include_directories(xoa-tests PRIVATE
