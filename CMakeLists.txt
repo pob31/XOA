@@ -94,3 +94,7 @@ spatcore_apply_compile_flags(XOA)
 # ---------------------------------------------------------------------------
 enable_testing()
 add_subdirectory(tests)
+
+# Offline-render harness — the bit-exact validation gate (WP6). Builds
+# alongside the app; the ctest smoke runs it headless on all three CI OSes.
+add_subdirectory(tools/validation/offline-render)
