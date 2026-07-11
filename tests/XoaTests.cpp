@@ -22,6 +22,9 @@
       6. WP5 suite           linear algebra (SVD/pinv), decoder design
                              (SAD + mode-matching), rV/rE, matrix builder,
                              WFS import completion (XoaDecoderTests.cpp)
+      7. WP6 suite           file-I/O spike: 121/128-ch WAV + 8-ch FLAC
+                             round-trips, garbage rejection
+                             (XoaFilePlayerTests.cpp)
 */
 
 #include <juce_core/juce_core.h>
@@ -39,6 +42,7 @@ void runXoaParameterTests();
 void runXoaShTests();
 void runXoaRotationTests();
 void runXoaDecoderTests();
+void runXoaFilePlayerTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -95,6 +99,7 @@ int main()
         runXoaShTests();
         runXoaRotationTests();
         runXoaDecoderTests();
+        runXoaFilePlayerTests();
     }
     catch (const std::exception& e)
     {

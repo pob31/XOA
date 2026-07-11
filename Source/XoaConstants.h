@@ -37,4 +37,8 @@ constexpr int kDefaultSpeakers = 24;   // the M1 24-ring validation fixture
 /** Per-speaker EQ band count (matches spatcore's per-output EQ chain). */
 constexpr int kNumEqBands = 6;
 
+/** FR-8 file-playback ceiling: multichannel WAV/CAF/FLAC up to 128 channels
+    (order 10 needs 121; the headroom matches the PRD's stated cap). */
+constexpr int kMaxFileChannels = 128;
+
 } // namespace xoa

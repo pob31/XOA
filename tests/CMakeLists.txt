@@ -11,6 +11,7 @@ target_sources(xoa-tests PRIVATE
     XoaShTests.cpp
     XoaRotationTests.cpp
     XoaDecoderTests.cpp
+    XoaFilePlayerTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp)
 
