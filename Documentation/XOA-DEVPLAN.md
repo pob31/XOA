@@ -19,24 +19,34 @@ The three planning documents split authority like this:
 
 ## 1. Status and mapping
 
-WP0 is **done**: the repo state as of this writing is a CMake-native spatcore
-v0.1.1 consumer (`spatcore-audio`/`-control`/`-controllers` + hidapi via
-`SpatcoreConsumer.cmake`, compile flags pinned by
-`spatcore_apply_compile_flags`), a 4-file `Source/` shell (device selector +
-status line, silence out), constants in `Source/XoaConstants.h`
-(order 10 → 121 SH channels), and green 3-OS build-only CI. Nothing else
-exists yet — no DSP, no parameter store, no tests, no control plane.
+**Milestone M1 reached** (WP0–WP6 done). The repo is a CMake-native spatcore
+v0.1.1 consumer with the full CPU Ambisonics chain: the parameter store +
+XML project I/O (WP2), the SH math core (WP3), SO(3) rotation + mirror (WP4),
+the SAD/mode-matching decoder designer + rV/rE (WP5), and the RT bus engine —
+gather (convention + FR-7 order adaptation) → click-free SO(3) rotation →
+decode GEMM → master gain → device outs — with multichannel file playback, a
+synthetic order-10 test-scene generator, an offline-render bit-exact harness,
+and a throwaway shell UI (WP6). The `xoa-tests` suite and the
+`xoa-offline-render-smoke` run on all three CI OSes.
+
+M1 "first audible" evidence: the offline-render harness renders the exact
+chain deterministically (per-machine SHA baselines) and to a playable
+24-channel WAV; the WP6 B2 null test pins `processBlock` output to
+`matrix · scene` within float tolerance; the app launches, opens a device,
+rebuilds the decoder, and runs. The remaining M1 check — listening on a real
+rig / loopback across 44.1/48/96 kHz — is a developer step (no >64-out
+hardware in CI).
 
 | WP | Title | Milestone | Phase | Depends on | Size | Status |
 |---|---|---|---|---|---|---|
 | WP0 | Bootstrap | M0 | P0 | — | — | **DONE** |
-| WP1 | Test scaffolding & CI step 1 | pre-M1 | — | WP0 | S | next |
-| WP2 | Parameter store, schema, project I/O (XML) | M1 part | P1 | WP1 | L | |
-| WP3 | SH math core: evaluation, conventions, order weights | M1 part | P2 | WP1 | M | |
-| WP4 | Rotation & mirror | M1 part | P2 | WP3 | M | |
-| WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | |
-| WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | |
-| WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | |
+| WP1 | Test scaffolding & CI step 1 | pre-M1 | — | WP0 | S | **DONE** |
+| WP2 | Parameter store, schema, project I/O (XML) | M1 part | P1 | WP1 | L | **DONE** |
+| WP3 | SH math core: evaluation, conventions, order weights | M1 part | P2 | WP1 | M | **DONE** |
+| WP4 | Rotation & mirror | M1 part | P2 | WP3 | M | **DONE** |
+| WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | **DONE** |
+| WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
+| WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | next |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | |
 | WP9 | OSC & head-tracking (generic quaternion) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
 | WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
