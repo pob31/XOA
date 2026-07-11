@@ -491,22 +491,22 @@ static void testConditionAndClamp()
     CHECK (dec::maxDesignOrderForSpeakerCount (121) == 10);   // (11^2) -> min(10, 10)
     CHECK (dec::maxDesignOrderForSpeakerCount (3) == 0);
 
-    // AllRAD (WP7) is not implemented: design() falls back to mode-matching and
-    // says so, rather than silently substituting a decoder.
+    // AllRAD (WP7) now designs at the FULL bus order (bypassing the sqrt(L)
+    // clamp) because it decodes to a dense virtual t-design, not the real rig
+    // directly. The icosahedron encloses the listener, so no fallback.
     {
         dec::DesignOptions o; o.type = dec::Type::allRad;
         const auto rAll = dec::design (layoutFromFixture (findFixture (doc, "icosahedron12")), o);
+        CHECK (rAll.designOrder == xoa::kAmbisonicOrder);   // NOT clamped to 2
+        CHECK (! rAll.allRadFellBack);
+        CHECK (rAll.matrix.order == xoa::kAmbisonicOrder);
+        CHECK (rAll.matrix.numSpeakers == 12);
+
+        // It is a genuinely different decoder from mode-matching (which clamps
+        // to order 2 on 12 speakers).
         dec::DesignOptions m; m.type = dec::Type::modeMatch;
         const auto rMm = dec::design (layoutFromFixture (findFixture (doc, "icosahedron12")), m);
-        // same matrix as mode-matching...
-        double worst = 0.0;
-        for (size_t i = 0; i < rAll.matrix.d.size(); ++i)
-            worst = std::max (worst, std::abs (rAll.matrix.d[i] - rMm.matrix.d[i]));
-        CHECK (worst < 1e-15);
-        // ...but with a warning naming the fallback
-        bool warned = false;
-        for (const auto& w : rAll.warnings) if (w.contains ("AllRAD")) warned = true;
-        CHECK (warned);
+        CHECK (rMm.matrix.order != rAll.matrix.order);
     }
 }
 
@@ -856,6 +856,86 @@ static void testTDesignTable()
     CHECK (worst < 1.0e-9 * kCount);
 }
 
+//==============================================================================
+// WP7 C3 — AllRAD behavioral anchors (golden-free). Raw-matrix goldens vs a
+// scipy reference land in C3b; here we verify the decoder localizes correctly
+// on enclosing rigs, reports imaginary speakers, and falls back honestly.
+//==============================================================================
+static void testAllRad()
+{
+    const auto doc = loadDecoderJson();
+
+    // Icosahedron encloses the listener: AllRAD designs at the full bus order,
+    // no fallback, and localizes (rE points at the source) across the sphere.
+    {
+        const auto layout = layoutFromFixture (findFixture (doc, "icosahedron12"));
+        dec::DesignOptions o;
+        o.type = dec::Type::allRad;   // default maxRe / energy
+        const auto r = dec::design (layout, o);
+        CHECK (r.matrix.numSpeakers == 12);
+        CHECK (r.designOrder == xoa::kAmbisonicOrder);
+        CHECK (! r.allRadFellBack);
+
+        double worstReErr = 0.0, worstReMag = 0.0;
+        int n = 0;
+        for (int elDeg = -60; elDeg <= 60; elDeg += 30)
+            for (int azDeg = -180; azDeg < 180; azDeg += 30)
+            {
+                const auto s = ana::analyzeDirection (r.matrix, layout, azDeg, elDeg);
+                if (! s.reValid)
+                    continue;
+                worstReErr = std::max (worstReErr, s.reDirErrorDeg);
+                worstReMag = std::max (worstReMag, s.reMagnitude);
+                ++n;
+            }
+        CHECK (n > 0);
+        CHECK (worstReErr < 22.0);    // 12-speaker rig is coarse; VBAP still localizes
+        CHECK (worstReMag <= 1.0 + 1e-9);   // energy vector never blows up
+    }
+
+    // Dome (missing floor) inserts an imaginary nadir; still no fallback.
+    {
+        const auto layout = layoutFromFixture (findFixture (doc, "dome24"));
+        dec::DesignOptions o; o.type = dec::Type::allRad;
+        const auto r = dec::design (layout, o);
+        CHECK (! r.allRadFellBack);
+        CHECK (r.numImaginarySpeakers >= 1);
+        bool insertedNote = false;
+        for (const auto& w : r.warnings)
+            if (w.containsIgnoreCase ("imaginary")) insertedNote = true;
+        CHECK (insertedNote);
+        // Above-rim sources localize.
+        const auto up = ana::analyzeDirection (r.matrix, layout, 40.0, 30.0);
+        CHECK (up.reValid);
+        CHECK (up.reDirErrorDeg < 22.0);
+    }
+
+    // A frontal wedge cannot enclose the listener -> AllRAD declines and the
+    // designer falls back to SAD (a valid, non-empty matrix + a flag).
+    {
+        dec::SpeakerLayout wedge;
+        int idx = 0;
+        for (double azDeg : { -60.0, 0.0, 60.0 })
+            for (double elDeg : { -50.0, 50.0 })
+            {
+                const double az = juce::degreesToRadians (azDeg), el = juce::degreesToRadians (elDeg);
+                wedge.positions[idx++] = { 2.0 * std::cos (el) * std::cos (az),
+                                           2.0 * std::cos (el) * std::sin (az),
+                                           2.0 * std::sin (el) };
+            }
+        wedge.positions[idx++] = { 2.0, 0.0, 0.0 };
+        wedge.count = idx;
+
+        dec::DesignOptions o; o.type = dec::Type::allRad;
+        const auto r = dec::design (wedge, o);
+        CHECK (r.allRadFellBack);
+        CHECK (r.matrix.numSpeakers == wedge.count);
+        double energy = 0.0;
+        for (double v : r.matrix.d) energy += v * v;
+        CHECK (energy > 0.0);   // real SAD matrix, not zeros
+    }
+}
+
 void runXoaDecoderTests()
 {
     testSvdClosedForms();
@@ -873,4 +953,5 @@ void runXoaDecoderTests()
     testBuilder();
     testStoreReaders();
     testTDesignTable();
+    testAllRad();
 }

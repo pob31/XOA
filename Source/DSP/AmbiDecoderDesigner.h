@@ -7,6 +7,7 @@
 
 #include "XoaConstants.h"
 #include "Helpers/XoaCoordinates.h"
+#include "DSP/AmbiAllRAD.h"
 #include "DSP/AmbiConventions.h"
 #include "DSP/AmbiOrderWeights.h"
 #include "DSP/AmbiSphericalHarmonics.h"
@@ -81,6 +82,8 @@ struct DesignResult
     int effectiveRank = 0;
     bool conditionWarning = false;
     bool svdConverged = true;
+    int numImaginarySpeakers = 0;   // AllRAD imaginary loudspeakers inserted (FR-13)
+    bool allRadFellBack = false;    // AllRAD requested but the rig could not enclose -> SAD
     juce::StringArray warnings;
 };
 
@@ -139,7 +142,14 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
     DesignResult r;
     const int L = layout.count;
 
-    const int maxOrder = maxDesignOrderForSpeakerCount (L);
+    // AllRAD decodes to a dense virtual t-design (well-conditioned at order 10
+    // for any L >= 4), so it is NOT limited by the real speaker count - it
+    // bypasses the sqrt(L) clamp the pinv/SAD paths need. If AllRAD later falls
+    // back to SAD (non-enclosing rig), that SAD runs at this higher order and
+    // its ill-conditioning is reported normally.
+    const int maxOrder = (opts.type == Type::allRad)
+                             ? xoa::kAmbisonicOrder
+                             : maxDesignOrderForSpeakerCount (L);
     int order = juce::jlimit (0, maxOrder, opts.requestedOrder);
     if (order < opts.requestedOrder)
     {
@@ -179,19 +189,10 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
         }
     }
 
-    // AllRAD is not implemented until WP7; fall back to mode-matching and say so
-    // rather than silently substituting a different decoder.
-    Type effectiveType = opts.type;
-    if (opts.type == Type::allRad)
-    {
-        r.warnings.add ("AllRAD decoding is not implemented yet (WP7); using mode-matching.");
-        effectiveType = Type::modeMatch;
-    }
-
     double g[xoa::kAmbisonicOrder + 1];
     detail::orderWeights (opts.weighting, order, g);
 
-    // Condition number of Y^N3D (== A) is reported for both decoder types.
+    // Condition number of Y^N3D (== A) is reported for all decoder types.
     {
         const auto pv = linalg::pseudoInverse (aTall.data(), L, K,
                                                { opts.rankToleranceRel, 0.0 });
@@ -200,6 +201,34 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
         r.sigmaMin = pv.sigmaMin;
         r.effectiveRank = pv.effectiveRank;
         r.svdConverged = pv.converged;
+    }
+
+    // AllRAD (FR-13): decode to the virtual t-design + VBAP to the rig. On a
+    // rig that cannot enclose the listener, fall back to SAD with a warning
+    // rather than silently zeroing part of the sphere.
+    Type effectiveType = opts.type;
+    if (opts.type == Type::allRad)
+    {
+        const auto ar = allrad::computeUnweighted (layout.positions, L, order);
+        r.warnings.addArray (ar.warnings);
+        if (ar.ok)
+        {
+            r.numImaginarySpeakers = ar.numImaginary;
+            for (int s = 0; s < L; ++s)
+                for (int c = 0; c < K; ++c)
+                {
+                    const int l = sh::acnToOrder (c);
+                    r.matrix.d[(size_t) s * K + c] = ar.dPre[(size_t) s * K + c] * g[l];
+                }
+            effectiveType = Type::allRad;   // done; SAD/mode-match branches skipped
+        }
+        else
+        {
+            r.allRadFellBack = true;
+            r.warnings.add ("AllRAD unavailable (the layout does not enclose the "
+                            "listener); using SAD.");
+            effectiveType = Type::sad;
+        }
     }
 
     if (effectiveType == Type::sad)
@@ -212,7 +241,7 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
                     (1.0 / L) * (2.0 * l + 1.0) * ysn[(size_t) c * L + s] * g[l];
             }
     }
-    else
+    else if (effectiveType == Type::modeMatch)
     {
         // pinv(Y^N3D) = (pseudoInverse(A))^T, with A = (Y^N3D)^T. Ap is K x L.
         const auto pv = linalg::pseudoInverse (aTall.data(), L, K,
