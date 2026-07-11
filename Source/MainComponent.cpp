@@ -2,6 +2,7 @@
   ==============================================================================
 
     XOA — tenth-order Ambisonics spatial audio processor.
+    Minimal shell UI (WP6) — see MainComponent.h.
 
     This file is part of XOA, released under the GNU General Public License
     v3.0. See LICENSE for details.
@@ -11,106 +12,381 @@
 
 #include "MainComponent.h"
 
-#include "spatcore/dsp/NumericGuards.h"
+#include "DSP/AmbiDecoderDesigner.h"
+#include "DSP/DecoderMatrixBuilder.h"
+#include "Parameters/XoaParameterIDs.h"
+
+namespace ids = xoa::ids;
 
 //==============================================================================
 MainComponent::MainComponent()
 {
-    titleLabel.setText ("XOA — 10th-order Ambisonics", juce::dontSendNotification);
-    titleLabel.setFont (juce::FontOptions (24.0f, juce::Font::bold));
-    titleLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (titleLabel);
+    // --- Transport --------------------------------------------------------
+    addAndMakeVisible (openButton);
+    addAndMakeVisible (playButton);
+    addAndMakeVisible (stopButton);
+    addAndMakeVisible (loopButton);
+    addAndMakeVisible (sceneButton);
+    addAndMakeVisible (positionSlider);
+    addAndMakeVisible (fileLabel);
+    fileLabel.setText ("No file loaded — use the test scene or open an AmbiX file.",
+                       juce::dontSendNotification);
 
-    statusLabel.setJustificationType (juce::Justification::centred);
+    openButton.onClick = [this] { openFileDialog(); };
+    playButton.onClick = [this]
+    {
+        sceneButton.setToggleState (false, juce::dontSendNotification);
+        engine.setInputSource (xoa::AudioEngine::InputSource::file);
+        engine.getFilePlayer().play();
+    };
+    stopButton.onClick = [this] { engine.getFilePlayer().stop(); };
+    loopButton.onClick = [this] { engine.getFilePlayer().setLooping (loopButton.getToggleState()); };
+    sceneButton.onClick = [this]
+    {
+        const bool scene = sceneButton.getToggleState();
+        engine.setInputSource (scene ? xoa::AudioEngine::InputSource::testScene
+                                     : xoa::AudioEngine::InputSource::file);
+    };
+    positionSlider.setRange (0.0, 1.0, 0.01);
+    positionSlider.onValueChange = [this]
+    {
+        if (positionSlider.isMouseButtonDown())
+            engine.getFilePlayer().seekSeconds (positionSlider.getValue());
+    };
+
+    // --- Rotation dials ---------------------------------------------------
+    for (auto* l : { &yawLabel, &pitchLabel, &rollLabel })
+    {
+        l->setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (*l);
+    }
+    bindRotary (yawSlider,   ids::rotationYaw,   -180.0, 180.0, " deg");
+    bindRotary (pitchSlider, ids::rotationPitch,  -90.0,  90.0, " deg");
+    bindRotary (rollSlider,  ids::rotationRoll,  -180.0, 180.0, " deg");
+
+    // --- Master + content -------------------------------------------------
+    masterLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (masterLabel);
+    masterSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    masterSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
+    masterSlider.setRange (-60.0, 12.0, 0.1);
+    masterSlider.setTextValueSuffix (" dB");
+    masterSlider.setValue (store.getFloatParameter (ids::masterGain), juce::dontSendNotification);
+    masterSlider.onValueChange = [this] { store.setParameter (ids::masterGain, masterSlider.getValue()); };
+    store.addParameterListener (ids::masterGain, [this] (const juce::var& v)
+    {
+        masterSlider.setValue ((double) v, juce::dontSendNotification);
+    });
+    addAndMakeVisible (masterSlider);
+
+    contentOrderCombo.addItem ("Auto", 1);   // value 0
+    for (int n = 1; n <= xoa::kAmbisonicOrder; ++n)
+        contentOrderCombo.addItem ("Order " + juce::String (n), n + 1);
+    bindCombo (contentOrderCombo, ids::playbackContentOrder);
+
+    conventionCombo.addItem ("AmbiX (SN3D)", 1);
+    conventionCombo.addItem ("N3D", 2);
+    conventionCombo.addItem ("FuMa (≤3)", 3);
+    bindCombo (conventionCombo, ids::playbackConvention);
+
+    // --- Decoder ----------------------------------------------------------
+    decoderTypeCombo.addItem ("Sampling (SAD)", 1);
+    decoderTypeCombo.addItem ("Mode-matching", 2);
+    decoderTypeCombo.addItem ("AllRAD (WP7)", 3);
+    bindCombo (decoderTypeCombo, ids::decoderType);
+
+    weightingCombo.addItem ("Basic", 1);
+    weightingCombo.addItem ("Max-rE", 2);
+    bindCombo (weightingCombo, ids::decoderWeighting);
+
+    normalizationCombo.addItem ("Amplitude", 1);
+    normalizationCombo.addItem ("Energy", 2);
+    bindCombo (normalizationCombo, ids::decoderNormalization);
+
+    suggestionLabel.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (suggestionLabel);
+    addAndMakeVisible (importWfsButton);
+    addAndMakeVisible (loadProjectButton);
+
+    importWfsButton.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Import a WFS-DIY outputs.xml",
+                                                           juce::File(), "*.xml");
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                      | juce::FileBrowserComponent::canSelectFiles,
+                                  [this] (const juce::FileChooser& fc)
+        {
+            const auto f = fc.getResult();
+            if (f == juce::File()) return;
+            fileManager.importWfsSpeakerLayout (f);
+            engine.flushDecoderRebuild();
+            updateSuggestionLabel();
+        });
+    };
+    loadProjectButton.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Load an XOA project folder",
+                                                           juce::File(), "*");
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                      | juce::FileBrowserComponent::canSelectDirectories,
+                                  [this] (const juce::FileChooser& fc)
+        {
+            const auto f = fc.getResult();
+            if (f == juce::File()) return;
+            fileManager.loadProject (f);
+            engine.flushDecoderRebuild();
+            updateSuggestionLabel();
+        });
+    };
+
+    // --- Status + device --------------------------------------------------
+    statusLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (statusLabel);
 
+    engine.onDecoderRebuilt = [this] (const xoa::decoder::DesignResult& r)
+    {
+        juce::String s;
+        s << "decoder: order " << r.designOrder;
+        if (r.conditionWarning)
+            s << "  ·  κ=" << juce::String (r.conditionNumber, 1) << " (ill-conditioned)";
+        if (! r.warnings.isEmpty())
+            s << "  ·  " << r.warnings.joinIntoString ("; ");
+        decoderStatus = s;
+    };
+
     deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent> (
-        deviceManager,
-        0, 64,     // input channels: min, max
-        0, 64,     // output channels: min, max
-        false,     // MIDI in
-        false,     // MIDI out
-        false,     // stereo-pair view
-        false);    // advanced options hidden
+        engine.getDeviceManager(),
+        0, 0,                       // no inputs in v1
+        0, xoa::kMaxSpeakers,       // up to 256 outputs (FR-20)
+        false, false, false, false);
     addAndMakeVisible (*deviceSelector);
 
-    setSize (820, 620);
+    updateSuggestionLabel();
+    engine.openAudioDevice();
 
-    // 2 in / 2 out to start with; the Ambisonics engine will renegotiate
-    // channel counts when it lands.
-    setAudioChannels (2, 2);
-
-    startTimerHz (10);
+    setSize (960, 720);
+    startTimerHz (25);
 }
 
 MainComponent::~MainComponent()
 {
-    shutdownAudio();
+    engine.closeAudioDevice();
 }
 
 //==============================================================================
-void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
+void MainComponent::bindRotary (juce::Slider& s, const juce::Identifier& id,
+                                double lo, double hi, const juce::String& suffix)
 {
-    currentSampleRate.store (sampleRate);
-    currentBlockSize.store (samplesPerBlockExpected);
+    s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 18);
+    s.setRange (lo, hi, 0.1);
+    s.setTextValueSuffix (suffix);
+    s.setValue (store.getFloatParameter (id), juce::dontSendNotification);
+    s.onValueChange = [this, &s, id] { store.setParameter (id, s.getValue()); };
+    store.addParameterListener (id, [&s] (const juce::var& v)
+    {
+        s.setValue ((double) v, juce::dontSendNotification);
+    });
+    addAndMakeVisible (s);
 }
 
-void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill)
+void MainComponent::bindCombo (juce::ComboBox& c, const juce::Identifier& id)
 {
-    // Track the input peak for the status line, then output silence — the
-    // encode → transform → decode pipeline replaces this.
-    float peak = 0.0f;
-
-    if (auto* buffer = bufferToFill.buffer)
-        for (int ch = 0; ch < buffer->getNumChannels(); ++ch)
-            peak = juce::jmax (peak,
-                               buffer->getMagnitude (ch, bufferToFill.startSample,
-                                                     bufferToFill.numSamples));
-
-    // spatcore's defensive clamp — NaN/Inf-tolerant (and proof of wiring).
-    inputPeakLinear.store (spatcore::dsp::WFSHelpers::safeClamp (0.0f, 10.0f, peak));
-
-    bufferToFill.clearActiveBufferRegion();
+    c.setSelectedId (store.getIntParameter (id) + 1, juce::dontSendNotification);
+    c.onChange = [this, &c, id] { store.setParameter (id, c.getSelectedId() - 1); };
+    store.addParameterListener (id, [&c] (const juce::var& v)
+    {
+        c.setSelectedId ((int) v + 1, juce::dontSendNotification);
+    });
+    addAndMakeVisible (c);
 }
 
-void MainComponent::releaseResources()
+//==============================================================================
+void MainComponent::openFileDialog()
 {
-    currentSampleRate.store (0.0);
-    currentBlockSize.store (0);
+    juce::String patterns = "*.wav;*.flac";
+   #if JUCE_MAC
+    patterns += ";*.caf";
+   #endif
+
+    fileChooser = std::make_unique<juce::FileChooser> ("Open an Ambisonics file",
+                                                       juce::File(), patterns);
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                  | juce::FileBrowserComponent::canSelectFiles,
+                              [this] (const juce::FileChooser& fc)
+    {
+        const auto file = fc.getResult();
+        if (file == juce::File())
+            return;
+
+        const auto r = engine.openFile (file);
+        if (r.ok)
+        {
+            juce::String text;
+            text << file.getFileName() << "  (" << r.numChannels << " ch, "
+                 << juce::String (r.fileSampleRate / 1000.0, 1) << " kHz, order "
+                 << r.detectedOrder << ")";
+            if (! r.warnings.isEmpty())
+                text << "  ·  " << r.warnings.joinIntoString ("; ");
+            fileLabel.setText (text, juce::dontSendNotification);
+
+            positionSlider.setRange (0.0, juce::jmax (0.001, engine.getFilePlayer().getLengthSeconds()), 0.01);
+            sceneButton.setToggleState (false, juce::dontSendNotification);
+        }
+        else
+        {
+            fileLabel.setText ("Error: " + r.error, juce::dontSendNotification);
+        }
+    });
+}
+
+void MainComponent::updateSuggestionLabel()
+{
+    const auto layout = xoa::DecoderMatrixBuilder::layoutFromStore (store);
+    const auto c = xoa::decoder::classify (layout);
+
+    const char* klass = "irregular";
+    switch (c.layoutClass)
+    {
+        case xoa::decoder::LayoutClass::ring:   klass = "ring";   break;
+        case xoa::decoder::LayoutClass::dome:   klass = "dome";   break;
+        case xoa::decoder::LayoutClass::sphere: klass = "sphere"; break;
+        case xoa::decoder::LayoutClass::irregular: default: klass = "irregular"; break;
+    }
+    const char* suggest = c.suggestedDecoderType == 0 ? "SAD"
+                        : c.suggestedDecoderType == 1 ? "Mode-matching" : "AllRAD";
+
+    suggestionLabel.setText (juce::String (layout.count) + " speakers · detected " + klass
+                                 + " · suggested: " + suggest + " (override free)",
+                             juce::dontSendNotification);
+}
+
+void MainComponent::refreshStatusLine()
+{
+    const double sr    = engine.getSampleRate();
+    const int    block = engine.getBlockSize();
+
+    juce::String s;
+    s << "order " << xoa::kAmbisonicOrder << " · " << xoa::kNumSHChannels << " SH (ACN/SN3D)";
+    if (sr > 0.0)
+        s << "  ·  " << juce::String (sr / 1000.0, 1) << " kHz / " << block << " smp"
+          << "  ·  latency " << juce::String (engine.getMeasuredLatencyMs(), 1) << " ms"
+          << "  ·  CPU " << juce::String (engine.getCpuLoad() * 100.0, 1) << " %";
+    else
+        s << "  ·  audio device stopped";
+    if (decoderStatus.isNotEmpty())
+        s << "  ·  " << decoderStatus;
+
+    statusLabel.setText (s, juce::dontSendNotification);
+}
+
+//==============================================================================
+void MainComponent::timerCallback()
+{
+    // Track playback position when the user isn't scrubbing.
+    if (! positionSlider.isMouseButtonDown())
+        positionSlider.setValue (engine.getFilePlayer().getPositionSeconds(),
+                                 juce::dontSendNotification);
+
+    refreshStatusLine();
+    repaint (meterArea);
 }
 
 //==============================================================================
 void MainComponent::paint (juce::Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+
+    // Output peak strip: first min(24, layout) channels, -60..0 dB.
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.fillRect (meterArea);
+
+    const int shown = juce::jmin (24, xoa::kDefaultSpeakers);
+    if (shown <= 0 || meterArea.isEmpty())
+        return;
+
+    const float barW = (float) meterArea.getWidth() / (float) shown;
+    for (int c = 0; c < shown; ++c)
+    {
+        const float peak = engine.getOutputPeakLevel (c);
+        const float db = juce::Decibels::gainToDecibels (peak, -60.0f);
+        const float norm = juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 60.0f);
+
+        auto bar = juce::Rectangle<float> (meterArea.getX() + (float) c * barW + 1.0f,
+                                           (float) meterArea.getBottom() - norm * (float) meterArea.getHeight(),
+                                           barW - 2.0f,
+                                           norm * (float) meterArea.getHeight());
+        g.setColour (norm > 0.9f ? juce::Colours::orangered : juce::Colours::limegreen);
+        g.fillRect (bar);
+    }
 }
 
 void MainComponent::resized()
 {
     auto area = getLocalBounds().reduced (12);
-    titleLabel .setBounds (area.removeFromTop (40));
-    statusLabel.setBounds (area.removeFromTop (28));
+
+    auto row = [&area] (int h) { return area.removeFromTop (h); };
+
+    // Transport row.
+    {
+        auto r = row (30);
+        openButton .setBounds (r.removeFromLeft (110)); r.removeFromLeft (6);
+        playButton .setBounds (r.removeFromLeft (70));  r.removeFromLeft (6);
+        stopButton .setBounds (r.removeFromLeft (70));  r.removeFromLeft (12);
+        loopButton .setBounds (r.removeFromLeft (70));  r.removeFromLeft (12);
+        sceneButton.setBounds (r.removeFromLeft (170));
+    }
+    area.removeFromTop (6);
+    fileLabel.setBounds (row (22));
+    positionSlider.setBounds (row (24));
+    area.removeFromTop (10);
+
+    // Rotation dials.
+    {
+        auto r = row (110);
+        const int w = r.getWidth() / 3;
+        auto place = [] (juce::Rectangle<int> cell, juce::Label& lab, juce::Slider& dial)
+        {
+            lab.setBounds (cell.removeFromTop (18));
+            dial.setBounds (cell);
+        };
+        place (r.removeFromLeft (w), yawLabel,   yawSlider);
+        place (r.removeFromLeft (w), pitchLabel, pitchSlider);
+        place (r,                    rollLabel,  rollSlider);
+    }
     area.removeFromTop (8);
-    deviceSelector->setBounds (area);
-}
 
-//==============================================================================
-void MainComponent::timerCallback()
-{
-    const auto sr    = currentSampleRate.load();
-    const auto block = currentBlockSize.load();
-    const auto peak  = inputPeakLinear.load();
+    // Master + content interpretation.
+    {
+        auto r = row (26);
+        masterLabel.setBounds (r.removeFromLeft (60)); r.removeFromLeft (6);
+        masterSlider.setBounds (r.removeFromLeft (260)); r.removeFromLeft (12);
+        contentOrderCombo.setBounds (r.removeFromLeft (120)); r.removeFromLeft (6);
+        conventionCombo.setBounds (r.removeFromLeft (140));
+    }
+    area.removeFromTop (10);
 
-    juce::String status;
-    status << "order " << xoa::kAmbisonicOrder
-           << "  ·  " << xoa::kNumSHChannels << " SH channels (ACN/SN3D)";
+    // Decoder row.
+    {
+        auto r = row (26);
+        decoderTypeCombo  .setBounds (r.removeFromLeft (150)); r.removeFromLeft (6);
+        weightingCombo    .setBounds (r.removeFromLeft (110)); r.removeFromLeft (6);
+        normalizationCombo.setBounds (r.removeFromLeft (120)); r.removeFromLeft (12);
+        importWfsButton   .setBounds (r.removeFromLeft (150)); r.removeFromLeft (6);
+        loadProjectButton .setBounds (r.removeFromLeft (130));
+    }
+    suggestionLabel.setBounds (row (22));
+    area.removeFromTop (8);
 
-    if (sr > 0.0)
-        status << "  ·  " << juce::String (sr / 1000.0, 1) << " kHz / "
-               << block << " smp"
-               << "  ·  in peak " << juce::String (juce::Decibels::gainToDecibels (peak, -90.0f), 1) << " dB";
-    else
-        status << "  ·  audio device stopped";
+    // Meter strip.
+    meterArea = row (70);
+    area.removeFromTop (8);
 
-    statusLabel.setText (status, juce::dontSendNotification);
+    // Status line.
+    statusLabel.setBounds (area.removeFromBottom (24));
+    area.removeFromBottom (6);
+
+    // Device selector fills the rest.
+    if (deviceSelector != nullptr)
+        deviceSelector->setBounds (area);
 }
