@@ -7,7 +7,9 @@
 
 juce_add_console_app(xoa-offline-render PRODUCT_NAME "xoa-offline-render")
 
-target_sources(xoa-offline-render PRIVATE main.cpp)
+target_sources(xoa-offline-render PRIVATE
+    main.cpp
+    ../../../Source/DSP/ConvexHull.cpp)
 
 # The app DSP headers (Source/DSP/Ambi*, Source/Audio/TestSceneGenerator.h) are
 # header-only and pulled in by main.cpp; DecoderMatrixBuilder.h transitively

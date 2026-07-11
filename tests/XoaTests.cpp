@@ -50,6 +50,7 @@ void runXoaFilePlayerTests();
 void runXoaBusTests();
 void runXoaSceneTests();
 void runXoaEngineTests();
+void runXoaVbapTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -110,6 +111,7 @@ int main()
         runXoaBusTests();
         runXoaSceneTests();
         runXoaEngineTests();
+        runXoaVbapTests();
     }
     catch (const std::exception& e)
     {
