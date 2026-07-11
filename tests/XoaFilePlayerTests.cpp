@@ -22,6 +22,8 @@
 #include "XoaConstants.h"
 #include "XoaTestFramework.h"
 
+#include "Audio/FilePlayer.h"
+
 #include <memory>
 
 namespace
@@ -152,6 +154,112 @@ void testGarbageFileRejected (const juce::File& dir)
     CHECK (flacReader == nullptr);
 }
 
+//==============================================================================
+// F5 - the FilePlayer streaming path. A constant per-channel signal is
+// resampling-invariant, so a rendered block must equal (c+1)*0.1 on channel c
+// regardless of read-ahead warm-up or rate correction.
+//==============================================================================
+
+// Write a numChannels x numSamples WAV whose channel c is the constant (c+1)*0.1.
+juce::File writeConstantWav (const juce::File& dir, int numChannels, int numSamples, double sr)
+{
+    juce::AudioBuffer<float> buffer (numChannels, numSamples);
+    for (int c = 0; c < numChannels; ++c)
+        juce::FloatVectorOperations::fill (buffer.getWritePointer (c),
+                                           0.1f * (float) (c + 1), numSamples);
+
+    const auto file = dir.getChildFile ("player-" + juce::String (numChannels) + "ch.wav");
+    file.deleteFile();
+
+    auto fileStream = std::make_unique<juce::FileOutputStream> (file);
+    std::unique_ptr<juce::OutputStream> os (std::move (fileStream));
+    juce::WavAudioFormat wav;
+    const auto options = juce::AudioFormatWriterOptions {}
+                             .withSampleRate (sr)
+                             .withNumChannels (numChannels)
+                             .withBitsPerSample (32)
+                             .withSampleFormat (juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+    auto writer = wav.createWriterFor (os, options);
+    CHECK (writer != nullptr);
+    if (writer != nullptr)
+        writer->writeFromAudioSampleBuffer (buffer, 0, numSamples);
+    return file;
+}
+
+// Render blocks until non-silent (read-ahead warm-up) or a bounded number of
+// attempts elapse. Returns true if audio arrived.
+bool renderUntilAudio (xoa::FilePlayer& player, juce::AudioBuffer<float>& block, int numSamples)
+{
+    for (int attempt = 0; attempt < 400; ++attempt)
+    {
+        player.renderNextBlock (block, numSamples);
+        if (block.getMagnitude (0, 0, numSamples) > 1.0e-6f)
+            return true;
+        juce::Thread::sleep (2);
+    }
+    return false;
+}
+
+void testFilePlayerOrderDetection()
+{
+    CHECK (xoa::FilePlayer::detectAmbiOrder (4) == 1);
+    CHECK (xoa::FilePlayer::detectAmbiOrder (16) == 3);
+    CHECK (xoa::FilePlayer::detectAmbiOrder (121) == 10);
+    CHECK (xoa::FilePlayer::detectAmbiOrder (7) == 0);     // not a perfect square
+    CHECK (xoa::FilePlayer::detectAmbiOrder (144) == 0);   // order 11 > bus order -> no fit
+}
+
+void testFilePlayerStreaming (const juce::File& dir)
+{
+    const int numCh = 4, block = 512;
+    const double sr = 48000.0;
+    const int lengthSamples = 48000;   // 1 second
+
+    const auto file = writeConstantWav (dir, numCh, lengthSamples, sr);
+
+    xoa::FilePlayer player;
+    const auto r = player.open (file);
+    CHECK (r.ok);
+    CHECK (r.numChannels == numCh);
+    CHECK (r.fileSampleRate == sr);
+    CHECK (r.lengthSamples == lengthSamples);
+    CHECK (r.detectedOrder == 1);           // (1+1)^2 = 4
+    CHECK (player.getNumChannels() == numCh);
+
+    player.prepareToPlay (sr, block);
+
+    // Stopped -> silence.
+    juce::AudioBuffer<float> buf (numCh, block);
+    buf.clear();
+    player.renderNextBlock (buf, block);
+    CHECK (buf.getMagnitude (0, 0, block) == 0.0f);
+
+    // Playing -> the constants (after read-ahead warm-up).
+    player.play();
+    CHECK (player.isPlaying());
+    CHECK (renderUntilAudio (player, buf, block));
+    for (int c = 0; c < numCh; ++c)
+    {
+        const float expected = 0.1f * (float) (c + 1);
+        CHECK (std::abs (buf.getSample (c, 0) - expected) < 1.0e-3f);
+        CHECK (std::abs (buf.getSample (c, block - 1) - expected) < 1.0e-3f);
+    }
+
+    // Seek + length report.
+    CHECK (std::abs (player.getLengthSeconds() - 1.0) < 1.0e-3);
+    player.seekSeconds (0.5);
+    CHECK (std::abs (player.getPositionSeconds() - 0.5) < 0.05);
+
+    // Loop smoke: seek near the end, keep rendering past it, still get audio.
+    player.setLooping (true);
+    player.seekSeconds (0.98);
+    CHECK (renderUntilAudio (player, buf, block));
+
+    player.stop();
+    player.close();
+    CHECK (player.getNumChannels() == 0);
+}
+
 } // namespace
 
 //==============================================================================
@@ -162,4 +270,6 @@ void runXoaFilePlayerTests()
     testWav128Channels (tmp.dir);
     testFlac8Channels (tmp.dir);
     testGarbageFileRejected (tmp.dir);
+    testFilePlayerOrderDetection();
+    testFilePlayerStreaming (tmp.dir);
 }

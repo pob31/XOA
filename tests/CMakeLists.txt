@@ -15,7 +15,8 @@ target_sources(xoa-tests PRIVATE
     XoaBusTests.cpp
     XoaSceneTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
-    ../Source/Parameters/XoaFileManager.cpp)
+    ../Source/Parameters/XoaFileManager.cpp
+    ../Source/Audio/FilePlayer.cpp)
 
 # XoaConstants.h and, later, the Source/DSP/Ambi* headers under test.
 target_include_directories(xoa-tests PRIVATE
@@ -23,9 +24,12 @@ target_include_directories(xoa-tests PRIVATE
 
 # The JUCE modules arrive transitively through the libs' PUBLIC link
 # interface (their sources compile into this target, JUCE-module style).
+# juce_audio_utils brings juce_audio_devices (AudioTransportSource) for
+# FilePlayer; harmless headless (no device is opened by the tests).
 target_link_libraries(xoa-tests PRIVATE
     spatcore-audio
-    spatcore-control)
+    spatcore-control
+    juce::juce_audio_utils)
 
 target_compile_definitions(xoa-tests PRIVATE
     JUCE_WEB_BROWSER=0
