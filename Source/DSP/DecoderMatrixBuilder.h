@@ -37,6 +37,12 @@ struct DecoderRtHandle
     int numSpeakers = 0;
     int designOrder = 0;
     juce::uint32 epoch = 0;
+
+    // Dual-band (FR-14): when set, the RT bus splits at crossoverHz and scales
+    // the HF band per channel by hfGain[c] before the single decode GEMM.
+    bool dualBand = false;
+    float crossoverHz = 400.0f;
+    float hfGain[xoa::kNumSHChannels] = {};   // valid 0..kNumSHChannels-1; 1.0 beyond designOrder
 };
 
 static_assert (std::is_trivially_copyable_v<DecoderRtHandle>,
@@ -71,6 +77,8 @@ public:
         o.weighting = static_cast<decoder::Weighting> (state.getIntParameter (ids::decoderWeighting));
         o.normalization = static_cast<decoder::NormalizationMode> (state.getIntParameter (ids::decoderNormalization));
         o.requestedOrder = xoa::kAmbisonicOrder;
+        o.dualBand = static_cast<bool> (state.getParameter (ids::decoderDualBandEnabled));
+        o.crossoverHz = state.getFloatParameter (ids::decoderCrossoverFrequency);
         return o;
     }
 
@@ -96,6 +104,16 @@ public:
 
         pendingNumSpeakers = L;
         pendingOrder = master.order;
+
+        // Dual-band HF diagonal, cooked to float and zero-padded to the bus
+        // width (1.0 beyond the design order so unused bus channels pass HF
+        // through unchanged; they carry no content anyway).
+        pendingDualBand = lastResult.dualBand;
+        pendingCrossoverHz = (float) lastResult.crossoverHz;
+        for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            pendingHfGain[c] = (lastResult.dualBand && c < (int) lastResult.hfDiagonal.size())
+                                   ? (float) lastResult.hfDiagonal[(size_t) c]
+                                   : 1.0f;
         return lastResult;
     }
 
@@ -114,6 +132,10 @@ public:
         h.numSpeakers = pendingNumSpeakers;
         h.designOrder = pendingOrder;
         h.epoch = epoch;
+        h.dualBand = pendingDualBand;
+        h.crossoverHz = pendingCrossoverHz;
+        for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            h.hfGain[c] = pendingHfGain[c];
         snapshot.publish (h);
     }
 
@@ -129,6 +151,9 @@ private:
     std::vector<float> rtBuffers[2];
     int activeIndex = 0;
     int pendingNumSpeakers = 0, pendingOrder = 0;
+    bool pendingDualBand = false;
+    float pendingCrossoverHz = 400.0f;
+    float pendingHfGain[xoa::kNumSHChannels] = {};
     juce::uint32 epoch = 0;
     spatcore::rt::RtSnapshot<DecoderRtHandle> snapshot;
 

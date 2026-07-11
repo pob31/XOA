@@ -57,6 +57,8 @@ struct DesignOptions
     int requestedOrder = xoa::kAmbisonicOrder;
     double rankToleranceRel = 1.0e-9;
     double tikhonovLambdaRel = 0.0;
+    bool dualBand = false;          // FR-14: basic (LF) / max-rE (HF) split
+    double crossoverHz = 400.0;     // carried through; the RT bus applies it
 };
 
 struct DecoderMatrix
@@ -84,6 +86,16 @@ struct DesignResult
     bool svdConverged = true;
     int numImaginarySpeakers = 0;   // AllRAD imaginary loudspeakers inserted (FR-13)
     bool allRadFellBack = false;    // AllRAD requested but the rig could not enclose -> SAD
+
+    // Dual-band (FR-14): the matrix is the BASIC-weighted, basic-normalized
+    // decode; the RT bus splits the bus at crossoverHz and multiplies the HF
+    // band per channel by hfDiagonal[c] = maxRe[l_c] * (alpha_maxRe/alpha_basic)
+    // so a single decode GEMM yields basic below / max-rE above. Empty when
+    // single-band.
+    bool dualBand = false;
+    double crossoverHz = 400.0;
+    std::vector<double> hfDiagonal;   // per-channel HF gain, size numChannels(order)
+
     juce::StringArray warnings;
 };
 
@@ -189,8 +201,12 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
         }
     }
 
+    // Dual-band builds the BASIC-weighted matrix (the HF max-rE ratio goes into
+    // hfDiagonal); single-band uses the requested weighting. Single-band is thus
+    // byte-for-byte unchanged from before dual-band existed.
+    const Weighting matrixWeighting = opts.dualBand ? Weighting::basic : opts.weighting;
     double g[xoa::kAmbisonicOrder + 1];
-    detail::orderWeights (opts.weighting, order, g);
+    detail::orderWeights (matrixWeighting, order, g);
 
     // Condition number of Y^N3D (== A) is reported for all decoder types.
     {
@@ -255,9 +271,38 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
             }
     }
 
-    const double alpha = detail::normalizationScalar (r.matrix.d, L, order, opts.normalization);
-    for (double& v : r.matrix.d)
-        v *= alpha;
+    if (opts.dualBand)
+    {
+        // r.matrix.d currently holds the unweighted (basic) decode D_pre. Level-
+        // match the two bands under the chosen normalization: the matrix is
+        // alpha_basic * D_pre; the HF diagonal is maxRe[l] * alpha_maxRe/alpha_basic
+        // so D_pre * diag(hfDiagonal) == the single-band max-rE decode exactly.
+        const double alphaBasic = detail::normalizationScalar (r.matrix.d, L, order, opts.normalization);
+
+        double gMaxRe[xoa::kAmbisonicOrder + 1];
+        weights::maxRe (order, gMaxRe);
+        std::vector<double> mMaxRe = r.matrix.d;
+        for (int s = 0; s < L; ++s)
+            for (int c = 0; c < K; ++c)
+                mMaxRe[(size_t) s * K + c] *= gMaxRe[sh::acnToOrder (c)];
+        const double alphaMaxRe = detail::normalizationScalar (mMaxRe, L, order, opts.normalization);
+
+        for (double& v : r.matrix.d)
+            v *= alphaBasic;
+
+        const double ratio = (std::abs (alphaBasic) > 1e-300) ? alphaMaxRe / alphaBasic : 1.0;
+        r.dualBand = true;
+        r.crossoverHz = opts.crossoverHz;
+        r.hfDiagonal.assign ((size_t) K, 0.0);
+        for (int c = 0; c < K; ++c)
+            r.hfDiagonal[(size_t) c] = gMaxRe[sh::acnToOrder (c)] * ratio;
+    }
+    else
+    {
+        const double alpha = detail::normalizationScalar (r.matrix.d, L, order, opts.normalization);
+        for (double& v : r.matrix.d)
+            v *= alpha;
+    }
 
     if (! std::isfinite (r.conditionNumber) || r.conditionNumber > kKappaWarnThreshold)
     {
@@ -276,6 +321,13 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
 //==============================================================================
 // Regularity detection (FR-16): classify + suggest, never assume.
 //==============================================================================
+
+/** Suggested dual-band crossover (Hz), rig-radius-scaled and anchored at the
+    2 m / 400 Hz default; UI hint only, clamped to the parameter range. */
+inline double suggestedCrossoverHz (double meanRadiusMeters) noexcept
+{
+    return juce::jlimit (80.0, 2000.0, 400.0 * (2.0 / juce::jmax (0.1, meanRadiusMeters)));
+}
 
 enum class LayoutClass { ring = 0, dome, sphere, irregular };
 

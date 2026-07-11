@@ -936,6 +936,61 @@ static void testAllRad()
     }
 }
 
+//==============================================================================
+// WP7 C5 — dual-band factorization. For every decoder family, the dual-band
+// matrix times its HF diagonal must reproduce the single-band max-rE decode
+// exactly: that identity is what lets one decode GEMM serve both bands.
+//==============================================================================
+static void testDualBandFactorization()
+{
+    const auto doc = loadDecoderJson();
+    for (const char* name : { "ring24", "dome24", "icosahedron12" })
+    {
+        const auto layout = layoutFromFixture (findFixture (doc, name));
+        for (int typeI = 0; typeI <= 2; ++typeI)   // sad, modeMatch, allRad
+        {
+            dec::DesignOptions single;
+            single.type = static_cast<dec::Type> (typeI);
+            single.weighting = dec::Weighting::maxRe;
+            single.normalization = dec::NormalizationMode::energy;
+            const auto rs = dec::design (layout, single);
+
+            dec::DesignOptions dual = single;
+            dual.dualBand = true;
+            dual.crossoverHz = 400.0;
+            const auto rd = dec::design (layout, dual);
+
+            CHECK (rd.dualBand);
+            CHECK (rd.crossoverHz == 400.0);
+            CHECK ((int) rd.hfDiagonal.size() == dsh::numChannels (rd.matrix.order));
+            CHECK (rs.matrix.order == rd.matrix.order);
+            CHECK (rs.matrix.numSpeakers == rd.matrix.numSpeakers);
+
+            const int K = dsh::numChannels (rd.matrix.order);
+            double worst = 0.0;
+            for (int s = 0; s < rd.matrix.numSpeakers; ++s)
+                for (int c = 0; c < K; ++c)
+                    worst = std::max (worst, std::abs (rs.matrix.at (s, c)
+                                          - rd.matrix.at (s, c) * rd.hfDiagonal[(size_t) c]));
+            CHECK (worst < 1e-12);
+
+            // HF/LF differ (max-rE below top order is < 1): the diagonal is not
+            // all ones, so dual-band is doing real work.
+            if (rd.matrix.order >= 1)
+            {
+                double spread = 0.0;
+                for (int c = 0; c < K; ++c)
+                    spread = std::max (spread, std::abs (rd.hfDiagonal[(size_t) c] - rd.hfDiagonal[0]));
+                CHECK (spread > 1e-6);
+            }
+        }
+    }
+    // suggestion anchors + clamps
+    CHECK (std::abs (dec::suggestedCrossoverHz (2.0) - 400.0) < 1e-9);
+    CHECK (dec::suggestedCrossoverHz (100.0) == 80.0);
+    CHECK (dec::suggestedCrossoverHz (0.01) == 2000.0);
+}
+
 void runXoaDecoderTests()
 {
     testSvdClosedForms();
@@ -954,4 +1009,5 @@ void runXoaDecoderTests()
     testStoreReaders();
     testTDesignTable();
     testAllRad();
+    testDualBandFactorization();
 }
