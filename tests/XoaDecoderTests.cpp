@@ -28,6 +28,7 @@ namespace dsh = xoa::sh;
 namespace dconv = xoa::conv;
 namespace dec = xoa::decoder;
 namespace ana = xoa::analysis;
+namespace dwt = xoa::weights;
 
 //==============================================================================
 static juce::var loadDecoderJson()
@@ -372,6 +373,77 @@ static void testSadEqualsModeMatch()
     CHECK (dapprox (r.conditionNumber, 1.0, 1e-10));
     CHECK (! r.conditionWarning);
     CHECK (r.effectiveRank == 9);
+
+    // Independent rE-magnitude physics anchor (NOT golden-derived): on a
+    // spherical design a max-rE decode has ||rE|| == maxReCosine(order) at every
+    // direction. Order 2 -> sqrt(3/5). Pins the perceptual energy-spread metric
+    // that max-rE exists to set, independent of the shared rV/rE golden path.
+    {
+        dec::DesignOptions om; om.type = dec::Type::sad; om.weighting = dec::Weighting::maxRe;
+        om.normalization = dec::NormalizationMode::energy;
+        const auto rm = dec::design (layout, om);
+        const double expected = dwt::maxReCosine (2);   // == sqrt(3/5)
+        CHECK (dapprox (expected, std::sqrt (3.0 / 5.0), 1e-12));
+        for (const auto d : { std::pair<double,double> { 0, 0 }, { 47, 20 }, { -130, -35 } })
+        {
+            const auto smp = ana::analyzeDirection (rm.matrix, layout, d.first, d.second);
+            CHECK (dapprox (smp.reMagnitude, expected, 1e-9));
+        }
+    }
+}
+
+//==============================================================================
+// D5b - mode-matching reconstruction property, GOLDEN-FREE and covering l=3.
+// On a full-rank layout, re-encoding the decoder output reproduces the input:
+// E * D = alpha * I_K, where E[c][s] = Y^SN3D_c(u_s) and D is the mode-matching
+// (basic) decoder. The sqrt(2l+1) folding factors cancel exactly. This pins the
+// mode-matching pinv formula + indexing at every l (dome24 is full rank 16 at
+// order 3), independent of both the mpmath goldens and the SAD path.
+//==============================================================================
+static void testModeMatchReconstruction()
+{
+    const auto doc = loadDecoderJson();
+    const auto dome = findFixture (doc, "dome24");    // full rank 16 at order 3
+    const auto pos = fixturePositions (dome);
+    const int L = (int) pos.size(), order = 3, K = dsh::numChannels (order);
+
+    dec::SpeakerLayout layout;
+    layout.count = L;
+    for (int s = 0; s < L; ++s) layout.positions[s] = pos[(size_t) s];
+
+    dec::DesignOptions o; o.type = dec::Type::modeMatch; o.weighting = dec::Weighting::basic;
+    o.normalization = dec::NormalizationMode::amplitude;
+    const auto r = dec::design (layout, o);
+    CHECK (r.effectiveRank == K);   // must be full rank for exact reconstruction
+
+    // E[c][s] = Y^SN3D_c(u_s)
+    std::vector<double> E ((size_t) K * L);
+    double sh[xoa::kNumSHChannels];
+    for (int s = 0; s < L; ++s)
+    {
+        const double rr = std::sqrt (pos[(size_t) s].x * pos[(size_t) s].x
+                                     + pos[(size_t) s].y * pos[(size_t) s].y
+                                     + pos[(size_t) s].z * pos[(size_t) s].z);
+        dsh::evaluate (xoa::coords::Cartesian { pos[(size_t) s].x / rr, pos[(size_t) s].y / rr,
+                                                pos[(size_t) s].z / rr }, order, sh);
+        for (int c = 0; c < K; ++c) E[(size_t) c * L + s] = sh[c];
+    }
+
+    // M = E * D  (K x K); expect alpha * I
+    const double alpha = [&]
+    {
+        double acc = 0.0;
+        for (int s = 0; s < L; ++s) acc += E[(size_t) 0 * L + s] * r.matrix.at (s, 0);
+        return acc;
+    }();
+    CHECK (std::abs (alpha) > 1e-6);
+    for (int i = 0; i < K; ++i)
+        for (int j = 0; j < K; ++j)
+        {
+            double m = 0.0;
+            for (int s = 0; s < L; ++s) m += E[(size_t) i * L + s] * r.matrix.at (s, j);
+            CHECK (std::abs (m - (i == j ? alpha : 0.0)) < 1e-10);
+        }
 }
 
 //==============================================================================
@@ -416,10 +488,34 @@ static void testConditionAndClamp()
     CHECK (dec::maxDesignOrderForSpeakerCount (12) == 2);
     CHECK (dec::maxDesignOrderForSpeakerCount (121) == 10);   // (11^2) -> min(10, 10)
     CHECK (dec::maxDesignOrderForSpeakerCount (3) == 0);
+
+    // AllRAD (WP7) is not implemented: design() falls back to mode-matching and
+    // says so, rather than silently substituting a decoder.
+    {
+        dec::DesignOptions o; o.type = dec::Type::allRad;
+        const auto rAll = dec::design (layoutFromFixture (findFixture (doc, "icosahedron12")), o);
+        dec::DesignOptions m; m.type = dec::Type::modeMatch;
+        const auto rMm = dec::design (layoutFromFixture (findFixture (doc, "icosahedron12")), m);
+        // same matrix as mode-matching...
+        double worst = 0.0;
+        for (size_t i = 0; i < rAll.matrix.d.size(); ++i)
+            worst = std::max (worst, std::abs (rAll.matrix.d[i] - rMm.matrix.d[i]));
+        CHECK (worst < 1e-15);
+        // ...but with a warning naming the fallback
+        bool warned = false;
+        for (const auto& w : rAll.warnings) if (w.contains ("AllRAD")) warned = true;
+        CHECK (warned);
+    }
 }
 
 //==============================================================================
-// D7 - normalization anchors (exact, any layout)
+// D7 - normalization anchors (exact, any layout).
+// NOTE: these confirm the global scalar is APPLIED and self-consistent (they
+// catch a skipped/partial normalization or the near-zero fallback branch); they
+// are tautological w.r.t. the physics coefficients (the scalar is derived from
+// the matrix, so the post-scale sum is 1 regardless of whether (2l+1)/g_l/pinv
+// are correct). Decoder physics is pinned by D4 (mpmath goldens), D5 (SAD ==
+// mode-match), D5b (reconstruction E*D==alpha*I), D3 (Moore-Penrose), D9 (rV).
 //==============================================================================
 static void testNormalizationAnchors()
 {
@@ -697,6 +793,7 @@ void runXoaDecoderTests()
     testMoorePenrose();
     testGoldenMatrices();
     testSadEqualsModeMatch();
+    testModeMatchReconstruction();
     testConditionAndClamp();
     testNormalizationAnchors();
     testClassify();

@@ -55,6 +55,8 @@ inline SvdResult jacobiSvd (const double* a, int m, int n)
     SvdResult r;
     r.m = m;
     r.n = n;
+    if (a == nullptr || n <= 0 || m < n)   // release-safe: empty result, no OOB
+        return r;
 
     // Work matrix W = A (columns get orthogonalized in place); V starts at I.
     std::vector<double> w (static_cast<size_t> (m) * n);
@@ -179,6 +181,8 @@ inline PinvResult pseudoInverse (const double* a, int m, int n, const PinvOption
 
     PinvResult r;
     r.converged = svd.converged;
+    if (svd.sigma.empty())
+        return r;   // degenerate input; empty pinv
     r.sigmaMax = svd.sigma.front();
     r.sigmaMin = svd.sigma.back();
     r.conditionNumber = (r.sigmaMin > 0.0) ? (r.sigmaMax / r.sigmaMin)

@@ -2,8 +2,9 @@
 <!-- xoa-tests fixture: hand-written to mirror the WFS-DIY v1 outputs.xml -->
 <!-- schema (OutputConfig/Outputs/Output{Channel,Position,Options,EQ/Band}) -->
 <!-- as documented from d:/dev/WFS_DIY_v1 control-replay golden fixtures.  -->
-<!-- Output 3 carries outputCoordinateMode="1" to exercise the non-       -->
-<!-- cartesian import warning path. Not a copy of any real project file.  -->
+<!-- Output 3 carries outputCoordinateMode="1"; WFS positions are always   -->
+<!-- cartesian, so WP5 imports the mode 1:1 as a display preference (no     -->
+<!-- warning). Not a copy of any real project file.                        -->
 
 <OutputConfig version="1.0">
   <Outputs count="4">

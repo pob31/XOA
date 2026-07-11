@@ -44,7 +44,7 @@ struct SpeakerLayout
     coords::Cartesian positions[xoa::kMaxSpeakers];
 };
 
-enum class Type { sad = 0, modeMatch = 1 };                    // == decoderType (allRAD = 2 is WP7)
+enum class Type { sad = 0, modeMatch = 1, allRad = 2 };        // == decoderType; allRad ships WP7
 enum class Weighting { basic = 0, maxRe = 1 };                 // == decoderWeighting
 enum class NormalizationMode { amplitude = 0, energy = 1 };    // == decoderNormalization
 
@@ -179,6 +179,15 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
         }
     }
 
+    // AllRAD is not implemented until WP7; fall back to mode-matching and say so
+    // rather than silently substituting a different decoder.
+    Type effectiveType = opts.type;
+    if (opts.type == Type::allRad)
+    {
+        r.warnings.add ("AllRAD decoding is not implemented yet (WP7); using mode-matching.");
+        effectiveType = Type::modeMatch;
+    }
+
     double g[xoa::kAmbisonicOrder + 1];
     detail::orderWeights (opts.weighting, order, g);
 
@@ -193,7 +202,7 @@ inline DesignResult design (const SpeakerLayout& layout, const DesignOptions& op
         r.svdConverged = pv.converged;
     }
 
-    if (opts.type == Type::sad)
+    if (effectiveType == Type::sad)
     {
         for (int s = 0; s < L; ++s)
             for (int c = 0; c < K; ++c)
