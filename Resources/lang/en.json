@@ -50,6 +50,33 @@
     "oscMode": "OSC",
     "ready": "Ready"
   },
+  "header": {
+    "noFile": "No file loaded — use the test scene or open an AmbiX file.",
+    "openTitle": "Open an Ambisonics file",
+    "deviceStopped": "audio device stopped",
+    "rebuilding": "rebuilding…"
+  },
+  "systemConfig": {
+    "show": "Show",
+    "playback": "Playback",
+    "device": "Audio device",
+    "appearance": "Appearance",
+    "loadProject": "Load project…",
+    "saveProject": "Save project…",
+    "importWfs": "Import WFS layout…",
+    "theme": "Theme",
+    "language": "Language",
+    "themeDark": "Dark",
+    "themeOled": "OLED black",
+    "themeLight": "Light"
+  },
+  "network": {
+    "receive": "Receive",
+    "send": "Send target",
+    "feedback": "Feedback & metering",
+    "rxOn": "receiving",
+    "rxOff": "not receiving"
+  },
   "help": {
     "rotation": "Rotate the whole soundfield (yaw, pitch, roll). Driven by these dials, by OSC, or by a head-tracker quaternion.",
     "masterGain": "Master output gain applied after decoding, before the device outputs.",

@@ -12,7 +12,7 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
-#include "MainComponent.h"
+#include "App/AppShell.h"
 #include "GUI/XoaLookAndFeel.h"
 #include "GUI/WindowUtils.h"
 
@@ -62,7 +62,7 @@ public:
                               DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar (true);
-            setContentOwned (new MainComponent (commandLine), true);
+            setContentOwned (new xoa::ui::AppShell (commandLine), true);
             setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
             setVisible (true);

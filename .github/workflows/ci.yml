@@ -71,3 +71,13 @@ jobs:
       # Linux-only gate — the app is a GUI app; Windows/macOS stay unit-test-only.
       - name: OSC control-replay
         run: xvfb-run -a python3 tools/validation/control-replay/osc_replay.py
+
+      # WP10 GUI smoke (D33): launch the real GUI headless, cycle all tabs, flip
+      # the theme, and quit 0. Debug asserts (incl. the per-tab registry-coverage
+      # check) fail the step. Linux-only, same xvfb lane as the replay gate.
+      - name: GUI smoke
+        run: |
+          XOA_BIN=$(find build -type f -name XOA -perm -u+x | head -1)
+          echo "GUI smoke binary: $XOA_BIN"
+          test -n "$XOA_BIN"
+          xvfb-run -a "$XOA_BIN" --gui-smoke

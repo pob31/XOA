@@ -57,6 +57,23 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::header, i::masterGain },
         { Surface::header, i::playbackLoop },
         { Surface::header, i::playbackFilePath },
+
+        // System Config tab (C5).
+        { Surface::systemConfig, i::showName },
+        { Surface::systemConfig, i::playbackContentOrder },
+        { Surface::systemConfig, i::playbackConvention },
+        { Surface::systemConfig, i::audioDeviceState },
+
+        // Network tab (C5): the WP9 OSC transport schema (single send target).
+        { Surface::network, i::oscEnabled },
+        { Surface::network, i::oscReceivePort },
+        { Surface::network, i::oscTcpEnabled },
+        { Surface::network, i::oscTcpPort },
+        { Surface::network, i::oscAcceptAnyHost },
+        { Surface::network, i::oscSendAddress },
+        { Surface::network, i::oscSendPort },
+        { Surface::network, i::oscFeedbackEnabled },
+        { Surface::network, i::oscMeterEnabled },
     };
     return rows;
 }

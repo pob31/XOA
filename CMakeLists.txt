@@ -70,7 +70,12 @@ target_sources(XOA PRIVATE
     Source/DSP/AmbiCalculationEngine.cpp
     Source/DSP/ConvexHull.cpp
     Source/Localization/LocalizationManager.cpp
-    Source/Network/OSCManager.cpp)
+    Source/Network/OSCManager.cpp
+    # WP10 GUI application (C5): shell, header, tabs.
+    Source/App/AppShell.cpp
+    Source/App/HeaderBar.cpp
+    Source/GUI/Tabs/SystemConfigTab.cpp
+    Source/GUI/Tabs/NetworkTab.cpp)
 
 # GUI kit (WP10). Headers are picked up via the Source include dir; only
 # translation units need listing here. The macOS dark-title-bar helper is
