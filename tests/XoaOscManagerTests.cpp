@@ -1,0 +1,247 @@
+/*
+    XoaOscManagerTests.cpp - WP9 C4: the OSC manager inbound path.
+
+    Exercises the manager without opening a socket: a message is serialised to
+    bytes and fed through the test seam handleRawPacket(), which runs the same
+    dispatch the ingest queue would on the message thread. Replies (/xoa/get,
+    /xoa/ping) are captured through the injectable send hook.
+*/
+
+#include "XoaTestFramework.h"
+
+#include "Audio/AudioEngine.h"
+#include "Network/OSCManager.h"
+#include "Parameters/XoaParameterIDs.h"
+#include "Parameters/XoaValueTreeState.h"
+
+#include "spatcore/control/osc/OSCSerializer.h"
+
+#include <juce_osc/juce_osc.h>
+
+#include <cmath>
+#include <limits>
+#include <vector>
+
+namespace
+{
+
+namespace sc = spatcore::control::osc;
+using juce::OSCMessage;
+
+struct CapturedReply
+{
+    juce::String  ip;
+    int           port = 0;
+    OSCMessage    msg { juce::OSCAddressPattern ("/none") };
+};
+
+// store + engine + manager with reply capture and a serialise-and-inject helper.
+struct ManagerFixture
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine       engine { store };
+    xoa::OSCManager        mgr { store, engine };
+    std::vector<CapturedReply> replies;
+
+    ManagerFixture()
+    {
+        mgr.setSendFn ([this] (const juce::String& ip, int port, const OSCMessage& m)
+        {
+            replies.push_back ({ ip, port, m });
+        });
+    }
+
+    void inject (const OSCMessage& m, const juce::String& ip = "127.0.0.1", int port = 5005)
+    {
+        const auto bytes = sc::OSCSerializer::serializeMessage (m);
+        mgr.handleRawPacket (bytes.getData(), bytes.getSize(), ip, port);
+    }
+};
+
+//==============================================================================
+void testManagerParamWrites()
+{
+    ManagerFixture f;
+
+    // Non-channelized.
+    f.inject (OSCMessage ("/xoa/config/masterGain", -6.0f));
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::masterGain) + 6.0) < 1.0e-4);
+
+    f.store.setNumSpeakers (4);
+
+    // Channelized write form: (i)channel (f)value, 1-based channel.
+    f.inject (OSCMessage ("/xoa/speaker/gain", (juce::int32) 2, -3.0f));
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::speakerGain, 1) + 3.0) < 1.0e-4);
+
+    // Channelized indexed form.
+    f.inject (OSCMessage ("/xoa/speaker/3/gain", -9.0f));
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::speakerGain, 2) + 9.0) < 1.0e-4);
+
+    // Rotation + listener (non-channelized floats).
+    f.inject (OSCMessage ("/xoa/rotation/yaw", 45.0f));
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::rotationYaw) - 45.0) < 1.0e-4);
+
+    f.inject (OSCMessage ("/xoa/listener/y", 1.25f));
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::listenerY) - 1.25) < 1.0e-4);
+
+    // No replies for plain parameter writes.
+    CHECK (f.replies.empty());
+}
+
+//==============================================================================
+void testManagerEqWrite()
+{
+    ManagerFixture f;
+    f.store.setNumSpeakers (2);
+
+    f.inject (OSCMessage ("/xoa/speaker/1/eq/2/frequency", 1200.0f));
+    CHECK (std::abs ((double) f.store.getEqBandParameter (0, 1, xoa::ids::eqFrequency) - 1200.0) < 1.0e-2);
+
+    f.inject (OSCMessage ("/xoa/speaker/1/eq/2/gain", 4.0f));
+    CHECK (std::abs ((double) f.store.getEqBandParameter (0, 1, xoa::ids::eqGain) - 4.0) < 1.0e-3);
+}
+
+//==============================================================================
+void testManagerStructuralCount()
+{
+    ManagerFixture f;
+    const int before = f.store.getNumSpeakers();
+    f.inject (OSCMessage ("/xoa/config/speakerCount", (juce::int32) (before + 4)));
+    CHECK (f.store.getNumSpeakers() == before + 4);
+}
+
+//==============================================================================
+void testManagerRejections()
+{
+    ManagerFixture f;
+    const double m0 = (double) f.store.getFloatParameter (xoa::ids::masterGain);
+
+    f.inject (OSCMessage ("/xoa/config/masterGain", std::numeric_limits<float>::quiet_NaN()));
+    CHECK ((double) f.store.getFloatParameter (xoa::ids::masterGain) == m0);   // unchanged
+
+    f.inject (OSCMessage ("/xoa/config/bogus", 1.0f));
+    CHECK ((double) f.store.getFloatParameter (xoa::ids::masterGain) == m0);
+
+    // Transport params are read-only over OSC -> ignored.
+    const int rx0 = f.store.getIntParameter (xoa::ids::oscReceivePort);
+    f.inject (OSCMessage ("/xoa/config/oscReceivePort", (juce::int32) 9100));
+    CHECK (f.store.getIntParameter (xoa::ids::oscReceivePort) == rx0);
+
+    CHECK (f.replies.empty());
+}
+
+//==============================================================================
+void testManagerBypassesUndo()
+{
+    ManagerFixture f;
+    auto* undo = f.store.getUndoManagerForDomain (xoa::XoaValueTreeState::configDomain);
+
+    CHECK (! undo->canUndo());
+    f.inject (OSCMessage ("/xoa/config/masterGain", -3.0f));   // OSC write
+    CHECK (! undo->canUndo());                                 // ... not undoable
+
+    f.store.setParameter (xoa::ids::masterGain, -6.0);         // UI write
+    CHECK (undo->canUndo());                                   // ... records normally
+}
+
+//==============================================================================
+void testManagerGet()
+{
+    ManagerFixture f;
+    f.store.setNumSpeakers (4);
+    f.store.setParameterWithoutUndo (xoa::ids::speakerGain, -6.0, 1);   // speaker 2 (0-based 1)
+
+    // Write-form query: /xoa/get "/xoa/speaker/gain" 2  -> reply in indexed form.
+    f.inject (OSCMessage ("/xoa/get", juce::String ("/xoa/speaker/gain"), (juce::int32) 2));
+    CHECK (f.replies.size() == 1);
+    if (! f.replies.empty())
+    {
+        const auto& r = f.replies.back();
+        CHECK (r.ip == "127.0.0.1");
+        CHECK (r.port == 5005);
+        CHECK (r.msg.getAddressPattern().toString() == "/xoa/speaker/2/gain");
+        CHECK (r.msg.size() == 1);
+        CHECK (r.msg[0].isFloat32());
+        CHECK (std::abs (r.msg[0].getFloat32() + 6.0f) < 1.0e-4f);
+    }
+
+    // Non-channelized query.
+    f.replies.clear();
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, -2.0);
+    f.inject (OSCMessage ("/xoa/get", juce::String ("/xoa/config/masterGain")));
+    CHECK (f.replies.size() == 1);
+    if (! f.replies.empty())
+    {
+        CHECK (f.replies.back().msg.getAddressPattern().toString() == "/xoa/config/masterGain");
+        CHECK (std::abs (f.replies.back().msg[0].getFloat32() + 2.0f) < 1.0e-4f);
+    }
+
+    // Unknown address -> no reply.
+    f.replies.clear();
+    f.inject (OSCMessage ("/xoa/get", juce::String ("/xoa/config/bogus")));
+    CHECK (f.replies.empty());
+}
+
+//==============================================================================
+void testManagerPing()
+{
+    ManagerFixture f;
+
+    f.inject (OSCMessage ("/xoa/ping", (juce::int32) 42));
+    CHECK (f.replies.size() == 1);
+    if (! f.replies.empty())
+    {
+        const auto& r = f.replies.back();
+        CHECK (r.msg.getAddressPattern().toString() == "/xoa/pong");
+        CHECK (r.msg.size() == 1);
+        CHECK (r.msg[0].isInt32());
+        CHECK (r.msg[0].getInt32() == 42);
+    }
+
+    f.replies.clear();
+    f.inject (OSCMessage ("/xoa/ping"));
+    CHECK (f.replies.size() == 1);
+    if (! f.replies.empty())
+    {
+        CHECK (f.replies.back().msg.getAddressPattern().toString() == "/xoa/pong");
+        CHECK (f.replies.back().msg.size() == 0);
+    }
+}
+
+//==============================================================================
+void testManagerIpFilter()
+{
+    ManagerFixture f;
+    f.store.setParameterWithoutUndo (xoa::ids::oscAcceptAnyHost, false);
+    f.store.setParameterWithoutUndo (xoa::ids::oscSendAddress, juce::String ("10.0.0.5"));
+
+    const double m0 = (double) f.store.getFloatParameter (xoa::ids::masterGain);
+
+    // Foreign host -> dropped.
+    f.inject (OSCMessage ("/xoa/config/masterGain", -6.0f), "192.168.1.9");
+    CHECK ((double) f.store.getFloatParameter (xoa::ids::masterGain) == m0);
+
+    // The configured send address is allowed.
+    f.inject (OSCMessage ("/xoa/config/masterGain", -6.0f), "10.0.0.5");
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::masterGain) + 6.0) < 1.0e-4);
+
+    // Loopback is always allowed.
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, 0.0);
+    f.inject (OSCMessage ("/xoa/config/masterGain", -3.0f), "127.0.0.1");
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::masterGain) + 3.0) < 1.0e-4);
+}
+
+} // namespace
+
+//==============================================================================
+void runXoaOscManagerTests()
+{
+    testManagerParamWrites();
+    testManagerEqWrite();
+    testManagerStructuralCount();
+    testManagerRejections();
+    testManagerBypassesUndo();
+    testManagerGet();
+    testManagerPing();
+    testManagerIpFilter();
+}

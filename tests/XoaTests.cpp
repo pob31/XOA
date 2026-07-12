@@ -57,6 +57,7 @@ void runXoaNfcTests();
 void runXoaCalcEngineTests();
 void runXoaEncoderTests();
 void runXoaOscRouterTests();
+void runXoaOscManagerTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -124,6 +125,7 @@ int main()
         runXoaCalcEngineTests();
         runXoaEncoderTests();
         runXoaOscRouterTests();
+        runXoaOscManagerTests();
     }
     catch (const std::exception& e)
     {

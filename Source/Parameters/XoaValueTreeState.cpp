@@ -50,6 +50,11 @@ void XoaValueTreeState::initializeDefaultState()
     config.setProperty (ids::oscReceivePort, static_cast<int> (d::oscReceivePortDefault), nullptr);
     config.setProperty (ids::oscSendPort, static_cast<int> (d::oscSendPortDefault), nullptr);
     config.setProperty (ids::oscSendAddress, d::oscSendAddressDefault, nullptr);
+    config.setProperty (ids::oscTcpEnabled, d::oscTcpEnabledDefault, nullptr);
+    config.setProperty (ids::oscTcpPort, static_cast<int> (d::oscTcpPortDefault), nullptr);
+    config.setProperty (ids::oscAcceptAnyHost, d::oscAcceptAnyHostDefault, nullptr);
+    config.setProperty (ids::oscFeedbackEnabled, d::oscFeedbackEnabledDefault, nullptr);
+    config.setProperty (ids::oscMeterEnabled, d::oscMeterEnabledDefault, nullptr);
     config.setProperty (ids::audioDeviceState, juce::String(), nullptr);
     config.setProperty (ids::rotationYaw, d::rotationYawDefault, nullptr);
     config.setProperty (ids::rotationPitch, d::rotationPitchDefault, nullptr);
@@ -360,6 +365,15 @@ void XoaValueTreeState::setEqBandParameter (int speakerIndex, int bandIndex,
     if (! bandNode.isValid())
         return;
     writeProperty (bandNode, id, value, getActiveUndoManager());
+}
+
+void XoaValueTreeState::setEqBandParameterWithoutUndo (int speakerIndex, int bandIndex,
+                                                       const juce::Identifier& id, const juce::var& value)
+{
+    auto bandNode = getSpeakerEqBand (speakerIndex, bandIndex);
+    if (! bandNode.isValid())
+        return;
+    writeProperty (bandNode, id, value, nullptr);
 }
 
 //==============================================================================

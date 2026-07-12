@@ -68,7 +68,8 @@ target_sources(XOA PRIVATE
     Source/Audio/FilePlayer.cpp
     Source/Audio/AudioEngine.cpp
     Source/DSP/AmbiCalculationEngine.cpp
-    Source/DSP/ConvexHull.cpp)
+    Source/DSP/ConvexHull.cpp
+    Source/Network/OSCManager.cpp)
 
 target_include_directories(XOA PRIVATE Source)
 

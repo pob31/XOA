@@ -34,6 +34,13 @@ constexpr bool   oscEnabledDefault = false;
 constexpr double oscReceivePortDefault = 9000.0, oscPortMin = 1.0, oscPortMax = 65535.0;
 constexpr double oscSendPortDefault    = 9001.0;
 inline const juce::String oscSendAddressDefault { "127.0.0.1" };
+// WP9 OSC transport additions. TCP off by default (UDP is the common path);
+// feedback on so a peer sees the effect of others' edits; meters off (opt-in).
+constexpr bool   oscTcpEnabledDefault = false;
+constexpr double oscTcpPortDefault = 9002.0;
+constexpr bool   oscAcceptAnyHostDefault = true;    // trackers are rarely send-targets
+constexpr bool   oscFeedbackEnabledDefault = true;
+constexpr bool   oscMeterEnabledDefault = false;
 
 // Config / Scene rotation (degrees, WP4 yaw-pitch-roll convention: intrinsic
 // Z-Y'-X''). Pitch is limited to +/-90 so every orientation has exactly one

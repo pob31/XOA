@@ -56,6 +56,15 @@ inline const juce::Identifier oscSendPort      { "oscSendPort" };
 inline const juce::Identifier oscSendAddress   { "oscSendAddress" };
 inline const juce::Identifier audioDeviceState { "audioDeviceState" };
 
+// Config / OSC transport (WP9). Transport parameters are read-only over OSC
+// itself (a peer must not reconfigure the socket out from under itself) - they
+// are set from the UI / project file only.
+inline const juce::Identifier oscTcpEnabled      { "oscTcpEnabled" };     // bind the TCP receiver
+inline const juce::Identifier oscTcpPort         { "oscTcpPort" };        // TCP receive port
+inline const juce::Identifier oscAcceptAnyHost   { "oscAcceptAnyHost" };  // false -> IP allow-list
+inline const juce::Identifier oscFeedbackEnabled { "oscFeedbackEnabled" }; // emit parameter feedback
+inline const juce::Identifier oscMeterEnabled    { "oscMeterEnabled" };   // emit /xoa/monitor/*
+
 // Config / Scene rotation (FR-9/FR-10 — the runtime SO(3) orientation;
 // "rotation*"/"playback*" ride the everything-else-is-Config scope rule)
 inline const juce::Identifier rotationYaw   { "rotationYaw" };

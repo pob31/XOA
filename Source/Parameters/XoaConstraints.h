@@ -43,6 +43,7 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::masterGain,     { d::masterGainMin, d::masterGainMax, d::masterGainDefault, false } },
         { ids::oscReceivePort, { d::oscPortMin, d::oscPortMax, d::oscReceivePortDefault, true } },
         { ids::oscSendPort,    { d::oscPortMin, d::oscPortMax, d::oscSendPortDefault, true } },
+        { ids::oscTcpPort,     { d::oscPortMin, d::oscPortMax, d::oscTcpPortDefault, true } },
 
         // Config / scene rotation + playback (playbackLoop is bool and
         // playbackFilePath is string -> unbounded by convention)

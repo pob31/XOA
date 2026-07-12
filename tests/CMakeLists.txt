@@ -22,12 +22,14 @@ target_sources(xoa-tests PRIVATE
     XoaCalcEngineTests.cpp
     XoaEncoderTests.cpp
     XoaOscRouterTests.cpp
+    XoaOscManagerTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/FilePlayer.cpp
     ../Source/Audio/AudioEngine.cpp
     ../Source/DSP/AmbiCalculationEngine.cpp
-    ../Source/DSP/ConvexHull.cpp)
+    ../Source/DSP/ConvexHull.cpp
+    ../Source/Network/OSCManager.cpp)
 
 # XoaConstants.h and, later, the Source/DSP/Ambi* headers under test.
 target_include_directories(xoa-tests PRIVATE

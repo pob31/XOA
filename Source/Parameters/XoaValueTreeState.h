@@ -76,6 +76,10 @@ public:
                                   const juce::Identifier& id) const;
     void setEqBandParameter (int speakerIndex, int bandIndex,
                              const juce::Identifier& id, const juce::var& value);
+    /** As setEqBandParameter but bypasses undo - the write path for continuous
+        external streams (OSC) that must not flood the per-domain undo history. */
+    void setEqBandParameterWithoutUndo (int speakerIndex, int bandIndex,
+                                        const juce::Identifier& id, const juce::var& value);
 
     //==========================================================================
     // Section access (XoaFileManager and engines)
