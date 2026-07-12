@@ -71,6 +71,14 @@ target_sources(XOA PRIVATE
     Source/DSP/ConvexHull.cpp
     Source/Network/OSCManager.cpp)
 
+# GUI kit (WP10). Headers are picked up via the Source include dir; only
+# translation units need listing here. The macOS dark-title-bar helper is
+# Objective-C++ and compiles on Apple only (OBJCXX enabled at the top level by
+# spatcore_enable_consumer_languages()).
+if(APPLE)
+    target_sources(XOA PRIVATE Source/GUI/WindowUtils.mm)
+endif()
+
 target_include_directories(XOA PRIVATE Source)
 
 target_compile_definitions(XOA PRIVATE

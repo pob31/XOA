@@ -13,6 +13,8 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 
 #include "MainComponent.h"
+#include "GUI/XoaLookAndFeel.h"
+#include "GUI/WindowUtils.h"
 
 //==============================================================================
 class XOAApplication : public juce::JUCEApplication
@@ -26,12 +28,22 @@ public:
 
     void initialise (const juce::String& commandLine) override
     {
+        // Install the XOA look-and-feel BEFORE creating the window so the window
+        // chrome (and every component) picks up the themed colours. A single
+        // app-wide TooltipWindow serves all tabs.
+        lookAndFeel = std::make_unique<XoaLookAndFeel>();
+        juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
+        tooltipWindow = std::make_unique<juce::TooltipWindow> (nullptr, 700);
+
         mainWindow = std::make_unique<MainWindow> (getApplicationName(), commandLine);
     }
 
     void shutdown() override
     {
         mainWindow = nullptr;
+        tooltipWindow = nullptr;
+        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+        lookAndFeel = nullptr;
     }
 
     void systemRequestedQuit() override
@@ -54,6 +66,9 @@ public:
             setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
             setVisible (true);
+
+            // Dark native title bar (Windows DWM / macOS dark Aqua); no-op on Linux.
+            WindowUtils::enableDarkTitleBar (this);
         }
 
         void closeButtonPressed() override
@@ -66,7 +81,11 @@ public:
     };
 
 private:
-    std::unique_ptr<MainWindow> mainWindow;
+    // Declared before mainWindow so it outlives the window during teardown; the
+    // explicit ordering in shutdown() is the authoritative cleanup path.
+    std::unique_ptr<XoaLookAndFeel>      lookAndFeel;
+    std::unique_ptr<juce::TooltipWindow> tooltipWindow;
+    std::unique_ptr<MainWindow>          mainWindow;
 };
 
 //==============================================================================
