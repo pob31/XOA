@@ -11,6 +11,8 @@
 
 #include "XoaTestFramework.h"
 
+#include <juce_dsp/juce_dsp.h>
+
 #include "XoaConstants.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiConventions.h"
@@ -674,6 +676,253 @@ void testNonTrivialGather()
     }
 }
 
+//==============================================================================
+// C6 - dual-band RT stage.
+//==============================================================================
+
+// Inject a hand-built dual-band handle (matrix + hfDiagonal) via adoptResult.
+void publishDualBand (xoa::DecoderMatrixBuilder& builder, const dec::DesignResult& single,
+                      double crossoverHz, const std::vector<double>& hfDiagonal)
+{
+    dec::DesignResult d = single;
+    d.dualBand = true;
+    d.crossoverHz = crossoverHz;
+    d.hfDiagonal = hfDiagonal;
+    builder.adoptResult (std::move (d));
+    builder.publish();
+}
+
+// With HF gain == 1, lo + 1*hi is the LR4 allpass, so the dual-band decode
+// equals the single-band decode passed through that allpass (LTI linearity:
+// decode(allpass(bus)) == allpass(decode(bus))). Compared after the toggle block.
+void testDualBandAllpassNull()
+{
+    const int numIn = 16, numOut = 24, n = 64, blocks = 4;
+    const double sr = 48000.0;
+    const float fc = 800.0f;
+    const auto layout = makeRing (24, 2.0);
+
+    xoa::DecoderMatrixBuilder builder;
+    dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::basic;
+    const auto rs = dec::design (layout, o);
+    const int K = xoa::sh::numChannels (rs.matrix.order);
+    publishDualBand (builder, rs, fc, std::vector<double> ((size_t) K, 1.0));
+
+    const auto bp = xoa::rt::makeBusParams (0, rs.matrix.order, 0, numIn, 0.0, 1u);
+    spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;
+    rotSnap.publish (xoa::rt::makeRotationState (0, 0, 0, 1u));
+    spatcore::rt::RtSnapshot<xoa::rt::BusRtParams> busSnap; busSnap.publish (bp);
+
+    xoa::AmbiBusAlgorithm algo;
+    algo.prepare (numIn, numOut, sr, n, &builder, &rotSnap, &busSnap, true);
+
+    juce::dsp::LinkwitzRileyFilter<float> refAp;
+    refAp.setType (juce::dsp::LinkwitzRileyFilterType::allpass);
+    refAp.setCutoffFrequency (fc);
+    refAp.prepare ({ sr, (juce::uint32) n, (juce::uint32) numOut });
+
+    juce::AudioBuffer<float> input (numIn, n), output, refOut (numOut, n);
+    double worst = 0.0;
+    for (int b = 0; b < blocks; ++b)
+    {
+        fillInput (input, numIn, n);
+        runOneBlock (algo, input, numIn, numOut, output, n);
+
+        for (int i = 0; i < n; ++i)   // single-band dry decode
+        {
+            double busVec[xoa::kNumSHChannels] = { 0.0 };
+            for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            {
+                const int src = bp.srcChannel[c];
+                busVec[c] = (src >= 0 && src < numIn)
+                              ? (double) input.getSample (src, i) * (double) bp.gain[c] : 0.0;
+            }
+            for (int s = 0; s < numOut; ++s)
+            {
+                double acc = 0.0;
+                for (int c = 0; c < K; ++c) acc += rs.matrix.at (s, c) * busVec[c];
+                refOut.setSample (s, i, (float) acc);
+            }
+        }
+        for (int s = 0; s < numOut; ++s)   // then the allpass, per output
+        {
+            float* d = refOut.getWritePointer (s);
+            for (int i = 0; i < n; ++i) d[i] = refAp.processSample (s, d[i]);
+        }
+
+        if (b >= 1)   // block 0 is the dry->wet toggle crossfade
+            for (int s = 0; s < numOut; ++s)
+                for (int i = 0; i < n; ++i)
+                    worst = std::max (worst, std::abs ((double) output.getSample (s, i)
+                                                       - (double) refOut.getSample (s, i)));
+    }
+    CHECK (worst < 1.0e-4);
+}
+
+// DC content routes to the LF (basic) band, Nyquist to the HF (max-rE) band -
+// the LR4 extremes where |LP|/|HP| are exactly 1/0 and 0/1. The dual-band
+// matrix is the basic-weighted one, so at DC the output equals the single-band
+// basic decode, and at Nyquist it equals the single-band max-rE decode (the
+// C5 factorization D_basic*diag(hf) == D_maxRe).
+void testDualBandBandRouting()
+{
+    const int numIn = 16, numOut = 24, n = 64, settle = 16;
+    const double sr = 48000.0;
+    const auto layout = makeRing (24, 2.0);
+
+    dec::DesignOptions dbOpts; dbOpts.type = dec::Type::sad;
+    dbOpts.weighting = dec::Weighting::maxRe;   // ignored when dualBand is on
+    dbOpts.normalization = dec::NormalizationMode::energy;
+    dbOpts.dualBand = true; dbOpts.crossoverHz = 700.0;
+    xoa::DecoderMatrixBuilder builder;
+    builder.rebuild (layout, dbOpts);
+    builder.publish();
+
+    // Single-band references (basic below, max-rE above).
+    dec::DesignOptions bOpts = dbOpts; bOpts.dualBand = false; bOpts.weighting = dec::Weighting::basic;
+    dec::DesignOptions mOpts = dbOpts; mOpts.dualBand = false; mOpts.weighting = dec::Weighting::maxRe;
+    const auto Dbasic = dec::design (layout, bOpts).matrix;
+    const auto Dmaxre = dec::design (layout, mOpts).matrix;
+
+    const auto bp = xoa::rt::makeBusParams (0, Dbasic.order, 0, numIn, 0.0, 1u);
+    spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;
+    rotSnap.publish (xoa::rt::makeRotationState (0, 0, 0, 1u));
+    spatcore::rt::RtSnapshot<xoa::rt::BusRtParams> busSnap; busSnap.publish (bp);
+
+    xoa::AmbiBusAlgorithm algo;
+    algo.prepare (numIn, numOut, sr, n, &builder, &rotSnap, &busSnap, true);
+
+    juce::AudioBuffer<float> input (numIn, n), output;
+
+    // DC: per-channel constants; after settling the output is the basic decode.
+    for (int c = 0; c < numIn; ++c)
+        juce::FloatVectorOperations::fill (input.getWritePointer (c), 0.05f * (float) (c + 1), n);
+    for (int b = 0; b < settle; ++b) runOneBlock (algo, input, numIn, numOut, output, n);
+    CHECK (worstDecodeError (output, input, numIn, nullptr, Dbasic, bp, 1.0, n) < 1.0e-3);
+
+    // Nyquist: alternating +/- per sample; after settling the output is max-rE.
+    for (int c = 0; c < numIn; ++c)
+    {
+        float* d = input.getWritePointer (c);
+        for (int i = 0; i < n; ++i) d[i] = ((i & 1) ? -1.0f : 1.0f) * 0.05f * (float) (c + 1);
+    }
+    for (int b = 0; b < settle; ++b) runOneBlock (algo, input, numIn, numOut, output, n);
+    CHECK (worstDecodeError (output, input, numIn, nullptr, Dmaxre, bp, 1.0, n) < 1.0e-2);
+}
+
+// Toggling dual-band on/off is bounded (crossfade, no NaN/blowup), and dual-band
+// OFF is bit-identical to a plain single-band decode (guards the baselines).
+void testDualBandToggle()
+{
+    const int numIn = 16, numOut = 24, n = 64;
+    const auto layout = makeRing (24, 2.0);
+
+    xoa::DecoderMatrixBuilder builder;
+    dec::DesignOptions o; o.type = dec::Type::sad; o.weighting = dec::Weighting::basic;
+    const auto rs = dec::design (layout, o);
+    const int K = xoa::sh::numChannels (rs.matrix.order);
+    builder.rebuild (layout, o);   // single-band first
+    builder.publish();
+
+    const auto bp = xoa::rt::makeBusParams (0, rs.matrix.order, 0, numIn, 0.0, 1u);
+    spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;
+    rotSnap.publish (xoa::rt::makeRotationState (0, 0, 0, 1u));
+    spatcore::rt::RtSnapshot<xoa::rt::BusRtParams> busSnap; busSnap.publish (bp);
+
+    xoa::AmbiBusAlgorithm algo;
+    algo.prepare (numIn, numOut, 48000.0, n, &builder, &rotSnap, &busSnap, true);
+
+    juce::AudioBuffer<float> input (numIn, n), output;
+    fillInput (input, numIn, n);
+
+    // Dual-band OFF: bit-identical to the single-band decode.
+    runOneBlock (algo, input, numIn, numOut, output, n);
+    CHECK (worstDecodeError (output, input, numIn, nullptr, rs.matrix, bp, 1.0, n) < 1.0e-4);
+
+    // Toggle ON: finite, bounded output through the crossfade + steady blocks.
+    publishDualBand (builder, rs, 800.0, std::vector<double> ((size_t) K, 0.5));
+    double worstPeak = 0.0;
+    for (int b = 0; b < 4; ++b)
+    {
+        runOneBlock (algo, input, numIn, numOut, output, n);
+        for (int s = 0; s < numOut; ++s)
+            for (int i = 0; i < n; ++i)
+            {
+                const float v = output.getSample (s, i);
+                CHECK (std::isfinite (v));
+                worstPeak = std::max (worstPeak, (double) std::abs (v));
+            }
+    }
+    CHECK (worstPeak < 100.0);   // no runaway
+}
+
+// ON->OFF must be click-free: the transition block's first sample equals the
+// steady-ON output at that sample. Two identical dual-band algorithms settle
+// together on an above-crossover (HF-heavy) tone; one stays ON, the other
+// toggles OFF. The OFF transition uses the still-active HF weights (not the
+// OFF handle's padded 1.0s), so sample 0 stays continuous.
+void testDualBandOffToggleContinuity()
+{
+    const int numIn = 16, numOut = 24, n = 64;
+    const double sr = 48000.0;
+    const auto layout = makeRing (24, 2.0);
+
+    dec::DesignOptions dbOpts; dbOpts.type = dec::Type::sad;
+    dbOpts.weighting = dec::Weighting::maxRe;
+    dbOpts.normalization = dec::NormalizationMode::energy;
+    dbOpts.dualBand = true; dbOpts.crossoverHz = 700.0;
+
+    xoa::DecoderMatrixBuilder builderA, builderB;
+    builderA.rebuild (layout, dbOpts); builderA.publish();
+    builderB.rebuild (layout, dbOpts); builderB.publish();
+    const int order = builderA.masterMatrix().order;
+
+    const auto bp = xoa::rt::makeBusParams (0, order, 0, numIn, 0.0, 1u);
+    spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;
+    rotSnap.publish (xoa::rt::makeRotationState (0, 0, 0, 1u));
+    spatcore::rt::RtSnapshot<xoa::rt::BusRtParams> busSnapA, busSnapB;
+    busSnapA.publish (bp); busSnapB.publish (bp);
+
+    xoa::AmbiBusAlgorithm algoA, algoB;
+    algoA.prepare (numIn, numOut, sr, n, &builderA, &rotSnap, &busSnapA, true);
+    algoB.prepare (numIn, numOut, sr, n, &builderB, &rotSnap, &busSnapB, true);
+
+    juce::AudioBuffer<float> input (numIn, n), outA, outB;
+    auto fillSine = [&] (juce::int64 startSample)   // 5 kHz, above the 700 Hz crossover
+    {
+        for (int c = 0; c < numIn; ++c)
+        {
+            float* d = input.getWritePointer (c);
+            for (int i = 0; i < n; ++i)
+                d[i] = 0.1f * (float) (c + 1)
+                     * std::sin (juce::MathConstants<double>::twoPi * 5000.0
+                                 * (double) (startSample + i) / sr);
+        }
+    };
+
+    for (int b = 0; b < 8; ++b)   // settle both, dual-band ON
+    {
+        fillSine ((juce::int64) b * n);
+        runOneBlock (algoA, input, numIn, numOut, outA, n);
+        runOneBlock (algoB, input, numIn, numOut, outB, n);
+    }
+
+    // Block 8: A stays ON; B toggles OFF (same basic matrix, so only the band
+    // handling changes). Same input.
+    fillSine ((juce::int64) 8 * n);
+    dec::DesignOptions offOpts = dbOpts; offOpts.dualBand = false; offOpts.weighting = dec::Weighting::basic;
+    builderB.rebuild (layout, offOpts); builderB.publish();
+
+    runOneBlock (algoA, input, numIn, numOut, outA, n);   // steady ON
+    runOneBlock (algoB, input, numIn, numOut, outB, n);   // ON->OFF transition
+
+    double worst0 = 0.0;
+    for (int s = 0; s < numOut; ++s)
+        worst0 = std::max (worst0, std::abs ((double) outB.getSample (s, 0)
+                                             - (double) outA.getSample (s, 0)));
+    CHECK (worst0 < 1.0e-4);   // continuous first sample; the pre-fix bug jumps by ~0.5*HF
+}
+
 } // namespace
 
 //==============================================================================
@@ -695,4 +944,9 @@ void runXoaBusTests()
     testMeters();
     testDecoderSwap();
     testNonTrivialGather();
+
+    testDualBandAllpassNull();
+    testDualBandBandRouting();
+    testDualBandToggle();
+    testDualBandOffToggleContinuity();
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_dsp/juce_dsp.h>
 
 #include <array>
 #include <atomic>
@@ -76,6 +77,12 @@ public:
         busB.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
         busT.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
 
+        crossover.prepare ({ sampleRate, (juce::uint32) allocatedBlock, (juce::uint32) xoa::kNumSHChannels });
+        crossover.setType (juce::dsp::LinkwitzRileyFilterType::lowpass);   // unused; the 2-out split ignores it
+        dualBandActive = false;
+        activeCrossoverHz = 0.0f;
+        for (float& g : activeHfGain) g = 1.0f;
+
         rot::RotationMatrix identity;
         rot::identity (identity);
         for (int i = 0; i < rot::kNumRotationCoeffs; ++i)
@@ -102,6 +109,10 @@ public:
             busB.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
             busT.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
         }
+        crossover.prepare ({ sampleRate, (juce::uint32) allocatedBlock, (juce::uint32) xoa::kNumSHChannels });
+        dualBandActive = false;
+        activeCrossoverHz = 0.0f;
+        for (float& g : activeHfGain) g = 1.0f;
         enabled.store (processingEnabled, std::memory_order_relaxed);
     }
 
@@ -147,7 +158,7 @@ public:
 
         // --- 2. Rotate: busA -> rotated (busB, or busA when bypassed) ----------
         const auto rotState = rotation != nullptr ? rotation->acquire() : rt::RotationRtState {};
-        const juce::AudioBuffer<float>* rotated;
+        juce::AudioBuffer<float>* rotated;   // non-const: dual-band filters it in place
 
         if (rotState.epoch == 0)
         {
@@ -179,6 +190,74 @@ public:
             std::memcpy (currentRotation, rotState.coeffs, sizeof (currentRotation));
             lastRotationEpoch = rotState.epoch;
             rotated = &busB;
+        }
+
+        // --- 2.5 Dual-band (FR-14): LR4-split the rotated bus and reweight the
+        // HF band per channel so the single decode GEMM yields basic below the
+        // crossover / max-rE above. Skipped entirely when dual-band is off, so
+        // that path is bit-identical to before this stage existed. busT is free
+        // here (the rotation crossfade already consumed it).
+        {
+            const bool toggle = (decoderHandle.dualBand != dualBandActive);
+            if (decoderHandle.dualBand || toggle)
+            {
+                if (toggle && decoderHandle.dualBand)
+                {
+                    crossover.reset();                                    // OFF -> ON: cold start
+                    crossover.setCutoffFrequency (decoderHandle.crossoverHz);
+                    activeCrossoverHz = decoderHandle.crossoverHz;
+                }
+                else if (decoderHandle.dualBand && decoderHandle.crossoverHz != activeCrossoverHz)
+                {
+                    crossover.setCutoffFrequency (decoderHandle.crossoverHz);   // TPT is state-preserving
+                    activeCrossoverHz = decoderHandle.crossoverHz;
+                }
+
+                if (toggle)   // stash the dry bus to crossfade against
+                    for (int c = 0; c < xoa::kNumSHChannels; ++c)
+                        juce::FloatVectorOperations::copy (busT.getWritePointer (c),
+                                                           rotated->getReadPointer (c), n);
+
+                // HF weights to apply this block. ON (steady or OFF->ON) uses the
+                // new handle's weights; an ON->OFF transition uses the STILL-ACTIVE
+                // weights (activeHfGain), so the wet endpoint matches the prior
+                // block and the crossfade to dry is continuous - the OFF handle's
+                // padded 1.0s would otherwise step the HF band and click.
+                const float* hf = decoderHandle.dualBand ? decoderHandle.hfGain : activeHfGain;
+
+                // Wet = LP + hf * HP, in place (also advances the filter on the
+                // OFF-transition block so the wet start is continuous).
+                for (int c = 0; c < xoa::kNumSHChannels; ++c)
+                {
+                    float* wp = rotated->getWritePointer (c);
+                    const float h = hf[c];
+                    for (int i = 0; i < n; ++i)
+                    {
+                        float lo, hi;
+                        crossover.processSample (c, wp[i], lo, hi);
+                        wp[i] = lo + h * hi;
+                    }
+                }
+
+                if (toggle)
+                {
+                    // One-block crossfade dry (busT) <-> wet (rotated): ON fades
+                    // dry->wet, OFF fades wet->dry.
+                    const float wetStart = decoderHandle.dualBand ? 0.0f : 1.0f;
+                    const float wetEnd   = decoderHandle.dualBand ? 1.0f : 0.0f;
+                    for (int c = 0; c < xoa::kNumSHChannels; ++c)
+                    {
+                        rotated->applyGainRamp (c, 0, n, wetStart, wetEnd);
+                        rotated->addFromWithRamp (c, 0, busT.getReadPointer (c), n,
+                                                  1.0f - wetStart, 1.0f - wetEnd);
+                    }
+                    dualBandActive = decoderHandle.dualBand;
+                }
+
+                // Remember the live HF weights for a future ON->OFF transition.
+                if (decoderHandle.dualBand)
+                    std::memcpy (activeHfGain, decoderHandle.hfGain, sizeof (activeHfGain));
+            }
         }
 
         // --- 3. Decode GEMM: [L x 121] . bus -> output channels ----------------
@@ -276,6 +355,12 @@ private:
     juce::AudioBuffer<float> busA, busB, busT;   // gather / rotated / transition
     int allocatedBlock = 0;
     double currentSampleRate = 0.0;
+
+    // Dual-band LR4 crossover, one filter handling all 121 bus channels.
+    juce::dsp::LinkwitzRileyFilter<float> crossover;
+    bool dualBandActive = false;
+    float activeCrossoverHz = 0.0f;
+    float activeHfGain[xoa::kNumSHChannels];   // live HF weights, for the ON->OFF crossfade
 
     float currentRotation[rot::kNumRotationCoeffs];
     juce::uint32 lastRotationEpoch = 0;
