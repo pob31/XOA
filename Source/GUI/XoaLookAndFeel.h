@@ -226,18 +226,9 @@ public:
         setColour(juce::TextPropertyComponent::textColourId, colors.textPrimary);
         setColour(juce::TextPropertyComponent::outlineColourId, colors.buttonBorder);
 
-        //======================================================================
-        // KeyMappingEditorComponent
-        setColour(juce::KeyMappingEditorComponent::backgroundColourId, colors.background);
-        setColour(juce::KeyMappingEditorComponent::textColourId, colors.textPrimary);
-
-        //======================================================================
-        // CodeEditorComponent
-        setColour(juce::CodeEditorComponent::backgroundColourId, colors.background);
-        setColour(juce::CodeEditorComponent::defaultTextColourId, colors.textPrimary);
-        setColour(juce::CodeEditorComponent::lineNumberBackgroundId, colors.backgroundAlt);
-        setColour(juce::CodeEditorComponent::lineNumberTextId, colors.textSecondary);
-        setColour(juce::CodeEditorComponent::highlightColourId, colors.listSelection);
+        // (WFS themed juce::KeyMappingEditorComponent / juce::CodeEditorComponent
+        //  too; those live in juce_gui_extra and XOA never shows them, so their
+        //  colour setup is dropped to keep this LookAndFeel juce_gui_basics-only.)
     }
 
     //==========================================================================

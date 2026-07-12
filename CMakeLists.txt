@@ -79,6 +79,10 @@ if(APPLE)
     target_sources(XOA PRIVATE Source/GUI/WindowUtils.mm)
 endif()
 
+# Temporary WP10 C2 compile-check: forces the whole ported widget kit to compile
+# before any tab wires it up. Removed in WP10 C10 once the tabs include the kit.
+target_sources(XOA PRIVATE Source/GUI/GuiKitCompileCheck.cpp)
+
 target_include_directories(XOA PRIVATE Source)
 
 target_compile_definitions(XOA PRIVATE
