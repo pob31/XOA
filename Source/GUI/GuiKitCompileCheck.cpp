@@ -17,6 +17,9 @@
 #include "ColorUtilities.h"
 #include "XoaLookAndFeel.h"
 #include "ColumnFocusTraverser.h"
+#include "StatusBar.h"
+#include "HelpCard.h"
+#include "XoaHelpCards.h"
 
 #include "../Accessibility/TTSManager.h"
 

@@ -69,6 +69,7 @@ target_sources(XOA PRIVATE
     Source/Audio/AudioEngine.cpp
     Source/DSP/AmbiCalculationEngine.cpp
     Source/DSP/ConvexHull.cpp
+    Source/Localization/LocalizationManager.cpp
     Source/Network/OSCManager.cpp)
 
 # GUI kit (WP10). Headers are picked up via the Source include dir; only
@@ -104,6 +105,17 @@ target_link_libraries(XOA PRIVATE
 # were baselined with (spatcore's DSP is header-only from the consumer's
 # point of view, so the app's flags are the flags it compiles under).
 spatcore_apply_compile_flags(XOA)
+
+# Stage the localization files (loose JSON, WP10 C3) next to the binary so
+# LocalizationManager's default resource-dir resolution (<exeDir>/Resources/lang)
+# finds them. WFS-DIY relied on Projucer bundle copying; the CMake app stages
+# them here. The unit test reads them from the source tree instead
+# (XOA_LANG_SOURCE_DIR), so this staging is a runtime convenience, not a test dep.
+add_custom_command(TARGET XOA POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/Resources/lang"
+            "$<TARGET_FILE_DIR:XOA>/Resources/lang"
+    COMMENT "Staging Resources/lang next to the XOA binary")
 
 # ---------------------------------------------------------------------------
 # Tests — the xoa-tests console app, registered with ctest.

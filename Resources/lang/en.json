@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "language": "English",
+    "locale": "en"
+  },
+  "app": {
+    "name": "XOA",
+    "title": "XOA — Tenth-Order Ambisonics"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "load": "Load",
+    "apply": "Apply",
+    "reset": "Reset",
+    "browse": "Browse…",
+    "add": "Add",
+    "remove": "Remove",
+    "yes": "Yes",
+    "no": "No",
+    "none": "None",
+    "on": "On",
+    "off": "Off",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "units": {
+    "db": "dB",
+    "hz": "Hz",
+    "khz": "kHz",
+    "ms": "ms",
+    "meters": "m",
+    "degrees": "°",
+    "percent": "%",
+    "mps": "m/s"
+  },
+  "tabs": {
+    "systemConfig": "System",
+    "network": "Network",
+    "inputs": "Inputs",
+    "speakersDecoder": "Speakers & Decoder",
+    "monitoring": "Monitoring",
+    "map": "Map"
+  },
+  "statusBar": {
+    "displayLabel": "Info",
+    "helpMode": "Help",
+    "oscMode": "OSC",
+    "ready": "Ready"
+  },
+  "help": {
+    "rotation": "Rotate the whole soundfield (yaw, pitch, roll). Driven by these dials, by OSC, or by a head-tracker quaternion.",
+    "masterGain": "Master output gain applied after decoding, before the device outputs.",
+    "decoderType": "Decoder design: Sampling (SAD), Mode-matching, or AllRAD. Regular rigs suit SAD/mode-matching; irregular rigs suit AllRAD."
+  }
+}

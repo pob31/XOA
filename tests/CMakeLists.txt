@@ -23,12 +23,14 @@ target_sources(xoa-tests PRIVATE
     XoaEncoderTests.cpp
     XoaOscRouterTests.cpp
     XoaOscManagerTests.cpp
+    XoaLocalizationTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/FilePlayer.cpp
     ../Source/Audio/AudioEngine.cpp
     ../Source/DSP/AmbiCalculationEngine.cpp
     ../Source/DSP/ConvexHull.cpp
+    ../Source/Localization/LocalizationManager.cpp
     ../Source/Network/OSCManager.cpp)
 
 # XoaConstants.h and, later, the Source/DSP/Ambi* headers under test.
@@ -48,7 +50,11 @@ target_compile_definitions(xoa-tests PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     XOA_VERSION_STRING="${PROJECT_VERSION}"
-    XOA_TESTS_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+    XOA_TESTS_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+    # Resources/ dir (containing lang/) read directly from the source tree by
+    # XoaLocalizationTests, so the localization scaffold is gated without a
+    # staged bundle.
+    XOA_LANG_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Resources")
 
 # Test TUs compile under the same transcribed app flags as the app itself
 # (the optimization/FP flags spatcore's bit-exactness gates were baselined

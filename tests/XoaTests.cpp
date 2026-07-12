@@ -58,6 +58,7 @@ void runXoaCalcEngineTests();
 void runXoaEncoderTests();
 void runXoaOscRouterTests();
 void runXoaOscManagerTests();
+void runXoaLocalizationTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -126,6 +127,7 @@ int main()
         runXoaEncoderTests();
         runXoaOscRouterTests();
         runXoaOscManagerTests();
+        runXoaLocalizationTests();
     }
     catch (const std::exception& e)
     {
