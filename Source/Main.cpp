@@ -15,6 +15,8 @@
 #include "App/AppShell.h"
 #include "GUI/XoaLookAndFeel.h"
 #include "GUI/WindowUtils.h"
+#include "Localization/LocalizationManager.h"
+#include "Accessibility/TTSManager.h"
 
 //==============================================================================
 class XOAApplication : public juce::JUCEApplication
@@ -28,6 +30,15 @@ public:
 
     void initialise (const juce::String& commandLine) override
     {
+        // Load the localized strings BEFORE any component is built — tabs and the
+        // header resolve LOC() keys in their constructors, so without this every
+        // label would render as its raw key path. The default resource dir
+        // (<exeDir>/Resources) is where CMake stages lang/. The assert makes a
+        // missing/unstaged bundle fail loudly in Debug (incl. the GUI-smoke gate).
+        const bool stringsLoaded = LocalizationManager::getInstance().loadLanguage ("en");
+        jassert (stringsLoaded);
+        juce::ignoreUnused (stringsLoaded);
+
         // Install the XOA look-and-feel BEFORE creating the window so the window
         // chrome (and every component) picks up the themed colours. A single
         // app-wide TooltipWindow serves all tabs.
@@ -44,6 +55,12 @@ public:
         tooltipWindow = nullptr;
         juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
         lookAndFeel = nullptr;
+
+        // Tear down the string/accessibility singletons while JUCE is still alive
+        // (clears the loaded string tree; destroys the TTS timer singleton) so the
+        // leak detector stays quiet.
+        LocalizationManager::getInstance().shutdown();
+        TTSManager::shutdown();
     }
 
     void systemRequestedQuit() override
