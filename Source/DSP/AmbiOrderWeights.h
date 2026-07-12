@@ -120,6 +120,60 @@ inline void inPhase (int order, double* perOrder) noexcept
 }
 
 //==============================================================================
+/** Source-spread (width) taper (FR-5): an energy-normalized order taper that
+    blurs a point source into a wider virtual source by de-emphasizing high
+    orders. Writes order+1 doubles.
+
+      g_l(sigma) = P_l(cos(sigma/2))   with a monotone cutoff: at the first order
+                   whose P_l is <= 0, that order and all higher are zeroed (no
+                   Legendre sign-oscillation resurrects a higher order),
+      then scaled so sum_l (2l+1) g_l^2 equals its point-source value
+      (N+1)^2 = sum_l (2l+1) - i.e. the rE-energy is spread-invariant.
+
+    sigma = 0    -> P_l(1) = 1 for all l -> identity (point source).
+    sigma = 180  -> P_1(0) = 0 cuts at order 1 -> order-0 only (omni).
+    At sigma/2 = acos(r_E(N)) the raw taper is exactly the order-N max-rE
+    family (P_l(r_E)), so spread and max-rE share one machinery.
+
+    Reference: Kronlachner (2014, IEM); Zotter & Frank, Ambisonics ch.4. */
+inline void spreadTaper (int order, double spreadDeg, double* perOrder) noexcept
+{
+    jassert (order >= 0);
+    const double x = std::cos (juce::degreesToRadians (spreadDeg) * 0.5);
+
+    bool cutoff = false;
+    for (int l = 0; l <= order; ++l)
+    {
+        if (cutoff)
+        {
+            perOrder[l] = 0.0;
+            continue;
+        }
+        const double p = legendrePolynomial (l, x);
+        if (l > 0 && p <= 0.0)   // P_0(x) == 1 > 0 always, so order 0 survives
+        {
+            perOrder[l] = 0.0;
+            cutoff = true;
+        }
+        else
+        {
+            perOrder[l] = p;
+        }
+    }
+
+    // Energy-normalize to the point-source rE-energy sum_l (2l+1) = (N+1)^2.
+    double energy = 0.0, target = 0.0;
+    for (int l = 0; l <= order; ++l)
+    {
+        energy += (2.0 * l + 1.0) * perOrder[l] * perOrder[l];
+        target += (2.0 * l + 1.0);
+    }
+    const double scale = energy > 0.0 ? std::sqrt (target / energy) : 1.0;
+    for (int l = 0; l <= order; ++l)
+        perOrder[l] *= scale;
+}
+
+//==============================================================================
 // Expansion and FR-7 order adaptation.
 //==============================================================================
 
