@@ -14,7 +14,7 @@
     (--scenario all --blocks 40, no --check).
 
     CLI:
-      --scenario <static3|rotate|order-adapt|scene10|all>
+      --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|all>
       [--blocks N] [--block 512] [--sr 48000] [--speakers 24]
       [--wav out.wav] [--raw out.f32]
       [--check baselines/<machine>.json] [--update] [--bench] [--warmup 16]
@@ -39,6 +39,8 @@
 #include "scenarios.h"
 
 #include "XoaConstants.h"
+#include "Audio/SpeakerCompParams.h"
+#include "Audio/SpeakerCompProcessor.h"
 #include "Audio/TestSceneGenerator.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiDecoderDesigner.h"
@@ -81,14 +83,132 @@ dec::SpeakerLayout makeRing (int count, double radius)
     return layout;
 }
 
+// A schematic irregular "shoebox" room rig (~31 speakers): an ear-level wall
+// ring, an offset upper ring, a ceiling ring, a low ring ABOVE the floor, and a
+// zenith - but NO floor, so the nadir gap forces AllRAD to insert an imaginary
+// speaker. Radii vary 3-5 m (the "shoebox"); each speaker carries a small
+// deterministic integer-hash jitter so the convex hull is unique. Constants are
+// the source of truth for C3b's Python shoebox30() mirror.
+dec::SpeakerLayout makeShoebox()
+{
+    struct Ring { int n; double elDeg; double baseAzDeg; double radius; };
+    static const Ring rings[] = {
+        { 8,   0.0,  0.0, 4.0 },   // ear-level wall ring
+        { 8,  32.0, 22.5, 4.4 },   // upper wall ring (offset azimuths)
+        { 6,  60.0,  0.0, 3.6 },   // ceiling ring
+        { 8, -22.0, 15.0, 4.8 },   // low ring (above the floor -> nadir gap)
+    };
+    auto jitter = [] (int i, double scaleDeg)
+    {
+        const juce::uint32 h = (juce::uint32) i * 2654435761u;   // Knuth multiplicative hash
+        return ((double) (h % 10000u) / 10000.0 - 0.5) * 2.0 * scaleDeg;
+    };
+
+    dec::SpeakerLayout layout;
+    int idx = 0;
+    for (const auto& r : rings)
+        for (int k = 0; k < r.n; ++k, ++idx)
+        {
+            const double az  = r.baseAzDeg + 360.0 * (double) k / (double) r.n + jitter (idx, 2.0);
+            const double el  = r.elDeg  + jitter (idx + 100, 1.5);
+            const double rad = r.radius + jitter (idx + 200, 0.4);
+            layout.positions[idx] = coords::sphericalToCartesian (
+                { rad, coords::normalizeAzimuthDegrees (az), el });
+        }
+    layout.positions[idx++] = coords::sphericalToCartesian ({ 3.0, 0.0, 90.0 });   // zenith
+    layout.count = idx;   // 8 + 8 + 6 + 8 + 1 = 31
+    return layout;
+}
+
+// Per-speaker comp POD for the shoebox: distance mode 2 (delay aligns every
+// speaker to the farthest; attenuate-only gain law) plus a -6 dB trim on
+// speaker 0 - mirrors composeSpeakerCompParams (which the unit tests pin).
+xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout)
+{
+    xoa::SpeakerCompRtParams p;
+    p.numSpeakers = layout.count;
+    p.epoch = 1u;
+
+    std::vector<double> radius ((size_t) layout.count, 0.0);
+    double rMax = 0.0;
+    for (int s = 0; s < layout.count; ++s)
+    {
+        const auto& c = layout.positions[s];
+        radius[(size_t) s] = std::sqrt (c.x * c.x + c.y * c.y + c.z * c.z);
+        rMax = std::max (rMax, radius[(size_t) s]);
+    }
+    for (int s = 0; s < layout.count; ++s)
+    {
+        p.delayMs[s] = (float) ((rMax - radius[(size_t) s]) / xoa::kSpeedOfSound * 1000.0);
+        double gainDb = juce::jlimit (-24.0, 0.0, 20.0 * std::log10 (radius[(size_t) s] / rMax));
+        if (s == 0) gainDb += -6.0;
+        p.gainLinear[s] = (float) std::pow (10.0, gainDb / 20.0);
+    }
+    return p;
+}
+
+// One +6 dB peak EQ band on speaker 0, to exercise the comp biquad path.
+xoa::SpeakerEqParams makeShoeboxEq (int numSpeakers)
+{
+    xoa::SpeakerEqParams eq;
+    eq.numSpeakers = numSpeakers;
+    if (numSpeakers > 0)
+    {
+        eq.enabled[0] = true;
+        eq.bands[0][0].shape  = 3;          // peak
+        eq.bands[0][0].freq   = 1000.0f;
+        eq.bands[0][0].gainDb = 6.0f;
+        eq.bands[0][0].q      = 2.0f;
+    }
+    return eq;
+}
+
+// The rig (layout + decoder options + optional comp) each scenario runs on.
+struct RigSpec
+{
+    dec::SpeakerLayout       layout;
+    dec::DesignOptions       options;
+    bool                     comp = false;
+    xoa::SpeakerCompRtParams compParams;
+    xoa::SpeakerEqParams     eqParams;
+};
+
+RigSpec rigFor (scenario::Id id, const Config& cfg)
+{
+    RigSpec rig;
+    switch (id)
+    {
+        case scenario::Id::ShoeboxAllRad:
+            rig.layout = makeShoebox();
+            rig.options.type = dec::Type::allRad;
+            break;
+        case scenario::Id::DualBand:
+            rig.layout = makeRing (cfg.speakers, 2.0);
+            rig.options.dualBand = true;
+            rig.options.crossoverHz = 400.0;
+            break;
+        case scenario::Id::Comp:
+            rig.layout = makeShoebox();      // default SAD/max-rE decode; comp is the focus
+            rig.comp = true;
+            rig.compParams = makeShoeboxComp (rig.layout);
+            rig.eqParams = makeShoeboxEq (rig.layout.count);
+            break;
+        default:                             // static3 / rotate / order-adapt / scene10
+            rig.layout = makeRing (cfg.speakers, 2.0);
+            break;
+    }
+    return rig;
+}
+
 // Render one scenario through the real chain. On --bench, reports wall time
 // (excluding the first cfg.warmup blocks).
 ChannelData renderScenario (scenario::Id id, const Config& cfg)
 {
-    const int numOut = cfg.speakers;
+    const RigSpec rig = rigFor (id, cfg);
+    const int numOut = rig.layout.count;
 
     xoa::DecoderMatrixBuilder builder;
-    builder.rebuild (makeRing (cfg.speakers, 2.0), dec::DesignOptions {});   // SAD / max-rE
+    builder.rebuild (rig.layout, rig.options);
     builder.publish();
 
     spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;
@@ -97,6 +217,16 @@ ChannelData renderScenario (scenario::Id id, const Config& cfg)
     xoa::AmbiBusAlgorithm algo;
     algo.prepare (xoa::kNumSHChannels, numOut, cfg.sr, cfg.block,
                   &builder, &rotSnap, &busSnap, true);
+
+    // Optional per-speaker compensation stage (comp scenario only).
+    spatcore::rt::RtSnapshot<xoa::SpeakerCompRtParams> compSnap;
+    xoa::SpeakerCompProcessor speakerComp;
+    if (rig.comp)
+    {
+        compSnap.publish (rig.compParams);
+        speakerComp.prepare (cfg.sr, cfg.block, numOut, &compSnap);
+        speakerComp.setEqParameters (rig.eqParams);
+    }
 
     const int sOrder = scenario::sceneOrder (id);
     const int sceneCh = xoa::sh::numChannels (sOrder);
@@ -140,6 +270,9 @@ ChannelData renderScenario (scenario::Id id, const Config& cfg)
         output.clear();
         juce::AudioSourceChannelInfo info (&output, 0, cfg.block);
         algo.processBlock (info, input, sceneCh, numOut);
+
+        if (rig.comp)
+            speakerComp.processBlock (output, numOut, cfg.block);
 
         for (int c = 0; c < numOut; ++c)
         {
@@ -228,7 +361,7 @@ juce::File taggedFile (const juce::File& base, const std::string& tag)
 void usage()
 {
     std::fprintf (stderr,
-        "usage: xoa-offline-render --scenario <static3|rotate|order-adapt|scene10|all>\n"
+        "usage: xoa-offline-render --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|all>\n"
         "                          [--blocks N] [--block 512] [--sr 48000] [--speakers 24]\n"
         "                          [--wav out.wav] [--raw out.f32]\n"
         "                          [--check baselines/<machine>.json] [--update]\n"

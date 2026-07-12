@@ -1,6 +1,9 @@
 {
+  "cpu/comp": "4f1d5cfcf2550bf6408aa302fba6ddab7fb037baac9aa9ae1b9dbfc4ed4fbd38",
+  "cpu/dual-band": "1d99dd1aa26080db8b2843809ba294687275221cd7a74f74817ec39916aa90df",
   "cpu/order-adapt": "39c46d2e4d168c56d06fa90636e8f4f9bf1b794c924aeeb0bf51371fdaa1eb11",
   "cpu/rotate": "414a941674d32e37af33cf6e30aaf613b19449929984b2d7b2646191f4a9f1d5",
   "cpu/scene10": "089f446b46eb6b0a790cce767ad06fb83f5d66eb094e566a8f293e43c69b0dd3",
+  "cpu/shoebox-allrad": "ae0be022fd3afbc05a1085db28d89e225963f01e124cfd14e45e9de3b068d8b9",
   "cpu/static3": "629defee11630e7e220e132f3db398d864e49f4fecadae4d61a5e42f6a1c6735"
 }
