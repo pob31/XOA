@@ -31,6 +31,7 @@
 #include "../GUI/StatusBar.h"
 #include "../GUI/XoaTabbedComponent.h"
 #include "../GUI/Tabs/TabPage.h"
+#include "../GUI/Analysis/RvReAnalysisService.h"
 #include "HeaderBar.h"
 
 namespace xoa::ui
@@ -64,8 +65,9 @@ private:
     xoa::XoaFileManager fileManager { store };
     xoa::AudioEngine    engine { store };
     xoa::OSCManager     oscManager { store, engine };
+    RvReAnalysisService analysisService;
 
-    AppContext context { store, fileManager, engine, oscManager, {}, {} };
+    AppContext context { store, fileManager, engine, oscManager, &analysisService, {}, {} };
 
     HeaderBar          header { context };
     XoaTabbedComponent tabs;

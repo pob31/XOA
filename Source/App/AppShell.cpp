@@ -17,6 +17,7 @@
 #include "../GUI/Tabs/InputsTab.h"
 #include "../GUI/Tabs/SpeakersDecoderTab.h"
 #include "DSP/AmbiDecoderDesigner.h"
+#include "DSP/DecoderMatrixBuilder.h"
 #include "Localization/LocalizationManager.h"
 
 namespace ids = xoa::ids;
@@ -41,6 +42,11 @@ AppShell::AppShell (const juce::String& commandLine)
         if (! r.warnings.isEmpty())
             s << "  ·  " << r.warnings.joinIntoString ("; ");
         statusBar.showTemporaryMessage (s, 6000);
+
+        // Feed the FR-18 analysis (off the message thread): inspect the ACTIVE
+        // decoder (the adopted master) against the current geometry.
+        analysisService.submit (engine.getDecoderBuilder().masterMatrix(),
+                                 xoa::DecoderMatrixBuilder::layoutFromStore (store));
     };
 
     addAndMakeVisible (header);
@@ -73,6 +79,10 @@ AppShell::AppShell (const juce::String& commandLine)
     engine.openAudioDevice();
     applyStartupCommandLine (commandLine);
     oscManager.start();
+
+    // Guarantee an initial decoder build (and thus an initial FR-18 analysis
+    // submit via onDecoderRebuilt) even when no project was loaded.
+    engine.flushDecoderRebuild();
 
     setSize (1280, 900);
     startTimerHz (25);

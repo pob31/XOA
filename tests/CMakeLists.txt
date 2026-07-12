@@ -26,6 +26,7 @@ target_sources(xoa-tests PRIVATE
     XoaLocalizationTests.cpp
     XoaUiDescriptorTests.cpp
     XoaLayoutGeneratorTests.cpp
+    XoaRvReViewTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/FilePlayer.cpp

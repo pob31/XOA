@@ -32,6 +32,8 @@ class OSCManager;
 namespace xoa::ui
 {
 
+class RvReAnalysisService;
+
 /** References the app-owned backend, handed to every tab, plus cross-cutting
     actions the AppShell wires (so a tab can trigger a project load / full-UI
     refresh without owning the other tabs). */
@@ -41,6 +43,7 @@ struct AppContext
     xoa::XoaFileManager& fileManager;
     xoa::AudioEngine&    engine;
     xoa::OSCManager&     oscManager;
+    RvReAnalysisService* analysis = nullptr;   // owned by the AppShell (FR-18)
 
     std::function<void (const juce::File&)> loadProject;   // load + rebuild + refresh all tabs
     std::function<void()>                   refreshAllTabs; // after an import / count change

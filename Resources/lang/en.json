@@ -93,7 +93,21 @@
     "testType": "Signal",
     "testLevel": "Level",
     "testFreq": "Frequency",
-    "testChannel": "Channel"
+    "testChannel": "Channel",
+    "viewLayout": "Layout",
+    "viewAnalysis": "Analysis"
+  },
+  "analysis": {
+    "energy": "Energy (dB)",
+    "rvMag": "‖rV‖",
+    "rvErr": "rV error (°)",
+    "reMag": "‖rE‖",
+    "reErr": "rE error (°)",
+    "exportCsv": "Export CSV",
+    "exportMatrixCsv": "Matrix CSV",
+    "exportMatrixJson": "Matrix JSON",
+    "exportTitle": "Export analysis / decode matrix",
+    "noData": "No decoder analysis yet — rebuild the decoder."
   },
   "layout": {
     "preset": "Preset",

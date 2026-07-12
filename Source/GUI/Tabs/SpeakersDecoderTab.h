@@ -25,7 +25,10 @@
 #include "../ChannelRail.h"
 #include "../Widgets/XoaBasicDial.h"
 #include "../Layout/SpeakerLayoutPanel.h"
+#include "../Analysis/RvReMapComponent.h"
 #include "../../XoaConstants.h"
+
+#include <cstdint>
 
 namespace xoa::ui
 {
@@ -75,8 +78,12 @@ private:
     juce::Slider   testLevelSlider, testFreqSlider, testChannelSlider;
     juce::Label    testInfoLabel;
 
-    // Layout preset panel
+    // Bottom-right area: layout preset panel / rV-rE analysis, switched by a toggle.
     SpeakerLayoutPanel layoutPanel { context.store };
+    RvReMapComponent   analysisPanel;
+    juce::TextButton   layoutViewButton, analysisViewButton;
+    void setBottomView (bool showAnalysis);
+    std::uint64_t lastAnalysisGen = 0;
 
     juce::GroupComponent speakerGroup, eqGroup, decoderGroup, compGroup, testGroup, layoutGroup;
     juce::OwnedArray<juce::Label> labels;

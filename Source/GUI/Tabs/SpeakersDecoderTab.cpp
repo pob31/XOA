@@ -18,6 +18,7 @@
 #include "DSP/DecoderMatrixBuilder.h"
 #include "Helpers/XoaCoordinates.h"
 #include "Localization/LocalizationManager.h"
+#include "../Analysis/RvReAnalysisService.h"
 
 namespace ids = xoa::ids;
 
@@ -192,17 +193,35 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     context.engine.getTestSignalGenerator().setLevel (-40.0f);
     context.engine.getTestSignalGenerator().setFrequency (1000.0f);
 
-    // --- Layout panel ----------------------------------------------------
+    // --- Layout panel / rV-rE analysis (switched) ------------------------
     addAndMakeVisible (layoutPanel);
+    addChildComponent (analysisPanel);
     layoutPanel.onApplied = [this]
     {
         context.engine.flushDecoderRebuild();
         if (context.refreshAllTabs) context.refreshAllTabs();
     };
+    layoutViewButton.setButtonText (LOC ("speakers.viewLayout"));
+    analysisViewButton.setButtonText (LOC ("speakers.viewAnalysis"));
+    layoutViewButton.setClickingTogglesState (true);
+    analysisViewButton.setClickingTogglesState (true);
+    layoutViewButton.setRadioGroupId (7010);
+    analysisViewButton.setRadioGroupId (7010);
+    layoutViewButton.setToggleState (true, juce::dontSendNotification);
+    layoutViewButton.onClick  = [this] { setBottomView (false); };
+    analysisViewButton.onClick = [this] { setBottomView (true); };
+    addAndMakeVisible (layoutViewButton);
+    addAndMakeVisible (analysisViewButton);
 
     selectSpeaker (0);
     updateSuggestion();
     verifyRegistryCoverage();
+}
+
+void SpeakersDecoderTab::setBottomView (bool showAnalysis)
+{
+    layoutPanel.setVisible (! showAnalysis);
+    analysisPanel.setVisible (showAnalysis);
 }
 
 juce::Label& SpeakersDecoderTab::addLabel (const char* labelKey, juce::Justification just)
@@ -285,6 +304,17 @@ void SpeakersDecoderTab::refresh()
     }
 
     updateSuggestion();
+
+    // Pick up a freshly-published rV/rE analysis (computed off the message thread).
+    if (context.analysis != nullptr)
+    {
+        auto latest = context.analysis->latest();
+        if (latest && latest->generation != lastAnalysisGen)
+        {
+            lastAnalysisGen = latest->generation;
+            analysisPanel.setResult (latest);
+        }
+    }
 }
 
 void SpeakersDecoderTab::resized()
@@ -393,7 +423,14 @@ void SpeakersDecoderTab::resized()
     right.removeFromTop (px (6));
     {
         layoutGroup.setBounds (right);
-        layoutPanel.setBounds (right.reduced (px (10), px (18)));
+        auto in = right.reduced (px (10), px (18));
+        auto toggle = in.removeFromTop (px (24));
+        layoutViewButton.setBounds (toggle.removeFromLeft (px (80)));
+        toggle.removeFromLeft (px (4));
+        analysisViewButton.setBounds (toggle.removeFromLeft (px (90)));
+        in.removeFromTop (px (4));
+        layoutPanel.setBounds (in);
+        analysisPanel.setBounds (in);
     }
 }
 
