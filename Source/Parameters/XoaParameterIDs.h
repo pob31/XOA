@@ -69,6 +69,10 @@ inline const juce::Identifier playbackLoop         { "playbackLoop" };
 inline const juce::Identifier playbackContentOrder { "playbackContentOrder" };  // 0 = auto-detect
 inline const juce::Identifier playbackConvention   { "playbackConvention" };    // 0 SN3D, 1 N3D, 2 FuMa
 
+// Config / per-speaker distance compensation (FR-15). "distance*" routes to
+// Config; the per-speaker delay/gain come from speaker positions, not schema.
+inline const juce::Identifier distanceCompMode { "distanceCompMode" };  // 0 off, 1 delay, 2 delay+gain
+
 // Input / Channel
 inline const juce::Identifier inputName { "inputName" };
 inline const juce::Identifier inputGain { "inputGain" };

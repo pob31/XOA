@@ -51,6 +51,11 @@ constexpr double playbackContentOrderDefault = 0.0, playbackContentOrderMin = 0.
 constexpr double playbackConventionDefault = 0.0,
                  playbackConventionMin = 0.0, playbackConventionMax = 2.0;   // 0 SN3D, 1 N3D, 2 FuMa
 
+// Config / distance compensation (FR-15). Default off preserves M1 behaviour
+// and every existing baseline.
+constexpr double distanceCompModeDefault = 0.0,
+                 distanceCompModeMin = 0.0, distanceCompModeMax = 2.0;   // 0 off, 1 delay, 2 delay+gain
+
 // Inputs ----------------------------------------------------------------
 constexpr double inputGainDefault = 0.0, inputGainMin = -60.0, inputGainMax = 12.0;       // dB
 constexpr bool   inputMuteDefault = false;

@@ -58,6 +58,7 @@ void XoaValueTreeState::initializeDefaultState()
     config.setProperty (ids::playbackLoop, d::playbackLoopDefault, nullptr);
     config.setProperty (ids::playbackContentOrder, static_cast<int> (d::playbackContentOrderDefault), nullptr);
     config.setProperty (ids::playbackConvention, static_cast<int> (d::playbackConventionDefault), nullptr);
+    config.setProperty (ids::distanceCompMode, static_cast<int> (d::distanceCompModeDefault), nullptr);
     state.appendChild (config, nullptr);
 
     juce::ValueTree inputs (ids::inputs);
