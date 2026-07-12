@@ -59,6 +59,9 @@ void XoaValueTreeState::initializeDefaultState()
     config.setProperty (ids::playbackContentOrder, static_cast<int> (d::playbackContentOrderDefault), nullptr);
     config.setProperty (ids::playbackConvention, static_cast<int> (d::playbackConventionDefault), nullptr);
     config.setProperty (ids::distanceCompMode, static_cast<int> (d::distanceCompModeDefault), nullptr);
+    config.setProperty (ids::listenerX, d::listenerXDefault, nullptr);
+    config.setProperty (ids::listenerY, d::listenerYDefault, nullptr);
+    config.setProperty (ids::listenerZ, d::listenerZDefault, nullptr);
     config.setProperty (ids::monoInputsEnabled, d::monoInputsEnabledDefault, nullptr);
     state.appendChild (config, nullptr);
 

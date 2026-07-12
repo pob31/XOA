@@ -27,6 +27,14 @@
 // positions (not stored schema): delay aligns every speaker to the FARTHEST
 // (delay_s = (r_max - r_s)/c), and the gain law is attenuate-only referenced to
 // the farthest speaker (clamp(20 log10(r_s/r_max), -24, 0) dB - headroom-safe).
+//
+// Listener-position sweet-spot shift (D18/FR-25): r_s is the distance from the
+// LISTENER, not the origin - r_s = ||speaker - listener||. At the default
+// listener (0,0,0) the subtraction is exact (x - 0.0 == x for every finite x,
+// including -0.0), so the composed POD is bit-identical to the pre-D18
+// origin-referenced law; XoaCompTests pins this. Only arrival time and level
+// move - the decode matrix is unchanged (decoder redesign from the listener
+// position is post-v1).
 //==============================================================================
 
 namespace xoa
@@ -76,14 +84,21 @@ inline SpeakerCompRtParams composeSpeakerCompParams (const XoaValueTreeState& st
 
     const int mode = store.getIntParameter (ids::distanceCompMode);   // 0 off, 1 delay, 2 delay+gain
 
+    // Listener position (D18/FR-25). At the default (0,0,0) the subtraction
+    // below is a no-op (x - 0.0 == x for every finite x, incl. -0.0), so the
+    // origin path stays bit-identical to the pre-D18 law.
+    const double lx = store.getFloatParameter (ids::listenerX);
+    const double ly = store.getFloatParameter (ids::listenerY);
+    const double lz = store.getFloatParameter (ids::listenerZ);
+
     std::vector<double> radius ((size_t) L, 0.0);
     double rMax = 0.0;
     bool anySolo = false;
     for (int s = 0; s < L; ++s)
     {
-        const double x = store.getFloatParameter (ids::speakerPositionX, s);
-        const double y = store.getFloatParameter (ids::speakerPositionY, s);
-        const double z = store.getFloatParameter (ids::speakerPositionZ, s);
+        const double x = store.getFloatParameter (ids::speakerPositionX, s) - lx;
+        const double y = store.getFloatParameter (ids::speakerPositionY, s) - ly;
+        const double z = store.getFloatParameter (ids::speakerPositionZ, s) - lz;
         radius[(size_t) s] = std::sqrt (x * x + y * y + z * z);
         rMax = juce::jmax (rMax, radius[(size_t) s]);
         if (static_cast<bool> (store.getParameter (ids::speakerSolo, s)))

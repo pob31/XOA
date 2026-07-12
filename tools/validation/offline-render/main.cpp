@@ -15,7 +15,7 @@
 
     CLI:
       --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|
-                  encode-static|encode-move|all>
+                  comp-offcenter|encode-static|encode-move|all>
       [--blocks N] [--block 512] [--sr 48000] [--speakers 24]
       [--wav out.wav] [--raw out.f32]
       [--check baselines/<machine>.json] [--update] [--bench] [--warmup 16]
@@ -126,7 +126,11 @@ dec::SpeakerLayout makeShoebox()
 // Per-speaker comp POD for the shoebox: distance mode 2 (delay aligns every
 // speaker to the farthest; attenuate-only gain law) plus a -6 dB trim on
 // speaker 0 - mirrors composeSpeakerCompParams (which the unit tests pin).
-xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout)
+// The optional listener offset (D18) re-references distances to (lx,ly,lz);
+// at the default origin the output is bit-identical to the pre-D18 mirror, so
+// the `comp` baseline is unchanged and `comp-offcenter` differs only by it.
+xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout,
+                                          double lx = 0.0, double ly = 0.0, double lz = 0.0)
 {
     xoa::SpeakerCompRtParams p;
     p.numSpeakers = layout.count;
@@ -137,7 +141,8 @@ xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout)
     for (int s = 0; s < layout.count; ++s)
     {
         const auto& c = layout.positions[s];
-        radius[(size_t) s] = std::sqrt (c.x * c.x + c.y * c.y + c.z * c.z);
+        const double dx = c.x - lx, dy = c.y - ly, dz = c.z - lz;
+        radius[(size_t) s] = std::sqrt (dx * dx + dy * dy + dz * dz);
         rMax = std::max (rMax, radius[(size_t) s]);
     }
     for (int s = 0; s < layout.count; ++s)
@@ -195,6 +200,12 @@ RigSpec rigFor (scenario::Id id, const Config& cfg)
             rig.layout = makeShoebox();      // default SAD/max-rE decode; comp is the focus
             rig.comp = true;
             rig.compParams = makeShoeboxComp (rig.layout);
+            rig.eqParams = makeShoeboxEq (rig.layout.count);
+            break;
+        case scenario::Id::CompOffCenter:    // identical rig; D18 listener at (1, 0.5, 0)
+            rig.layout = makeShoebox();
+            rig.comp = true;
+            rig.compParams = makeShoeboxComp (rig.layout, 1.0, 0.5, 0.0);
             rig.eqParams = makeShoeboxEq (rig.layout.count);
             break;
         case scenario::Id::EncodeStatic:
@@ -435,7 +446,7 @@ juce::File taggedFile (const juce::File& base, const std::string& tag)
 void usage()
 {
     std::fprintf (stderr,
-        "usage: xoa-offline-render --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|all>\n"
+        "usage: xoa-offline-render --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|comp-offcenter|all>\n"
         "                          [--blocks N] [--block 512] [--sr 48000] [--speakers 24]\n"
         "                          [--wav out.wav] [--raw out.f32]\n"
         "                          [--check baselines/<machine>.json] [--update]\n"

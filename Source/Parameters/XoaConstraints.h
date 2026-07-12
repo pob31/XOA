@@ -52,6 +52,9 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::playbackContentOrder, { d::playbackContentOrderMin, d::playbackContentOrderMax, d::playbackContentOrderDefault, true } },
         { ids::playbackConvention,   { d::playbackConventionMin, d::playbackConventionMax, d::playbackConventionDefault, true } },
         { ids::distanceCompMode,     { d::distanceCompModeMin, d::distanceCompModeMax, d::distanceCompModeDefault, true } },
+        { ids::listenerX,            { d::positionMin, d::positionMax, d::listenerXDefault, false } },
+        { ids::listenerY,            { d::positionMin, d::positionMax, d::listenerYDefault, false } },
+        { ids::listenerZ,            { d::positionMin, d::positionMax, d::listenerZDefault, false } },
 
         // Structural counts
         { ids::inputCount,   { 1.0, (double) xoa::kMaxInputs,   (double) xoa::kDefaultInputs,   true } },

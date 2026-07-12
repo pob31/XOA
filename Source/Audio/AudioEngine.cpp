@@ -56,6 +56,13 @@ void AudioEngine::registerListeners()
     // only the comp POD -> republish, no decoder rebuild.
     store.addParameterListener (ids::distanceCompMode, [this] (const juce::var&) { publishSpeakerComp(); });
 
+    // Listener position (D18/FR-25) re-references the distance comp -> republish
+    // the comp POD only. It does NOT move the rig geometry, so the decoder and
+    // the encoder r_ref (updateReferenceRadius) are deliberately untouched.
+    store.addParameterListener (ids::listenerX, [this] (const juce::var&) { publishSpeakerComp(); });
+    store.addParameterListener (ids::listenerY, [this] (const juce::var&) { publishSpeakerComp(); });
+    store.addParameterListener (ids::listenerZ, [this] (const juce::var&) { publishSpeakerComp(); });
+
     // The Speakers and Decoder subtrees drive decoder rebuilds; one listener on
     // each catches position edits, count changes (child add/remove) and merges.
     // Hold the subtree handles as members: a ValueTree registers listeners by
@@ -80,6 +87,9 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::playbackContentOrder);
     store.removeParameterListeners (ids::playbackConvention);
     store.removeParameterListeners (ids::distanceCompMode);
+    store.removeParameterListeners (ids::listenerX);
+    store.removeParameterListeners (ids::listenerY);
+    store.removeParameterListeners (ids::listenerZ);
 
     speakersSection.removeListener (this);
     decoderSection.removeListener (this);

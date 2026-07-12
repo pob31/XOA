@@ -36,6 +36,49 @@ void populateRadii (xoa::XoaValueTreeState& store)
     }
 }
 
+// Pre-D18 origin-referenced compose (radius = ||speaker||), replicated verbatim
+// so the listener=origin path can be proven byte-for-byte identical to it.
+xoa::SpeakerCompRtParams composeOriginReferenced (const xoa::XoaValueTreeState& store,
+                                                  juce::uint32 epoch)
+{
+    xoa::SpeakerCompRtParams p;
+    const int L = juce::jmin (store.getNumSpeakers(), xoa::kMaxSpeakers);
+    p.numSpeakers = L;
+    p.epoch = epoch;
+    const int mode = store.getIntParameter (xoa::ids::distanceCompMode);
+
+    std::vector<double> radius ((size_t) L, 0.0);
+    double rMax = 0.0;
+    bool anySolo = false;
+    for (int s = 0; s < L; ++s)
+    {
+        const double x = store.getFloatParameter (xoa::ids::speakerPositionX, s);
+        const double y = store.getFloatParameter (xoa::ids::speakerPositionY, s);
+        const double z = store.getFloatParameter (xoa::ids::speakerPositionZ, s);
+        radius[(size_t) s] = std::sqrt (x * x + y * y + z * z);
+        rMax = juce::jmax (rMax, radius[(size_t) s]);
+        if (static_cast<bool> (store.getParameter (xoa::ids::speakerSolo, s)))
+            anySolo = true;
+    }
+    for (int s = 0; s < L; ++s)
+    {
+        double delayMs = store.getFloatParameter (xoa::ids::speakerDelay, s);
+        if (mode >= 1)
+            delayMs += (rMax - radius[(size_t) s]) / xoa::kSpeedOfSound * 1000.0;
+        p.delayMs[s] = (float) juce::jlimit (0.0, xoa::kMaxCompDelayMs, delayMs);
+
+        double gainDb = store.getFloatParameter (xoa::ids::speakerGain, s);
+        if (mode >= 2 && rMax > 0.0)
+            gainDb += juce::jlimit (-24.0, 0.0,
+                                    20.0 * std::log10 (juce::jmax (radius[(size_t) s], 0.1) / rMax));
+        const bool muted  = static_cast<bool> (store.getParameter (xoa::ids::speakerMute, s));
+        const bool soloed = static_cast<bool> (store.getParameter (xoa::ids::speakerSolo, s));
+        const bool audible = (! anySolo || soloed) && ! muted;
+        p.gainLinear[s] = audible ? (float) std::pow (10.0, gainDb / 20.0) : 0.0f;
+    }
+    return p;
+}
+
 //==============================================================================
 void testCompComposerDistanceModes()
 {
@@ -106,6 +149,70 @@ void testCompComposerTrimMuteSolo()
     store.setParameter (xoa::ids::speakerMute, true, 2);
     p = xoa::composeSpeakerCompParams (store, 4u);
     CHECK (p.gainLinear[2] == 0.0f);
+}
+
+//==============================================================================
+// D18/FR-25 listener re-reference.
+//==============================================================================
+
+// At the default listener (0,0,0) the composed POD must be byte-for-byte the
+// pre-D18 origin-referenced law - the guarantee that every existing baseline
+// (offline `comp`, project round-trips) is undisturbed. Exercise the full POD
+// (delay-mode 2 + a trim + a delay trim) so the memcmp is meaningful.
+void testCompListenerOriginBitIdentity()
+{
+    xoa::XoaValueTreeState store;
+    populateRadii (store);
+    store.setParameter (xoa::ids::distanceCompMode, 2);
+    store.setParameter (xoa::ids::speakerGain, -3.0, 1);
+    store.setParameter (xoa::ids::speakerDelay, 12.0, 2);
+
+    CHECK (store.getFloatParameter (xoa::ids::listenerX) == 0.0f);
+    CHECK (store.getFloatParameter (xoa::ids::listenerY) == 0.0f);
+    CHECK (store.getFloatParameter (xoa::ids::listenerZ) == 0.0f);
+
+    const auto pNew = xoa::composeSpeakerCompParams (store, 42u);
+    const auto pRef = composeOriginReferenced (store, 42u);
+    CHECK (std::memcmp (&pNew, &pRef, sizeof (xoa::SpeakerCompRtParams)) == 0);
+}
+
+// An off-centre listener re-references distances to ||speaker - listener||.
+// Speakers sit on +x at radii 1..4; the listener at (0,1,0) makes distances
+// sqrt((s+1)^2 + 1), so speaker 3 stays farthest and the delays/gains follow
+// the listener-referenced law - and visibly differ from the origin law.
+void testCompListenerOffCenter()
+{
+    xoa::XoaValueTreeState store;
+    populateRadii (store);
+    store.setParameter (xoa::ids::distanceCompMode, 2);
+    store.setParameter (xoa::ids::listenerX, 0.0);
+    store.setParameter (xoa::ids::listenerY, 1.0);
+    store.setParameter (xoa::ids::listenerZ, 0.0);
+
+    const auto p = xoa::composeSpeakerCompParams (store, 5u);
+
+    double dist[4], rMax = 0.0;
+    for (int s = 0; s < 4; ++s)
+    {
+        dist[s] = std::sqrt ((double) ((s + 1) * (s + 1)) + 1.0);
+        rMax = juce::jmax (rMax, dist[s]);
+    }
+    for (int s = 0; s < 4; ++s)
+    {
+        const double expDelay = (rMax - dist[s]) / xoa::kSpeedOfSound * 1000.0;
+        CHECK (std::abs (p.delayMs[s] - expDelay) < 1.0e-3);
+        const double db = juce::jlimit (-24.0, 0.0, 20.0 * std::log10 (dist[s] / rMax));
+        CHECK (std::abs (p.gainLinear[s] - (float) std::pow (10.0, db / 20.0)) < 1.0e-5f);
+    }
+    CHECK (p.delayMs[3] == 0.0f);   // farthest from the listener -> no added delay
+
+    // The re-reference actually moved things vs the origin-referenced law.
+    const auto pOrigin = composeOriginReferenced (store, 5u);
+    bool differs = false;
+    for (int s = 0; s < 4; ++s)
+        if (std::abs (p.delayMs[s] - pOrigin.delayMs[s]) > 1.0e-3f)
+            differs = true;
+    CHECK (differs);
 }
 
 //==============================================================================
@@ -473,6 +580,8 @@ void runXoaCompTests()
 {
     testCompComposerDistanceModes();
     testCompComposerTrimMuteSolo();
+    testCompListenerOriginBitIdentity();
+    testCompListenerOffCenter();
     testEqComposer();
     testCompNeutralPassthrough();
     testCompSignedZeroNeutral();

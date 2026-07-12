@@ -73,6 +73,13 @@ inline const juce::Identifier playbackConvention   { "playbackConvention" };    
 // Config; the per-speaker delay/gain come from speaker positions, not schema.
 inline const juce::Identifier distanceCompMode { "distanceCompMode" };  // 0 off, 1 delay, 2 delay+gain
 
+// Config / listener position (D18/FR-25). Sweet-spot shift: the distance-comp
+// delays/gains are referenced to this point instead of the rig origin.
+// "listener*" routes to Config. Default (0,0,0) = origin (comp bit-identical).
+inline const juce::Identifier listenerX { "listenerX" };
+inline const juce::Identifier listenerY { "listenerY" };
+inline const juce::Identifier listenerZ { "listenerZ" };
+
 // Config / mono encoders (FR-5/FR-6, WP8). Master gate for the encoder stage;
 // off by default so the RT bus is bit-identical to M2 (no stems mixed in).
 inline const juce::Identifier monoInputsEnabled { "monoInputsEnabled" };

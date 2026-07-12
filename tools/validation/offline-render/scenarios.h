@@ -19,6 +19,9 @@
 //   dual-band   order-10, 30 deg yaw, dual-band decode (WP7) - LR4 band split
 //   comp        order-10, AllRAD room rig + per-speaker compensation (WP7) -
 //                  distance delay/gain + one EQ band
+//   comp-offcenter same rig as comp, but the D18 listener is off-centre
+//                  (1, 0.5, 0) - the distance re-reference shifts every
+//                  delay/gain; differs from comp only by the listener offset
 //   encode-static  8 mono stems on the 2 m ring (= r_ref -> distance gain 1),
 //                  spread 0, NFC off, identity rotation (WP8) - the encoder null
 //                  anchor: output == decode . sum(encode . stem)
@@ -42,7 +45,7 @@ namespace scenario
 {
 
 enum class Id { Static3 = 0, Rotate, OrderAdapt, Scene10, ShoeboxAllRad, DualBand, Comp,
-                EncodeStatic, EncodeMove };
+                CompOffCenter, EncodeStatic, EncodeMove };
 
 inline const char* name (Id id)
 {
@@ -55,6 +58,7 @@ inline const char* name (Id id)
         case Id::ShoeboxAllRad: return "shoebox-allrad";
         case Id::DualBand:      return "dual-band";
         case Id::Comp:          return "comp";
+        case Id::CompOffCenter: return "comp-offcenter";
         case Id::EncodeStatic:  return "encode-static";
         case Id::EncodeMove:    return "encode-move";
     }
@@ -70,6 +74,7 @@ inline bool fromName (const std::string& s, Id& out)
     if (s == "shoebox-allrad") { out = Id::ShoeboxAllRad; return true; }
     if (s == "dual-band")      { out = Id::DualBand;      return true; }
     if (s == "comp")           { out = Id::Comp;          return true; }
+    if (s == "comp-offcenter") { out = Id::CompOffCenter; return true; }
     if (s == "encode-static")  { out = Id::EncodeStatic;  return true; }
     if (s == "encode-move")    { out = Id::EncodeMove;    return true; }
     return false;
@@ -78,7 +83,7 @@ inline bool fromName (const std::string& s, Id& out)
 inline const std::vector<Id>& allScenarios()
 {
     static const std::vector<Id> all { Id::Static3, Id::Rotate, Id::OrderAdapt, Id::Scene10,
-                                       Id::ShoeboxAllRad, Id::DualBand, Id::Comp,
+                                       Id::ShoeboxAllRad, Id::DualBand, Id::Comp, Id::CompOffCenter,
                                        Id::EncodeStatic, Id::EncodeMove };
     return all;
 }
@@ -172,7 +177,8 @@ inline int contentOrder (Id id, int tick)
         case Id::Scene10:
         case Id::ShoeboxAllRad:
         case Id::DualBand:
-        case Id::Comp:       return xoa::kAmbisonicOrder;
+        case Id::Comp:
+        case Id::CompOffCenter: return xoa::kAmbisonicOrder;
         case Id::EncodeStatic:
         case Id::EncodeMove: return 0;      // silent HOA; the stems carry the signal
         case Id::OrderAdapt:
@@ -206,6 +212,7 @@ inline void rotation (Id id, int tick, double& yawDeg, double& pitchDeg, double&
         case Id::OrderAdapt:
         case Id::ShoeboxAllRad:            // identity: isolate the AllRAD decode
         case Id::Comp:                     // identity: isolate the comp stage
+        case Id::CompOffCenter:            // identity: isolate the D18 listener re-reference
         case Id::EncodeStatic:             // identity: the encoder null anchor
         default:
             yawDeg = 0.0; pitchDeg = 0.0; rollDeg = 0.0;

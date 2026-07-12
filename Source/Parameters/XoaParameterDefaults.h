@@ -56,6 +56,11 @@ constexpr double playbackConventionDefault = 0.0,
 constexpr double distanceCompModeDefault = 0.0,
                  distanceCompModeMin = 0.0, distanceCompModeMax = 2.0;   // 0 off, 1 delay, 2 delay+gain
 
+// Config / listener position (D18/FR-25), meters. Default origin = rig center;
+// at the origin the compensation re-reference is bit-identical to the pre-D18
+// law (see SpeakerCompParams.h). Bounds share the position range [-100, 100].
+constexpr double listenerXDefault = 0.0, listenerYDefault = 0.0, listenerZDefault = 0.0;
+
 // Config / mono encoders (WP8). Default off keeps the RT bus bit-identical to M2.
 constexpr bool   monoInputsEnabledDefault = false;
 
