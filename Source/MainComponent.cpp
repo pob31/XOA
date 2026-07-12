@@ -139,6 +139,7 @@ MainComponent::MainComponent()
             engine.flushDecoderRebuild();
             updateSuggestionLabel();
             speakerList->rebuildRows();   // speaker count may have changed
+            inputList->rebuildRows();     // input count may have changed
             resized();
         });
     };
@@ -163,6 +164,29 @@ MainComponent::MainComponent()
         crossoverSlider.setValue ((double) v, juce::dontSendNotification);
     });
     addAndMakeVisible (crossoverSlider);
+
+    // --- Mono encoders (FR-5/FR-6) ----------------------------------------
+    bindToggle (monoInputsButton, ids::monoInputsEnabled);
+    addAndMakeVisible (monoInputsButton);
+
+    stemFeedLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (stemFeedLabel);
+    stemFeedCombo.addItem ("Device inputs", 1);
+    stemFeedCombo.addItem ("Test feed", 2);
+    stemFeedCombo.setSelectedId (1, juce::dontSendNotification);
+    stemFeedCombo.onChange = [this]
+    {
+        engine.setStemFeed (stemFeedCombo.getSelectedId() == 2
+                                ? xoa::AudioEngine::StemFeed::test
+                                : xoa::AudioEngine::StemFeed::device);
+    };
+    addAndMakeVisible (stemFeedCombo);
+
+    inputList = std::make_unique<InputListComponent> (store);
+    inputViewport.setViewedComponent (inputList.get(), false);
+    inputViewport.setScrollBarsShown (true, false);
+    addAndMakeVisible (inputViewport);
+    inputList->rebuildRows();
 
     // --- Per-speaker compensation (FR-15) ---------------------------------
     distanceModeLabel.setJustificationType (juce::Justification::centredRight);
@@ -261,7 +285,7 @@ MainComponent::MainComponent()
     updateSuggestionLabel();
     engine.openAudioDevice();
 
-    setSize (1000, 940);
+    setSize (1000, 1100);   // room for the WP8 mono-encoder panel
     startTimerHz (25);
 }
 
@@ -527,6 +551,24 @@ void MainComponent::resized()
         crossoverSlider.setBounds (r.removeFromLeft (240));
     }
     area.removeFromTop (6);
+
+    // Mono-encoder gate + stem source.
+    {
+        auto r = row (26);
+        monoInputsButton.setBounds (r.removeFromLeft (130)); r.removeFromLeft (12);
+        stemFeedLabel   .setBounds (r.removeFromLeft (48));  r.removeFromLeft (6);
+        stemFeedCombo   .setBounds (r.removeFromLeft (140));
+    }
+    area.removeFromTop (4);
+
+    // Per-input encoder table (scrollable).
+    {
+        inputViewport.setBounds (row (110));
+        if (inputList != nullptr)
+            inputList->setSize (inputViewport.getMaximumVisibleWidth(),
+                                juce::jmax (inputViewport.getHeight(), inputList->preferredHeight()));
+    }
+    area.removeFromTop (8);
 
     // Distance-comp mode row.
     {

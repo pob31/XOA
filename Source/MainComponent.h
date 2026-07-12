@@ -23,6 +23,7 @@
 #include "Audio/TestSignalGenerator.h"
 #include "Parameters/XoaFileManager.h"
 #include "Parameters/XoaValueTreeState.h"
+#include "InputListComponent.h"
 #include "SpeakerListComponent.h"
 
 //==============================================================================
@@ -85,6 +86,13 @@ private:
     juce::ToggleButton dualBandButton { "Dual-band" };
     juce::Slider       crossoverSlider;
     juce::Label        crossoverLabel { {}, "Crossover" };
+
+    // Mono encoders (FR-5/FR-6): master gate, stem source, per-input table.
+    juce::ToggleButton monoInputsButton { "Mono encoders" };
+    juce::ComboBox     stemFeedCombo;
+    juce::Label        stemFeedLabel { {}, "Stems" };
+    juce::Viewport     inputViewport;
+    std::unique_ptr<InputListComponent> inputList;
 
     // Per-speaker compensation (FR-15): distance mode + the trim/mute/solo table.
     juce::ComboBox   distanceModeCombo;

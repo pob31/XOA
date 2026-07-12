@@ -57,7 +57,7 @@ hardware in CI).
 | WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | **DONE** |
 | WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
-| WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | |
+| WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | **DONE (M3a)** |
 | WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
 | WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
 | WP11 | GPU decode path (two tracks, cross-repo) | **M4 exit** | P7 | WP7 (+ spatcore track) | XL | |
@@ -587,11 +587,71 @@ colinear/coplanar input (covered by tests + convhull_3d).
 
 ---
 
-### WP8 — Mono encoders, NFC, spread (L)
+### WP8 — Mono encoders, NFC, spread (L) — **DONE (M3a)**
 
 **Goal.** The theatre-integrator scenario: N mono stems encoded onto the
 bus with position, distance, and width — including stable order-10
 near-field compensation.
+
+**Status: DONE (M3a).** Shipped across chunks C1–C7.
+
+M3(a) acceptance evidence (all green, authoritative MSBuild):
+- **NFC (FR-6)** — `Source/DSP/AmbiNFCFilter.h`: per-source, per-order cascades
+  of 1st/2nd-order sections from the reverse-Bessel roots in the generated
+  `AmbiNfcTables.h`, `H_l(s) = Π (s − q_i c/r_src)/(s − q_i c/r_ref)` — zeros move
+  with the source, **poles depend only on r_ref** so stability is fixed by the
+  rig. Bilinear (K = 2 Fs, no prewarp); min-radius + per-order DC-boost clamps.
+  Validated against the Daniel goldens (`gen_nfc_reference.py`, 180 cases): with
+  the coefficients realized in **double** (D-NFC below), the digital DC and
+  magnitude match the double-precision goldens to **0.0000 dB**, roots residual
+  ≤ 9e-6 (cancellation only), worst-case stability at order 10 / 44.1+96 kHz /
+  clamped small radius.
+- **Spread (FR-5)** — `weights::spreadTaper`: energy-normalized order taper
+  `g_l = P_l(cos σ/2)` with a monotone cutoff; σ=0 identity, σ=180 omni, and it
+  reproduces the order-N max-rE family at σ/2 = acos(r_E). rE is **unimodal**
+  (rises to the max-rE peak, then falls) — see D-rE.
+- **Encode + click-free (FR-5)** — the live `[in × 121]` matrix seam
+  (`AmbiCalculationEngine`, 50 Hz) + a one-block per-coefficient ramp in
+  `AmbiBusAlgorithm`; the `encode-move` offline scenario exercises azimuth orbit,
+  a 0.5↔4 m radial NFC sweep, a spread sweep and rotation together,
+  deterministically. Position conditioning via `InputSpeedLimiter` (with a
+  settle-recompute latch) and `TrackingPositionFilter` (behind
+  `submitTrackedPosition`, WP9's OSC seam).
+- **Neutral when off** — encoder seams null / numSources 0 skip the stage; the
+  seven M1/M2 offline baselines **and** the NFC-off `encode-static` scenario are
+  byte-identical with the encoder compiled in.
+- **CPU (§7)** — at the reference shape (order 10, 96 kHz, 1024, 250 outs,
+  single-thread, dev machine): `encode-static` 2.3× / `encode-move` 2.8× realtime
+  vs `scene10` 2.2× with no encoder — the encoder's marginal cost is negligible;
+  the decode GEMM dominates. Formal <40 % on reference hardware is WP13.
+- **Shell UI** — a per-input encoder table (X/Y/Z, gain, spread, mute, NFC) plus
+  the mono-encoder gate + stem-feed (device / internal test feed) selector.
+
+**Decisions (recorded).**
+- **D-NFCstage.** NFC is **per-source, order-lane structured** (per-input
+  `inputNfcEnabled`), resolving the PRD §5 "on the bus" vs FR-6 per-source
+  wording. Each stem → 11 order-lanes (lane 0 = dry); bus channel c of order l
+  accumulates `lane[l] × encodeCoeff[c]`.
+- **D-NFCdir.** The audible **bass-boost** direction (near source ⇒ per-order LF
+  boost, DC gain (r_ref/r_src)^l) is used; the DEVPLAN's original `H_l =
+  F_l(r_ref)/F_l(r_src)` line is the reciprocal. Pinned and derived in
+  `gen_bessel_roots.py` (the WP8 analogue of the WP3 Condon–Shortley note).
+- **D-NFCdouble.** NFC section coefficients **and** state are **double**, not
+  float: at 96 kHz / order 10 the near-field poles sit at ~z = 1, and float
+  storage loses ~0.16 dB of DC gain (PRD §9's "numerically delicate"). Double
+  removes it at negligible cost (the encoder is far from the CPU bound). Audio
+  I/O stays float. The encode-gain matrix stays float (no cancellation there).
+- **D-rE.** The spread rE trajectory is **unimodal, not monotone** — the DEVPLAN's
+  "monotonically decreasing" is an oversight: a mild high-order taper sharpens rE
+  (toward max-rE) before widening it toward omni.
+- **D-dist.** Distance gain v1 is fixed: `r_ref / clamp(r_src, r_min, ∞)` capped
+  at the shared boost ceiling; law selection is post-v1.
+- **D-stems.** Stems are device inputs (identity-mapped) or an internal test feed
+  (audible without hardware), gated by the Config `monoInputsEnabled`. r_ref is
+  the mean speaker radius, tracked from the layout.
+
+**Remaining for M3 sign-off.** The listening-validation checkpoint on a real rig
+(PRD §9) — a developer step, like the M1/M2 checks; no >64-out hardware in CI.
 
 **PRD coverage.** FR-5, FR-6; M3 first half.
 
