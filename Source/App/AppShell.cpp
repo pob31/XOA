@@ -86,6 +86,11 @@ AppShell::AppShell (const juce::String& commandLine)
 
 AppShell::~AppShell()
 {
+    // Drop the rebuild callback first: it captures `this` and submits to
+    // analysisService, which (member order) is destroyed before the engine — so a
+    // rebuild fired during teardown must not reach it.
+    engine.onDecoderRebuilt = nullptr;
+
     ColorScheme::Manager::getInstance().removeListener (this);
     stopTimer();
     oscManager.stop();

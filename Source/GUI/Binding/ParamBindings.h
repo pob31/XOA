@@ -118,10 +118,10 @@ public:
         const juce::String txName = d ? LOC (d->labelKey) : id.toString();
 
         slider.onDragStart = [this, dom, txName] { openGesture (dom, txName); };
-        slider.onValueChange = [this, &slider, id, channel, applying]
+        slider.onValueChange = [this, &slider, id, channel, dom, applying]
         {
             if (*applying) return;
-            writeNumber (id, slider.getValue(), effChannel (channel));
+            writeNumber (dom, id, slider.getValue(), effChannel (channel));
         };
 
         auto seed = [this, &slider, id, channel, applying]
@@ -146,10 +146,10 @@ public:
         const juce::String txName = d ? LOC (d->labelKey) : id.toString();
 
         dial.onGestureStart = [this, dom, txName] { openGesture (dom, txName); };
-        dial.onValueChanged = [this, id, channel, applying] (float v)
+        dial.onValueChanged = [this, id, channel, dom, applying] (float v)
         {
             if (*applying) return;
-            writeNumber (id, (double) v, effChannel (channel));
+            writeNumber (dom, id, (double) v, effChannel (channel));
         };
 
         auto seed = [this, &dial, id, channel, applying]
@@ -168,7 +168,7 @@ public:
         button.onClick = [this, &button, id, channel, applying]
         {
             if (*applying) return;
-            store.setParameter (id, button.getToggleState(), effChannel (channel));
+            writeScoped (domainForId (id), id, button.getToggleState(), effChannel (channel));
         };
 
         auto seed = [this, &button, id, channel, applying]
@@ -191,7 +191,7 @@ public:
             if (*applying) return;
             const int sel = combo.getSelectedId();
             if (sel > 0)
-                store.setParameter (id, minVal + sel - 1, effChannel (channel));
+                writeScoped (domainForId (id), id, minVal + sel - 1, effChannel (channel));
         };
 
         auto seed = [this, &combo, id, channel, minVal, applying]
@@ -212,10 +212,11 @@ public:
         auto commit = [this, &editor, id, channel, b, applying]
         {
             if (*applying) return;
+            const auto dom = domainForId (id);
             if (b != nullptr)
-                writeNumber (id, editor.getText().getDoubleValue(), effChannel (channel));
+                writeNumber (dom, id, editor.getText().getDoubleValue(), effChannel (channel));
             else
-                store.setParameter (id, editor.getText(), effChannel (channel));
+                writeScoped (dom, id, editor.getText(), effChannel (channel));
         };
         editor.onReturnKey = commit;
         editor.onFocusLost = commit;
@@ -247,7 +248,7 @@ public:
         slider.onValueChange = [this, &slider, eqId, band, applying]
         {
             if (*applying) return;
-            store.setEqBandParameter (currentChannel, band, eqId, slider.getValue());
+            writeEqScoped (band, eqId, slider.getValue());
         };
 
         auto seed = [this, &slider, eqId, band, applying]
@@ -271,7 +272,7 @@ public:
             if (*applying) return;
             const int sel = combo.getSelectedId();
             if (sel > 0)
-                store.setEqBandParameter (currentChannel, band, eqId, minVal + sel - 1);
+                writeEqScoped (band, eqId, minVal + sel - 1);
         };
 
         auto seed = [this, &combo, eqId, band, minVal, applying]
@@ -359,13 +360,36 @@ private:
         store.beginUndoTransaction (name);
     }
 
-    void writeNumber (const juce::Identifier& id, double value, int channel)
+    // Every write scopes the active undo domain to the parameter's own domain
+    // (set-and-restore) so a discrete write (toggle/combo/text) never records into
+    // whichever domain the last slider gesture left active.
+    void writeScoped (XoaValueTreeState::UndoDomain dom, const juce::Identifier& id,
+                      const juce::var& value, int channel)
+    {
+        XoaValueTreeState::ScopedDomain d (store, dom);
+        store.setParameter (id, value, channel);
+    }
+
+    void writeNumber (XoaValueTreeState::UndoDomain dom, const juce::Identifier& id,
+                      double value, int channel)
     {
         const auto* b = xoa::constraints::findBounds (id);
-        if (b != nullptr && b->isInt)
-            store.setParameter (id, (int) juce::roundToInt (value), channel);
-        else
-            store.setParameter (id, value, channel);
+        writeScoped (dom, id, (b != nullptr && b->isInt)
+                                  ? juce::var ((int) juce::roundToInt (value))
+                                  : juce::var (value),
+                     channel);
+    }
+
+    void writeEqScoped (int band, const juce::Identifier& id, const juce::var& value)
+    {
+        XoaValueTreeState::ScopedDomain d (store, XoaValueTreeState::speakersDomain);
+        store.setEqBandParameter (currentChannel, band, id, value);
+    }
+
+    static XoaValueTreeState::UndoDomain domainForId (const juce::Identifier& id)
+    {
+        const auto* d = findDescriptor (id);
+        return d ? toStoreDomain (d->domain) : XoaValueTreeState::configDomain;
     }
 
     void applyRangeAndStep (juce::Slider& slider, const juce::Identifier& id, const UiDescriptor* d)

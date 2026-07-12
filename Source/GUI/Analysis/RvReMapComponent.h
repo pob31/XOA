@@ -57,9 +57,9 @@ public:
         addAndMakeVisible (exportCsvButton);
         addAndMakeVisible (exportMatrixCsvButton);
         addAndMakeVisible (exportMatrixJsonButton);
-        exportCsvButton.onClick        = [this] { exportText (analysis::toCsv (result->samples), "rvre-analysis.csv"); };
-        exportMatrixCsvButton.onClick  = [this] { exportText (analysis::decoderMatrixToCsv (result->matrix), "decode-matrix.csv"); };
-        exportMatrixJsonButton.onClick = [this] { exportText (analysis::decoderMatrixToJsonString (result->matrix), "decode-matrix.json"); };
+        exportCsvButton.onClick        = [this] { if (result) exportText (analysis::toCsv (result->samples), "rvre-analysis.csv"); };
+        exportMatrixCsvButton.onClick  = [this] { if (result) exportText (analysis::decoderMatrixToCsv (result->matrix), "decode-matrix.csv"); };
+        exportMatrixJsonButton.onClick = [this] { if (result) exportText (analysis::decoderMatrixToJsonString (result->matrix), "decode-matrix.json"); };
     }
 
     void setResult (std::shared_ptr<const AnalysisResult> newResult)
