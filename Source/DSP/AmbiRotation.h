@@ -187,6 +187,41 @@ inline Mat3 yawPitchRollToMatrix (double yawDeg, double pitchDeg, double rollDeg
                { -sb,     cb * sa,                cb * ca } } };
 }
 
+/** Inverse of yawPitchRollToMatrix: decompose a rotation matrix back to
+    yaw/pitch/roll (degrees) in the same pinned Z-Y'-X'' convention. Used by
+    WP9 head-tracking to turn an incoming quaternion into the store's rotation
+    triple. From R above: m[2][0] = -sin b, m[1][0]/m[0][0] = tan g,
+    m[2][1]/m[2][2] = tan a. pitch lands in [-90, 90] (asin), yaw/roll in
+    (-180, 180]; at the gimbal poles (|pitch| = 90) yaw and roll are
+    degenerate, so roll is fixed to 0 and the combined angle folded into yaw -
+    which reconstructs the identical rotation. */
+inline void matrixToYawPitchRoll (const Mat3& r, double& yawDeg, double& pitchDeg,
+                                  double& rollDeg) noexcept
+{
+    const double sb = juce::jlimit (-1.0, 1.0, -r.m[2][0]);
+    const double b  = std::asin (sb);
+    const double cb = std::cos (b);
+
+    double g, a;
+    if (cb > 1.0e-7)
+    {
+        g = std::atan2 (r.m[1][0], r.m[0][0]);
+        a = std::atan2 (r.m[2][1], r.m[2][2]);
+    }
+    else
+    {
+        // Gimbal lock: fix roll = 0, fold the combined rotation into yaw.
+        a = 0.0;
+        g = (r.m[2][0] < 0.0)   // pitch = +90 vs -90
+                ? std::atan2 (-r.m[0][1],  r.m[0][2])
+                : std::atan2 (-r.m[0][1], -r.m[0][2]);
+    }
+
+    yawDeg   = juce::radiansToDegrees (g);
+    pitchDeg = juce::radiansToDegrees (b);
+    rollDeg  = juce::radiansToDegrees (a);
+}
+
 //==============================================================================
 // Build
 //==============================================================================

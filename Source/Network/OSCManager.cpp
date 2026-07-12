@@ -11,6 +11,8 @@
 #include "spatcore/control/osc/OSCTCPReceiver.h"
 
 #include "Audio/AudioEngine.h"
+#include "DSP/AmbiCalculationEngine.h"
+#include "DSP/AmbiRotation.h"
 #include "Network/OSCMessageRouter.h"
 #include "Parameters/XoaParameterIDs.h"
 #include "Parameters/XoaValueTreeState.h"
@@ -207,8 +209,12 @@ void OSCManager::handleMessage (const juce::OSCMessage& msg, const juce::String&
     if (address == "/xoa/get")  { handleGet  (msg, ip, port); return; }
     if (address == "/xoa/ping") { handlePing (msg, ip, port); return; }
 
-    // /xoa/tracking/* is handled in C6; unknown addresses fall through to the
-    // parameter parser and are rejected there.
+    if (address == "/xoa/tracking/quaternion") { handleQuaternion (msg);       return; }
+    if (address == "/xoa/tracking/position")   { handleTrackingPosition (msg); return; }
+
+    // /xoa/tracking/listener is reserved (the conditioned listener stream is a
+    // deferred stretch); it falls through and is ignored. Unknown addresses are
+    // rejected by the parameter parser.
     applyParameter (msg);
 }
 
@@ -272,6 +278,57 @@ void OSCManager::handlePing (const juce::OSCMessage& msg, const juce::String& ip
     if (msg.size() >= 1 && msg[0].isInt32())
         pong.addInt32 (msg[0].getInt32());
     sendReply (ip, port, pong);
+}
+
+//==============================================================================
+// Head-tracking (C6).
+//==============================================================================
+void OSCManager::handleQuaternion (const juce::OSCMessage& msg)
+{
+    if (msg.size() < 4)
+        return;
+
+    double c[4];
+    for (int i = 0; i < 4; ++i)
+        if (! osc::argToNumber (msg[i], c[i]))
+            return;
+
+    // Head COMPENSATION applies the inverse (conjugate) of the head orientation,
+    // so the soundfield counter-rotates and world sources stay put. Decompose
+    // the inverse into the store's Z-Y'-X'' rotation triple; the engine's
+    // existing rotation listeners rebuild the matrix and publish it.
+    const xoa::rot::Quaternion inverse { c[0], -c[1], -c[2], -c[3] };
+    double yaw, pitch, roll;
+    xoa::rot::matrixToYawPitchRoll (xoa::rot::quaternionToMatrix (inverse), yaw, pitch, roll);
+
+    const sc::OriginTagScope originScope (sc::OriginTag::Tracking);
+    store.setParameterWithoutUndo (ids::rotationYaw,   yaw);
+    store.setParameterWithoutUndo (ids::rotationPitch, pitch);
+    store.setParameterWithoutUndo (ids::rotationRoll,  roll);
+}
+
+void OSCManager::handleTrackingPosition (const juce::OSCMessage& msg)
+{
+    // (i)input (f)x (f)y (f)z [(f)quality], input 1-based.
+    if (msg.size() < 4 || ! msg[0].isInt32())
+        return;
+
+    const int input1 = msg[0].getInt32();
+    if (input1 < 1)
+        return;
+
+    double x = 0.0, y = 0.0, z = 0.0, quality = 1.0;
+    if (! osc::argToNumber (msg[1], x) || ! osc::argToNumber (msg[2], y) || ! osc::argToNumber (msg[3], z))
+        return;
+    if (msg.size() >= 5)
+        osc::argToNumber (msg[4], quality);
+
+    // Route through the WP8 conditioning seam (speed limiter + 1-Euro filter),
+    // which writes the filtered position back to the store.
+    const sc::OriginTagScope originScope (sc::OriginTag::Tracking);
+    engine.getCalculationEngine().submitTrackedPosition (input1 - 1, input1,
+                                                         (float) x, (float) y, (float) z,
+                                                         (float) quality);
 }
 
 //==============================================================================

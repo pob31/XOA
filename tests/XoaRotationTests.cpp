@@ -541,6 +541,42 @@ static void testGuards()
 }
 
 //==============================================================================
+// WP9 C6: matrixToYawPitchRoll is the inverse of yawPitchRollToMatrix - the
+// decomposition head-tracking uses to turn a quaternion into the rotation
+// triple. Round-trip over random rotations (and the gimbal poles, where yaw
+// and roll are degenerate but the reconstructed rotation must still match).
+static double mat3MaxDiff (const rot::Mat3& a, const rot::Mat3& b) noexcept
+{
+    double d = 0.0;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            d = std::max (d, std::abs (a.m[i][j] - b.m[i][j]));
+    return d;
+}
+
+static void testEulerDecomposition()
+{
+    juce::Random r (0x5eed);
+    for (int t = 0; t < 2000; ++t)
+    {
+        const auto M = rot::quaternionToMatrix (randomUnitQuat (r));
+        double yaw, pitch, roll;
+        rot::matrixToYawPitchRoll (M, yaw, pitch, roll);
+        CHECK (pitch >= -90.0 - 1e-9 && pitch <= 90.0 + 1e-9);
+        CHECK (mat3MaxDiff (M, rot::yawPitchRollToMatrix (yaw, pitch, roll)) < 1e-12);
+    }
+
+    for (double poleYaw : { -120.0, 0.0, 75.0 })
+        for (double poleRoll : { -40.0, 0.0, 55.0 })
+            for (double pitch : { 90.0, -90.0 })
+            {
+                const auto M = rot::yawPitchRollToMatrix (poleYaw, pitch, poleRoll);
+                double y, p, ro;
+                rot::matrixToYawPitchRoll (M, y, p, ro);
+                CHECK (mat3MaxDiff (M, rot::yawPitchRollToMatrix (y, p, ro)) < 1e-12);
+            }
+}
+
 void runXoaRotationTests()
 {
     testStorage();
@@ -550,6 +586,7 @@ void runXoaRotationTests()
     testOrthogonality();
     testYawPitchRoll();
     testQuaternion();
+    testEulerDecomposition();
     testMirror();
     testGuards();
 }

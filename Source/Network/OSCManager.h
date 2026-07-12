@@ -85,6 +85,11 @@ private:
     void handleGet  (const juce::OSCMessage& msg, const juce::String& ip, int port);
     void handlePing (const juce::OSCMessage& msg, const juce::String& ip, int port);
 
+    // Head-tracking (C6). Quaternion -> inverse -> rotation triple; tracked
+    // source position -> the WP8 1-Euro conditioning seam.
+    void handleQuaternion (const juce::OSCMessage& msg);
+    void handleTrackingPosition (const juce::OSCMessage& msg);
+
     // Outbound feedback (C5): the store's post-write observer routes every
     // non-OSC-origin change here; it is queued to the rate limiter for target 0.
     void onStoreWrite (const juce::ValueTree& node, const juce::Identifier& id,

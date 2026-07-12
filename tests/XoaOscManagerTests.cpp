@@ -10,6 +10,7 @@
 #include "XoaTestFramework.h"
 
 #include "Audio/AudioEngine.h"
+#include "DSP/AmbiRotation.h"
 #include "Network/OSCManager.h"
 #include "Parameters/XoaParameterIDs.h"
 #include "Parameters/XoaValueTreeState.h"
@@ -331,6 +332,50 @@ void testManagerMeters()
     CHECK (lat == 1);
 }
 
+//==============================================================================
+// C6 - head-tracking.
+//==============================================================================
+void testManagerQuaternion()
+{
+    ManagerFixture f;
+
+    // A head orientation (pure +Y rotation, non-gimbal). The field must be
+    // rotated by the INVERSE, so the store's rotation triple rebuilds the
+    // conjugate quaternion's matrix.
+    const float qw = 0.8f, qx = 0.0f, qy = 0.6f, qz = 0.0f;
+    f.inject (OSCMessage ("/xoa/tracking/quaternion", qw, qx, qy, qz));
+
+    const double yaw   = (double) f.store.getParameter (xoa::ids::rotationYaw);
+    const double pitch = (double) f.store.getParameter (xoa::ids::rotationPitch);
+    const double roll  = (double) f.store.getParameter (xoa::ids::rotationRoll);
+
+    const auto got = xoa::rot::yawPitchRollToMatrix (yaw, pitch, roll);
+    const xoa::rot::Quaternion inv { (double) qw, -(double) qx, -(double) qy, -(double) qz };
+    const auto expected = xoa::rot::quaternionToMatrix (inv);
+
+    double d = 0.0;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            d = juce::jmax (d, std::abs (got.m[i][j] - expected.m[i][j]));
+    CHECK (d < 1.0e-9);
+}
+
+void testManagerTrackingPosition()
+{
+    ManagerFixture f;
+
+    // Default input-1 position is (1, 0, 0); a tracked update routes through
+    // the 1-Euro seam and moves the stored position toward the target.
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::inputPositionY, 0)) < 1.0e-9);
+
+    f.inject (OSCMessage ("/xoa/tracking/position", (juce::int32) 1, 1.5f, 2.0f, 0.5f));
+
+    CHECK ((double) f.store.getFloatParameter (xoa::ids::inputPositionY, 0) > 0.5);
+
+    // A bad input index is ignored (no crash, no spurious write).
+    f.inject (OSCMessage ("/xoa/tracking/position", (juce::int32) 0, 1.0f, 1.0f, 1.0f));
+}
+
 } // namespace
 
 //==============================================================================
@@ -349,4 +394,6 @@ void runXoaOscManagerTests()
     testManagerFeedbackCoalesces();
     testManagerFeedbackDisabled();
     testManagerMeters();
+    testManagerQuaternion();
+    testManagerTrackingPosition();
 }
