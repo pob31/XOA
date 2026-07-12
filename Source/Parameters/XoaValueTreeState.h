@@ -4,6 +4,8 @@
 
 #include "XoaParameterIDs.h"
 
+#include <functional>
+
 //==============================================================================
 // XOA — the parameter store: schema subclass of spatcore's TreeParameterStore.
 //
@@ -76,6 +78,10 @@ public:
                                   const juce::Identifier& id) const;
     void setEqBandParameter (int speakerIndex, int bandIndex,
                              const juce::Identifier& id, const juce::var& value);
+    /** As setEqBandParameter but bypasses undo - the write path for continuous
+        external streams (OSC) that must not flood the per-domain undo history. */
+    void setEqBandParameterWithoutUndo (int speakerIndex, int bandIndex,
+                                        const juce::Identifier& id, const juce::var& value);
 
     //==========================================================================
     // Section access (XoaFileManager and engines)
@@ -94,6 +100,17 @@ public:
     {
         ScopedDomain (XoaValueTreeState& s, UndoDomain d) : ScopedUndoDomain (s, d) {}
     };
+
+    //==========================================================================
+    // Post-write observation (WP9 C5). A single observer invoked after every
+    // property write, before listener dispatch, on the writing thread - so it
+    // can read the current OriginTag. The OSC manager uses it to emit parameter
+    // feedback. Purely observational (not an undo/invariant hook).
+    //==========================================================================
+    using PostWriteObserver = std::function<void (const juce::ValueTree& node,
+                                                  const juce::Identifier& id,
+                                                  const juce::var& value, int channelIndex)>;
+    void setPostWriteObserver (PostWriteObserver fn) { postWriteObserver = std::move (fn); }
 
 protected:
     juce::ValueTree getTreeForParameter (const juce::Identifier& id,
@@ -116,6 +133,8 @@ private:
     juce::ValueTree createDefaultSpeaker (int index) const;
     void applyChannelCount (juce::ValueTree section, const juce::Identifier& countId,
                             int targetCount, juce::UndoManager* undoManager, bool isInputs);
+
+    PostWriteObserver postWriteObserver;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XoaValueTreeState)
 };

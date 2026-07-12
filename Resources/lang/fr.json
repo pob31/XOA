@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "language": "Français",
+    "locale": "fr"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "save": "Enregistrer",
+    "load": "Charger",
+    "apply": "Appliquer",
+    "reset": "Réinitialiser",
+    "browse": "Parcourir…",
+    "add": "Ajouter",
+    "remove": "Supprimer",
+    "yes": "Oui",
+    "no": "Non",
+    "none": "Aucun",
+    "on": "Activé",
+    "off": "Désactivé",
+    "enabled": "Activé",
+    "disabled": "Désactivé"
+  },
+  "statusBar": {
+    "displayLabel": "Info",
+    "helpMode": "Aide",
+    "oscMode": "OSC",
+    "ready": "Prêt"
+  },
+  "help": {
+    "rotation": "Faire pivoter tout le champ sonore (lacet, tangage, roulis). Piloté par ces molettes, par OSC, ou par le quaternion d'un capteur de tête.",
+    "masterGain": "Gain de sortie général appliqué après le décodage, avant les sorties du périphérique.",
+    "decoderType": "Type de décodeur : échantillonnage (SAD), mode-matching ou AllRAD. Les rigs réguliers conviennent au SAD/mode-matching ; les rigs irréguliers à l'AllRAD."
+  }
+}

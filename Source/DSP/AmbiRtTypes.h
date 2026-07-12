@@ -86,6 +86,33 @@ static_assert (std::is_trivially_copyable_v<BusRtParams>,
                "BusRtParams must be a POD for RtSnapshot");
 
 //==============================================================================
+/** Side-band POD for the WP8 mono-encoder stage. The encode gains and the NFC
+    coefficients ride the live flat-matrix seam (app-owned float arrays handed
+    as const float* at prepare, rewritten in place at 50 Hz); this snapshot
+    carries only the scalars the RT side needs without tearing: how many source
+    rows are live, which sources have NFC on, and the rig radius (informational).
+
+    numSources == 0 is the "stage off" state (monoInputsEnabled off, or no
+    stems) - the RT encoder is skipped entirely, so the bus is bit-identical to
+    the M1/M2 chain. */
+struct EncoderRtParams
+{
+    int numSources = 0;                    // active encoder inputs (0 = stage off)
+    juce::uint64 nfcMask = 0;              // bit i set = input i has NFC enabled
+    float referenceRadius = 2.0f;         // rig mean radius (m); design is control-side
+    juce::uint32 epoch = 0;               // 0 = never published
+
+    bool nfcEnabled (int i) const noexcept
+    {
+        return i >= 0 && i < 64 && (nfcMask & (juce::uint64) 1 << i) != 0;
+    }
+};
+
+static_assert (std::is_trivially_copyable_v<EncoderRtParams>,
+               "EncoderRtParams must be a POD for RtSnapshot");
+static_assert (xoa::kMaxInputs <= 64, "EncoderRtParams::nfcMask is a 64-bit mask");
+
+//==============================================================================
 // Composers (message thread; also compiled by the harness and tests).
 //==============================================================================
 

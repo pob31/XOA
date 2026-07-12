@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "language": "English",
+    "locale": "en"
+  },
+  "app": {
+    "name": "XOA",
+    "title": "XOA — Tenth-Order Ambisonics"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "load": "Load",
+    "apply": "Apply",
+    "reset": "Reset",
+    "browse": "Browse…",
+    "add": "Add",
+    "remove": "Remove",
+    "yes": "Yes",
+    "no": "No",
+    "none": "None",
+    "on": "On",
+    "off": "Off",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "units": {
+    "db": "dB",
+    "hz": "Hz",
+    "khz": "kHz",
+    "ms": "ms",
+    "meters": "m",
+    "degrees": "°",
+    "percent": "%",
+    "mps": "m/s"
+  },
+  "tabs": {
+    "systemConfig": "System",
+    "network": "Network",
+    "inputs": "Inputs",
+    "speakersDecoder": "Speakers & Decoder",
+    "monitoring": "Monitoring",
+    "map": "Map"
+  },
+  "statusBar": {
+    "displayLabel": "Info",
+    "helpMode": "Help",
+    "oscMode": "OSC",
+    "ready": "Ready"
+  },
+  "header": {
+    "noFile": "No file loaded — use the test scene or open an AmbiX file.",
+    "openTitle": "Open an Ambisonics file",
+    "deviceStopped": "audio device stopped",
+    "rebuilding": "rebuilding…"
+  },
+  "systemConfig": {
+    "show": "Show",
+    "playback": "Playback",
+    "device": "Audio device",
+    "appearance": "Appearance",
+    "loadProject": "Load project…",
+    "saveProject": "Save project…",
+    "importWfs": "Import WFS layout…",
+    "theme": "Theme",
+    "language": "Language",
+    "themeDark": "Dark",
+    "themeOled": "OLED black",
+    "themeLight": "Light"
+  },
+  "network": {
+    "receive": "Receive",
+    "send": "Send target",
+    "feedback": "Feedback & metering",
+    "rxOn": "receiving",
+    "rxOff": "not receiving"
+  },
+  "inputs": {
+    "stems": "Stems",
+    "stemsDevice": "Device inputs",
+    "stemsTest": "Test feed"
+  },
+  "speakers": {
+    "speaker": "Speaker",
+    "eq": "EQ",
+    "decoder": "Decoder",
+    "comp": "Compensation & listener",
+    "test": "Test signal",
+    "layout": "Layout",
+    "rebuild": "Rebuild now",
+    "testType": "Signal",
+    "testLevel": "Level",
+    "testFreq": "Frequency",
+    "testChannel": "Channel",
+    "viewLayout": "Layout",
+    "viewAnalysis": "Analysis"
+  },
+  "monitoring": {
+    "inputs": "Input stems",
+    "outputs": "Outputs"
+  },
+  "map": {
+    "hint": "Drag sources and the listener cross in the plan view. Speakers are read-only; Z is edited on the Inputs tab.",
+    "plan": "Plan (top-down)",
+    "side": "Side (X-Z)",
+    "moveSource": "Move source",
+    "moveListener": "Move listener"
+  },
+  "analysis": {
+    "energy": "Energy (dB)",
+    "rvMag": "‖rV‖",
+    "rvErr": "rV error (°)",
+    "reMag": "‖rE‖",
+    "reErr": "rE error (°)",
+    "exportCsv": "Export CSV",
+    "exportMatrixCsv": "Matrix CSV",
+    "exportMatrixJson": "Matrix JSON",
+    "exportTitle": "Export analysis / decode matrix",
+    "noData": "No decoder analysis yet — rebuild the decoder."
+  },
+  "layout": {
+    "preset": "Preset",
+    "ring": "Ring",
+    "line": "Line",
+    "dome": "Dome",
+    "grid": "Ceiling grid",
+    "count": "Count",
+    "radius": "Radius",
+    "height": "Height",
+    "rings": "Rings",
+    "spacing": "Spacing",
+    "applyUndo": "Apply layout"
+  },
+  "help": {
+    "rotation": "Rotate the whole soundfield (yaw, pitch, roll). Driven by these dials, by OSC, or by a head-tracker quaternion.",
+    "masterGain": "Master output gain applied after decoding, before the device outputs.",
+    "decoderType": "Decoder design: Sampling (SAD), Mode-matching, or AllRAD. Regular rigs suit SAD/mode-matching; irregular rigs suit AllRAD."
+  },
+  "param": {
+    "showName": "Show name",
+    "masterGain": "Master gain",
+    "oscEnabled": "OSC receive",
+    "oscReceivePort": "Receive port",
+    "oscSendPort": "Send port",
+    "oscSendAddress": "Send address",
+    "oscTcpEnabled": "TCP receive",
+    "oscTcpPort": "TCP port",
+    "oscAcceptAnyHost": "Accept any host",
+    "oscFeedbackEnabled": "Parameter feedback",
+    "oscMeterEnabled": "Meter stream",
+    "audioDeviceState": "Audio device",
+    "rotationYaw": "Yaw",
+    "rotationPitch": "Pitch",
+    "rotationRoll": "Roll",
+    "playbackFilePath": "File",
+    "playbackLoop": "Loop",
+    "playbackContentOrder": "Content order",
+    "playbackConvention": "Convention",
+    "distanceCompMode": "Distance comp",
+    "listenerX": "Listener X",
+    "listenerY": "Listener Y",
+    "listenerZ": "Listener Z",
+    "monoInputsEnabled": "Mono encoders",
+    "inputCount": "Inputs",
+    "speakerCount": "Speakers",
+    "inputName": "Name",
+    "inputGain": "Gain",
+    "inputMute": "Mute",
+    "inputPositionX": "X",
+    "inputPositionY": "Y",
+    "inputPositionZ": "Z",
+    "inputCoordinateMode": "Coordinates",
+    "inputMaxSpeed": "Max speed",
+    "inputTrackingSmooth": "Tracking smooth",
+    "inputSpread": "Spread",
+    "inputNfcEnabled": "Near-field comp",
+    "speakerName": "Name",
+    "speakerGain": "Gain",
+    "speakerDelay": "Delay",
+    "speakerMute": "Mute",
+    "speakerSolo": "Solo",
+    "speakerPositionX": "X",
+    "speakerPositionY": "Y",
+    "speakerPositionZ": "Z",
+    "speakerCoordinateMode": "Coordinates",
+    "speakerEqEnabled": "EQ",
+    "eqShape": "Shape",
+    "eqFrequency": "Frequency",
+    "eqGain": "Gain",
+    "eqQ": "Q",
+    "eqSlope": "Slope",
+    "decoderType": "Type",
+    "decoderWeighting": "Weighting",
+    "decoderDualBandEnabled": "Dual-band",
+    "decoderCrossoverFrequency": "Crossover",
+    "decoderNormalization": "Normalization"
+  },
+  "enum": {
+    "contentOrder": { "auto": "Auto" },
+    "convention": { "sn3d": "SN3D", "n3d": "N3D", "fuma": "FuMa" },
+    "distanceComp": { "off": "Off", "delay": "Delay", "delayGain": "Delay + Gain" },
+    "coordMode": { "cartesian": "Cartesian", "cylindrical": "Cylindrical", "spherical": "Spherical" },
+    "eqShape": {
+      "off": "Off", "lowCut": "Low cut", "lowShelf": "Low shelf", "peak": "Peak",
+      "bandPass": "Band pass", "highShelf": "High shelf", "highCut": "High cut", "allPass": "All pass"
+    },
+    "decoderType": { "sad": "Sampling (SAD)", "modeMatch": "Mode-matching", "allRad": "AllRAD" },
+    "decoderWeighting": { "basic": "Basic", "maxRe": "Max-rE" },
+    "decoderNormalization": { "amplitude": "Amplitude", "energy": "Energy" },
+    "testSignal": {
+      "off": "Off", "pink": "Pink noise", "tone": "Tone", "sweep": "Sweep",
+      "dirac": "Dirac", "speakerId": "Speaker ID"
+    }
+  }
+}

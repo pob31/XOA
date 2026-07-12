@@ -6,10 +6,12 @@
 #include <array>
 #include <atomic>
 #include <cstring>
+#include <vector>
 
 #include "spatcore/rt/RtSnapshot.h"
 
 #include "XoaConstants.h"
+#include "DSP/AmbiNFCFilter.h"
 #include "DSP/AmbiRotation.h"
 #include "DSP/AmbiRtTypes.h"
 #include "DSP/AmbiSphericalHarmonics.h"
@@ -26,11 +28,18 @@
 //
 // Per-block chain (channel-major, juce::FloatVectorOperations, allocation-free):
 //
-//   input channels --gather--> 121-ch bus --rotate--> bus' --decode GEMM--> outs
-//                                                                --master gain
+//   input channels --gather--\
+//                             (+)--> 121-ch bus --rotate--> bus' --decode--> outs
+//   mono stems ----encode-----/                                    --master gain
 //
 //   gather   busParams.srcChannel[c]/gain[c] map each input channel onto a bus
 //            channel (order adaptation x convention x FuMa, pre-cooked in C2).
+//   encode   (WP8) Sum in the mono-source stems: each stem is filtered into its
+//            order-lanes by its NFC bank, then accumulated per bus channel at the
+//            live [in x 121] encode coefficient with a one-block per-coefficient
+//            ramp (click-free, FR-5). Added BEFORE rotation so encoded sources
+//            rotate with the field. Entirely skipped (bit-identical to the M1/M2
+//            chain) whenever the encoder seams are null or numSources is 0.
 //   rotate   the WP4 block-diagonal SO(3) matrix, applied in float. On a
 //            rotation change the block is a one-block linear crossfade of the
 //            old and new renders - mathematically identical to lerping the
@@ -63,7 +72,10 @@ public:
                   const DecoderMatrixBuilder* decoderSource,
                   const spatcore::rt::RtSnapshot<rt::RotationRtState>* rotationSource,
                   const spatcore::rt::RtSnapshot<rt::BusRtParams>* busParamsSource,
-                  bool processingEnabled)
+                  bool processingEnabled,
+                  const float* encodeMatrix = nullptr,
+                  const double* nfcCoeffs = nullptr,
+                  const spatcore::rt::RtSnapshot<rt::EncoderRtParams>* encoderSrc = nullptr)
     {
         juce::ignoreUnused (maxInputChannels, maxOutputChannels);
 
@@ -73,9 +85,21 @@ public:
         currentSampleRate = sampleRate;
         allocatedBlock = juce::jmax (1, blockSize);
 
+        // Encoder seams (WP8). All null -> the stage is skipped and the chain is
+        // bit-identical to M1/M2.
+        encodeMatrixPtr = encodeMatrix;
+        nfcCoeffsPtr = nfcCoeffs;
+        encoderSource = encoderSrc;
+
         busA.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
         busB.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
         busT.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
+        laneBuf.setSize (nfc::kNumLanes, allocatedBlock, false, false, true);
+
+        nfcBanks.assign ((size_t) xoa::kMaxInputs, nfc::SourceNfcBank {});
+        appliedCoeff.assign ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.0f);
+        lastActiveSources = 0;
+        lastEncoderNfcMask = 0;
 
         crossover.prepare ({ sampleRate, (juce::uint32) allocatedBlock, (juce::uint32) xoa::kNumSHChannels });
         crossover.setType (juce::dsp::LinkwitzRileyFilterType::lowpass);   // unused; the 2-out split ignores it
@@ -108,18 +132,33 @@ public:
             busA.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
             busB.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
             busT.setSize (xoa::kNumSHChannels, allocatedBlock, false, false, true);
+            laneBuf.setSize (nfc::kNumLanes, allocatedBlock, false, false, true);
         }
         crossover.prepare ({ sampleRate, (juce::uint32) allocatedBlock, (juce::uint32) xoa::kNumSHChannels });
         dualBandActive = false;
         activeCrossoverHz = 0.0f;
         for (float& g : activeHfGain) g = 1.0f;
+
+        // Sample-rate / block change invalidates NFC filter state and the
+        // ramp history; the calc engine re-designs the coefficients.
+        for (auto& b : nfcBanks) b.reset();
+        std::fill (appliedCoeff.begin(), appliedCoeff.end(), 0.0f);
+        lastActiveSources = 0;
+        lastEncoderNfcMask = 0;
+
         enabled.store (processingEnabled, std::memory_order_relaxed);
     }
 
     //==========================================================================
+    /** @param stems     optional mono-source stems for the WP8 encoder stage,
+                          read at sample 0 (a block-aligned scratch buffer);
+                          nullptr (the default) skips the encoder entirely.
+        @param numStems   number of valid stem channels in @p stems. */
     void processBlock (const juce::AudioSourceChannelInfo& bufferToFill,
                        const juce::AudioBuffer<float>& inputBuffer,
-                       int numInputChannels, int numOutputChannels) noexcept
+                       int numInputChannels, int numOutputChannels,
+                       const juce::AudioBuffer<float>* stems = nullptr,
+                       int numStems = 0) noexcept
     {
         auto* outBuf = bufferToFill.buffer;
         const int startSample = bufferToFill.startSample;
@@ -155,6 +194,9 @@ public:
             else
                 juce::FloatVectorOperations::clear (dst, n);
         }
+
+        // --- 1.5 Encode: sum the mono stems into busA (WP8) --------------------
+        applyEncoder (n, stems, numStems);
 
         // --- 2. Rotate: busA -> rotated (busB, or busA when bypassed) ----------
         const auto rotState = rotation != nullptr ? rotation->acquire() : rt::RotationRtState {};
@@ -305,6 +347,9 @@ public:
         busA.setSize (0, 0);
         busB.setSize (0, 0);
         busT.setSize (0, 0);
+        laneBuf.setSize (0, 0);
+        nfcBanks.clear();
+        appliedCoeff.clear();
         allocatedBlock = 0;
     }
 
@@ -322,6 +367,77 @@ public:
     }
 
 private:
+    //==========================================================================
+    // WP8 encoder stage: sum the mono stems into busA. Each active stem is
+    // filtered into its 11 order-lanes by its NFC bank (or aliased to dry when
+    // NFC is off), then accumulated per bus channel at its live encode
+    // coefficient with a one-block per-coefficient linear ramp from the last
+    // applied value (click-free, FR-5). Sources going inactive ramp their
+    // contribution out over one block using their still-present audio. The whole
+    // stage is skipped (busA untouched -> bit-identical) when the seams are null.
+    void applyEncoder (int n, const juce::AudioBuffer<float>* stems, int numStems) noexcept
+    {
+        if (encoderSource == nullptr || encodeMatrixPtr == nullptr)
+            return;
+
+        const auto enc = encoderSource->acquire();
+        const int stemCh = stems != nullptr ? stems->getNumChannels() : 0;
+        const int S = juce::jmin (juce::jmin (enc.numSources, numStems),
+                                  juce::jmin (stemCh, xoa::kMaxInputs));
+        const int loopN = juce::jmax (S, lastActiveSources);
+        if (loopN <= 0)
+        {
+            lastActiveSources = 0;
+            lastEncoderNfcMask = enc.nfcMask;
+            return;
+        }
+
+        float* lanePtrs[nfc::kNumLanes];
+        for (int k = 0; k < nfc::kNumLanes; ++k)
+            lanePtrs[k] = laneBuf.getWritePointer (k);
+
+        for (int i = 0; i < loopN; ++i)
+        {
+            const bool active   = i < S;
+            const bool hasAudio = stems != nullptr && i < stemCh;
+            float* appliedRow = appliedCoeff.data() + (size_t) i * xoa::kNumSHChannels;
+
+            if (! hasAudio)
+            {
+                // No audio to ramp on -> drop the contribution (nothing to fade).
+                for (int c = 0; c < xoa::kNumSHChannels; ++c) appliedRow[c] = 0.0f;
+                continue;
+            }
+
+            const float* dry = stems->getReadPointer (i, 0);
+            const bool nfcOn = active && enc.nfcEnabled (i) && nfcCoeffsPtr != nullptr;
+
+            if (nfcOn)
+            {
+                const bool wasOn = (lastEncoderNfcMask & ((juce::uint64) 1 << i)) != 0;
+                if (! wasOn)
+                    nfcBanks[(size_t) i].reset();   // NFC enable rising edge
+                nfcBanks[(size_t) i].processLanes (dry, lanePtrs, n,
+                    nfcCoeffsPtr + (size_t) i * nfc::kCoeffsPerSource);
+            }
+
+            const float* srcCoeff = encodeMatrixPtr + (size_t) i * xoa::kNumSHChannels;
+            for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            {
+                const float target = active ? srcCoeff[c] : 0.0f;
+                const float from   = appliedRow[c];
+                if (from == 0.0f && target == 0.0f)
+                    continue;                        // fast path: silent coefficient
+                const float* lane = nfcOn ? lanePtrs[sh::acnToOrder (c)] : dry;
+                busA.addFromWithRamp (c, 0, lane, n, from, target);
+                appliedRow[c] = target;
+            }
+        }
+
+        lastActiveSources = S;
+        lastEncoderNfcMask = enc.nfcMask;
+    }
+
     //==========================================================================
     // out = R . in, block-diagonal per degree, channel-major over numSamples.
     // R is a float copy of the WP4 rotation matrix (rot::blockOffset layout).
@@ -352,7 +468,17 @@ private:
     const spatcore::rt::RtSnapshot<rt::RotationRtState>* rotation = nullptr;
     const spatcore::rt::RtSnapshot<rt::BusRtParams>* busParams = nullptr;
 
+    // WP8 encoder seams (app-owned live matrices + the scalar side-band).
+    const float*  encodeMatrixPtr = nullptr;     // [kMaxInputs x 121] float gains
+    const double* nfcCoeffsPtr = nullptr;        // [kMaxInputs x 150] double coeffs
+    const spatcore::rt::RtSnapshot<rt::EncoderRtParams>* encoderSource = nullptr;
+
     juce::AudioBuffer<float> busA, busB, busT;   // gather / rotated / transition
+    juce::AudioBuffer<float> laneBuf;            // one source's NFC order-lanes
+    std::vector<nfc::SourceNfcBank> nfcBanks;    // per-source NFC filter state
+    std::vector<float> appliedCoeff;             // last-applied encode coeff (ramp history)
+    int lastActiveSources = 0;
+    juce::uint64 lastEncoderNfcMask = 0;
     int allocatedBlock = 0;
     double currentSampleRate = 0.0;
 

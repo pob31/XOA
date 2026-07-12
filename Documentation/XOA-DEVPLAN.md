@@ -19,6 +19,13 @@ The three planning documents split authority like this:
 
 ## 1. Status and mapping
 
+**Milestone M3 reached + M5 visualization** (WP0–WP10 done). On top of M2, WP8
+added the mono encoders / NFC / spread, WP9 the OSC + head-tracking control plane
+and the D18 listener shift (M3 exit), and WP10 replaced the throwaway shell with
+the real six-tab application UI on the ported WFS-DIY kit plus the FR-18 rV/rE
+decoder-inspection plots (the visualization half of M5). Remaining before v1: GPU
+decode (WP11/M4), the MCP server (WP12), and acceptance/ship (WP13/WP14).
+
 **Milestone M2 reached** (WP0–WP7 done). On top of the M1 chain, WP7 adds
 AllRAD decoding (decode to a Womersley t=33 virtual t-design → VBAP to the real
 rig, with imaginary loudspeakers auto-inserted at coverage gaps), dual-band
@@ -57,9 +64,9 @@ hardware in CI).
 | WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | **DONE** |
 | WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
-| WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | |
-| WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
-| WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
+| WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | **DONE (M3a)** |
+| WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | **DONE (M3)** |
+| WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | **DONE (M5 viz)** |
 | WP11 | GPU decode path (two tracks, cross-repo) | **M4 exit** | P7 | WP7 (+ spatcore track) | XL | |
 | WP12 | MCP server + AI undo | M5 part | P4 | WP2, WP9, WP10 (UI bits) | M | |
 | WP13 | Acceptance, hardening, performance — **v1.0** | **M5 exit** | — | all | L | |
@@ -587,11 +594,71 @@ colinear/coplanar input (covered by tests + convhull_3d).
 
 ---
 
-### WP8 — Mono encoders, NFC, spread (L)
+### WP8 — Mono encoders, NFC, spread (L) — **DONE (M3a)**
 
 **Goal.** The theatre-integrator scenario: N mono stems encoded onto the
 bus with position, distance, and width — including stable order-10
 near-field compensation.
+
+**Status: DONE (M3a).** Shipped across chunks C1–C7.
+
+M3(a) acceptance evidence (all green, authoritative MSBuild):
+- **NFC (FR-6)** — `Source/DSP/AmbiNFCFilter.h`: per-source, per-order cascades
+  of 1st/2nd-order sections from the reverse-Bessel roots in the generated
+  `AmbiNfcTables.h`, `H_l(s) = Π (s − q_i c/r_src)/(s − q_i c/r_ref)` — zeros move
+  with the source, **poles depend only on r_ref** so stability is fixed by the
+  rig. Bilinear (K = 2 Fs, no prewarp); min-radius + per-order DC-boost clamps.
+  Validated against the Daniel goldens (`gen_nfc_reference.py`, 180 cases): with
+  the coefficients realized in **double** (D-NFC below), the digital DC and
+  magnitude match the double-precision goldens to **0.0000 dB**, roots residual
+  ≤ 9e-6 (cancellation only), worst-case stability at order 10 / 44.1+96 kHz /
+  clamped small radius.
+- **Spread (FR-5)** — `weights::spreadTaper`: energy-normalized order taper
+  `g_l = P_l(cos σ/2)` with a monotone cutoff; σ=0 identity, σ=180 omni, and it
+  reproduces the order-N max-rE family at σ/2 = acos(r_E). rE is **unimodal**
+  (rises to the max-rE peak, then falls) — see D-rE.
+- **Encode + click-free (FR-5)** — the live `[in × 121]` matrix seam
+  (`AmbiCalculationEngine`, 50 Hz) + a one-block per-coefficient ramp in
+  `AmbiBusAlgorithm`; the `encode-move` offline scenario exercises azimuth orbit,
+  a 0.5↔4 m radial NFC sweep, a spread sweep and rotation together,
+  deterministically. Position conditioning via `InputSpeedLimiter` (with a
+  settle-recompute latch) and `TrackingPositionFilter` (behind
+  `submitTrackedPosition`, WP9's OSC seam).
+- **Neutral when off** — encoder seams null / numSources 0 skip the stage; the
+  seven M1/M2 offline baselines **and** the NFC-off `encode-static` scenario are
+  byte-identical with the encoder compiled in.
+- **CPU (§7)** — at the reference shape (order 10, 96 kHz, 1024, 250 outs,
+  single-thread, dev machine): `encode-static` 2.3× / `encode-move` 2.8× realtime
+  vs `scene10` 2.2× with no encoder — the encoder's marginal cost is negligible;
+  the decode GEMM dominates. Formal <40 % on reference hardware is WP13.
+- **Shell UI** — a per-input encoder table (X/Y/Z, gain, spread, mute, NFC) plus
+  the mono-encoder gate + stem-feed (device / internal test feed) selector.
+
+**Decisions (recorded).**
+- **D-NFCstage.** NFC is **per-source, order-lane structured** (per-input
+  `inputNfcEnabled`), resolving the PRD §5 "on the bus" vs FR-6 per-source
+  wording. Each stem → 11 order-lanes (lane 0 = dry); bus channel c of order l
+  accumulates `lane[l] × encodeCoeff[c]`.
+- **D-NFCdir.** The audible **bass-boost** direction (near source ⇒ per-order LF
+  boost, DC gain (r_ref/r_src)^l) is used; the DEVPLAN's original `H_l =
+  F_l(r_ref)/F_l(r_src)` line is the reciprocal. Pinned and derived in
+  `gen_bessel_roots.py` (the WP8 analogue of the WP3 Condon–Shortley note).
+- **D-NFCdouble.** NFC section coefficients **and** state are **double**, not
+  float: at 96 kHz / order 10 the near-field poles sit at ~z = 1, and float
+  storage loses ~0.16 dB of DC gain (PRD §9's "numerically delicate"). Double
+  removes it at negligible cost (the encoder is far from the CPU bound). Audio
+  I/O stays float. The encode-gain matrix stays float (no cancellation there).
+- **D-rE.** The spread rE trajectory is **unimodal, not monotone** — the DEVPLAN's
+  "monotonically decreasing" is an oversight: a mild high-order taper sharpens rE
+  (toward max-rE) before widening it toward omni.
+- **D-dist.** Distance gain v1 is fixed: `r_ref / clamp(r_src, r_min, ∞)` capped
+  at the shared boost ceiling; law selection is post-v1.
+- **D-stems.** Stems are device inputs (identity-mapped) or an internal test feed
+  (audible without hardware), gated by the Config `monoInputsEnabled`. r_ref is
+  the mean speaker radius, tracked from the layout.
+
+**Remaining for M3 sign-off.** The listening-validation checkpoint on a real rig
+(PRD §9) — a developer step, like the M1/M2 checks; no >64-out hardware in CI.
 
 **PRD coverage.** FR-5, FR-6; M3 first half.
 
@@ -634,64 +701,159 @@ movement (measure; 1-Euro conditioning helps).
 
 ---
 
-### WP9 — OSC & head-tracking — **M3 exit** (M)
+### WP9 — OSC & head-tracking — **M3 exit** (M) — **DONE**
 
-**Goal.** Every runtime parameter drivable over OSC; a generic quaternion
-head-tracker rotates the field; a listener-position parameter shifts the
-time/level sweet spot off-center (D18).
+**Goal.** Every runtime parameter drivable/readable over OSC; a generic
+quaternion head-tracker rotates the field; a listener-position parameter
+shifts the time/level sweet spot off-center (D18).
 
-**PRD coverage.** FR-22, FR-10 (OSC + tracker sources), FR-25
-(listener-position sweet-spot shift, D18); M3 exit.
+**Status: DONE (M3 exit).** Shipped across chunks C1–C8. The full parameter
+surface is drivable and readable over OSC per the frozen map, head-tracking
+and the D18 listener shift are live, and the control-replay harness gates the
+whole thing against the real app.
 
-**Tasks.**
-- **Freeze the address map first**: `Documentation/XOA-OSC-MAP.md` —
-  `/xoa/...` scheme consistent with WFS-DIY conventions (per-family
-  OSCQuery-style and standard forms), written before code.
-- `Source/Network/OSCManager.{h,cpp}` — a **scoped rewrite borrowing
-  structure** from WFS-DIY's `OSCManager`/`OSCMessageRouter` (the 227 KB
-  original is WFS-shaped; port the architecture — targets, rate limiting,
-  IP filtering, router — not the file).
-- Wire spatcore transports: `OSCReceiverWithSenderIP`, `OSCTCPReceiver`,
-  `OSCParser`/`OSCSerializer`, `OSCIngestQueue`, `OSCRateLimiter` (50 Hz
-  coalesce), `OriginTagScope` for origin attribution.
-- Head-tracking: generic OSC quaternion → `TrackingIngestQueue` → rotation
-  `RtSnapshot` (D3: no PSN/RTTrP/MQTT profiles, no OSCQuery in v1).
-- **Listener position (D18)**: `listenerX/Y/Z` parameters in the Config
-  section (default origin); `composeSpeakerCompParams` radii become
-  ‖speaker − listener‖ with `rMax` re-derived per publish; listener edits
-  reach the RT stage through the existing D17 cheap-comp-republish route.
-  Reserve `/xoa/listener/…` in the address map (freeze it with the rest).
-  Stretch: continuous listener position over OSC through
-  `TrackingIngestQueue` + `TrackingPositionFilter` (1-Euro), accepting the
-  inherent delay-glide pitch artifacts.
-- OSC out: parameter feedback + meter/state streams.
-- Port `tools/validation/control-replay/osc_replay.py` with XOA fixtures.
+M3-exit acceptance evidence (unit suite green on 3-OS CI; harness green
+locally and on Linux CI; all M1/M2 offline baselines unchanged):
+- **Address map frozen first (C1)** — `Documentation/XOA-OSC-MAP.md` is the
+  contract: two inbound forms (write form with channel = first int arg,
+  indexed read-back form), coalescing/origin/undo semantics, the
+  head-tracker latency caveat, and the D3 out-of-scope list. Every address
+  maps to a real id in `XoaParameterIDs.h`.
+- **Listener position / D18 (C2)** — `listenerX/Y/Z` Config params;
+  `composeSpeakerCompParams` measures ‖speaker − listener‖ and reaches the RT
+  stage through the D17 cheap-comp-republish route. Byte-identical to the
+  pre-D18 law at P = origin (memcmp test + the unchanged offline `comp`
+  baseline); the new `comp-offcenter` scenario renders the shifted
+  delays/gains.
+- **Router (C3)** — `Source/Network/OSCMessageRouter.h`, pure/static, the
+  single source of truth for the address↔id map; table-driven completeness
+  test over every binding in both forms.
+- **Inbound + get + ping (C4)** — `OSCManager` owns the UDP/TCP receivers and
+  the spatcore `OSCIngestQueue`; writes land on the message thread under
+  `OriginTagScope{OSC}`. `/xoa/get` answers the sender in indexed form;
+  `/xoa/ping`→`/xoa/pong` is the readiness handshake; IP allow-list gated by
+  `oscAcceptAnyHost`.
+- **OSC out (C5)** — parameter feedback through `OSCRateLimiter` (50 Hz,
+  per-address coalesce) with OSC-origin echoes suppressed, plus a 10 Hz
+  `/xoa/monitor/*` meter stream. Feedback rides a new store post-write
+  observer that reads the live `OriginTag`.
+- **Head-tracking (C6)** — `/xoa/tracking/quaternion` applies the inverse and
+  decomposes to the rotation triple via the new `matrixToYawPitchRoll`
+  (round-trip pinned over 2000 rotations + the gimbal poles);
+  `/xoa/tracking/position` routes to the WP8 1-Euro conditioning seam.
+- **Harness + CI + app wiring (C7)** — the `OSCManager` is wired into
+  `MainComponent`; `XOA --osc` is the headless entry point;
+  `tools/validation/control-replay/osc_replay.py` drives the real app
+  (ping/pong readiness, a write across every family, `/xoa/get` read-back vs
+  a committed golden, plus out-of-range-clamp and transport-read-only
+  invariants). Linux CI runs it under `xvfb`.
+- **Shell wiring (C8)** — an OSC-receive toggle + rx status in the throwaway
+  shell (retired at WP10).
 
-**Port sources.** `d:/dev/WFS_DIY_v1/Source/Network/OSCManager.*`,
-`OSCMessageRouter.*` (structure), `tools/validation/control-replay/`.
+**Decisions & deviations (D19–D23).**
+- **D19 — Quaternion rides the main `OSCIngestQueue`, not
+  `TrackingIngestQueue`.** spatcore's `TrackingUpdate` POD carries only a yaw
+  float and spatcore is no-touch, so the DEVPLAN's literal "quaternion →
+  TrackingIngestQueue" is impossible; the pose stream coalesces newest-wins
+  per address on the main queue and is decomposed on drain.
+- **D20 — OSC/tracking writes bypass undo** (`setParameterWithoutUndo` +
+  the new `setEqBandParameterWithoutUndo`): a continuous stream must not flood
+  the per-domain undo histories. Divergence from WFS, recorded in the map doc.
+- **D21 — Single send-target v1, 6-slot architecture; TCP inbound-only.**
+  Feedback/meters go to `oscSendAddress:oscSendPort`; the `OSCRateLimiter`
+  still carries `MAX_TARGETS` slots for WP10/WP12. Outbound is UDP; TCP is
+  receive-only in v1.
+- **D22 — Control-replay is a Linux/`xvfb` CI gate + `--osc` headless entry.**
+  The app is a GUI app; the Windows/macOS CI jobs stay unit-test-only
+  (narrowing of §6). `--osc` force-enables the receiver so the harness needs
+  no project fixture; the CLI still loads a named project (folder/`.xoa`).
+- **D23 — Streamed listener position deferred (reserved).**
+  `/xoa/tracking/listener` is frozen in the map but unimplemented; static
+  listener control via `/xoa/listener/*` ships. The 1-Euro-conditioned
+  listener stream is a post-v1 stretch (address reserved), alongside the D18
+  decoder-redesign tail already in §8.
 
-**Tests & exit — M3 complete.** All runtime parameters (source positions,
-rotation, decoder trims, mutes) drivable and readable over OSC per the map
-doc; head-tracker quaternion rotates the field within the ≤ 2-buffer
-response target; `osc_replay.py` green in CI; PRD §9's head-tracker-latency
-caveat documented in the map doc (playback-grade, not VR-grade); an
-off-center listener position re-references the comp delays/gains per the D18
-law (offline-render `comp` scenario extended) and is **bit-identical to the
-M2 baselines at the default P = origin**.
+**PRD coverage.** FR-22, FR-10 (OSC + tracker sources), FR-25 (D18); M3 exit.
 
-**Risks.** Address-scheme churn (that's why the map freezes first);
-rate-limiter interaction with encode-matrix ramps (test fast position
-streams); streamed listener position glides delays continuously — mild
-pitch artifacts are inherent to the technique (document in the map doc;
-same class as WFS moving sources).
+**Remaining for M3 sign-off.** None blocking. The head-tracker-latency caveat
+is documented (playback-grade, not VR-grade). The DEVPLAN-named risk of
+rate-limiter-vs-encode-ramp interaction under fast source streams is handled
+structurally: inbound streams coalesce newest-wins per address (≤ 62.5 Hz
+drain) and tracked positions pass through the WP8 speed-limiter + 1-Euro
+conditioning before the encode matrix ramps — no additional churn is
+introduced at the RT boundary.
+
+**Port sources (as used).** `d:/dev/WFS_DIY_v1/Source/Network/OSCManager.*`,
+`OSCMessageRouter.*` (structure only — targets, rate limiting, IP filtering,
+ingest→dispatch pipeline), `tools/validation/control-replay/` (harness shape).
 
 ---
 
-### WP10 — GUI framework port, XOA tabs, rV/rE visualization (XL)
+### WP10 — GUI framework port, XOA tabs, rV/rE visualization (XL) — **DONE (M5 viz)**
 
 **Goal.** Replace the throwaway shell with the real application UI, built
 from WFS-DIY's portable kit, including the decoder-inspection plots that
 make FR-18 whole.
+
+**Status: DONE (M5 visualization part).** Shipped across chunks C1–C10. The
+throwaway WP6 shell is retired; the app is a themed, six-tab AppShell built on
+the ported WFS-DIY kit, every v1 parameter is reachable and the FR-18 plots
+render exactly the CSV export.
+
+M5-viz acceptance evidence (unit + offline-render green on 3-OS CI; a new Linux
+xvfb GUI-smoke gate green; all M1/M2/M3 offline baselines unchanged):
+- **Kit port (C1–C3)** — `ColorScheme`, `XoaLookAndFeel` (3 runtime themes, dark
+  title bar), the widget kit (sliders/dials/buttons/meter bars, the one OriginTag
+  repoint), `TTSManager`, `StatusBar`, `HelpCard`, and `LocalizationManager` (EN +
+  FR minimal tier, `XoaLocalizationTests` gating the overlay). The macOS Obj-C++
+  `.mm` risk was front-loaded to C1.
+- **Binding layer (C4)** — the id-keyed `UiParameterDescriptors` (labels/units/
+  steps/kinds/enum labels; ranges come only from `XoaConstraints`, retiring the
+  shell's divergent hardcoded ranges), the `TabParameterRegistry`, and the
+  reusable `BindingSet` (store↔widget, per-channel `setChannel`, EQ-band, engine-
+  backed). `XoaUiDescriptorTests` is the completeness gate.
+- **Shell + tabs (C5–C9)** — `AppShell` (backend ownership, one 25 Hz timer, the
+  single decoder-rebuild fan-out, `--osc`/`--gui-smoke`/project-path entry), the
+  persistent `HeaderBar` (transport / rotation dials / master / live status), and
+  the six tabs: System Config, Network, Inputs, Speakers+Decoder (incl. the 6-band
+  EQ, decoder suggestion, per-speaker comp + D18 listener, engine test signals,
+  and the ring/line/**dome**/**3-D grid** layout preset editor), Monitoring
+  (input+output meter walls + perf), and the time-boxed 2-D Map (draggable sources
+  + listener).
+- **FR-18 (C8)** — `RvReAnalysisService` runs the analysis off the message thread
+  (newest-wins); `RvReMapComponent` renders the equirectangular metric raster and
+  exports analysis/matrix CSV+JSON. `XoaRvReViewTests` pins the plot ≡ CSV-export
+  identity (byte-identical) over a ring and a dome.
+- **Completeness (C9)** — `XoaUiDescriptorTests` asserts every non-system
+  descriptor is placed on ≥1 surface: 55/55 non-system parameters reachable from
+  the GUI (the DEVPLAN exit, mechanized).
+
+**Decisions (D24–D34).**
+- **D24** — PatchMatrixComponent not ported; v1 keeps identity channel mapping.
+- **D25** — Network tab exposes the single OSC send-target only; multi-target → WP12.
+- **D26** — Localization ships EN + FR (minimal tier), proving the overlay scaffold.
+- **D27** — A persistent HeaderBar hosts transport/rotation/master/status; StatusBar
+  stays a contextual hover-help + transient-message strip (not telemetry).
+- **D28** — `Wfs*`→`Xoa*` rename; new GUI code in `namespace xoa::ui`; XOA settings paths.
+- **D29** — The descriptor table + registry are the GUI single source of truth;
+  ranges come only from `XoaConstraints`.
+- **D30** — rV/rE analysis runs off the message thread; the plot renders the exact
+  sample vector `toCsv` serializes (byte-identity is the test).
+- **D31** — Metering: additive per-input peak accessor; in-tab meter walls; no
+  pop-out window and no SH-bus meters in v1.
+- **D32** — Map is a 2-D plan + side strip; draggable sources + listener, read-only
+  speakers.
+- **D33** — GUI smoke = a Linux xvfb `--gui-smoke` lane (Debug, asserts active,
+  incl. the per-tab registry-coverage check); Windows/macOS stay unit-test-only.
+- **D34 (deviation)** — `GuiKitCompileCheck.cpp` is **kept** (not deleted at C10 as
+  planned): the tabs exercise only a subset of the ported kit, so this TU is
+  retained permanently as the kit-compile guard so the unused (reusable) widgets
+  never rot. The WFS-domain widgets (DirectionalDial, InputDirectivityDial,
+  LFOIndicators, WidthExpansionSlider) were deliberately not ported.
+
+**Remaining for v1 (WP13).** The rV/rE acceptance tolerances are enforced against
+committed fixtures in WP13; a real-rig listening pass is a developer step. Runtime
+language switching relabels on restart (labels are read at tab construction).
 
 **PRD coverage.** FR-18 (plots), FR-10 (dials), FR-16 (suggestion UI),
 §7 latency display; the visualization half of M5.

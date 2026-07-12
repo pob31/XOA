@@ -12,7 +12,11 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
-#include "MainComponent.h"
+#include "App/AppShell.h"
+#include "GUI/XoaLookAndFeel.h"
+#include "GUI/WindowUtils.h"
+#include "Localization/LocalizationManager.h"
+#include "Accessibility/TTSManager.h"
 
 //==============================================================================
 class XOAApplication : public juce::JUCEApplication
@@ -24,14 +28,39 @@ public:
     const juce::String getApplicationVersion() override    { return JUCE_APPLICATION_VERSION_STRING; }
     bool moreThanOneInstanceAllowed() override              { return false; }
 
-    void initialise (const juce::String&) override
+    void initialise (const juce::String& commandLine) override
     {
-        mainWindow = std::make_unique<MainWindow> (getApplicationName());
+        // Load the localized strings BEFORE any component is built — tabs and the
+        // header resolve LOC() keys in their constructors, so without this every
+        // label would render as its raw key path. The default resource dir
+        // (<exeDir>/Resources) is where CMake stages lang/. The assert makes a
+        // missing/unstaged bundle fail loudly in Debug (incl. the GUI-smoke gate).
+        const bool stringsLoaded = LocalizationManager::getInstance().loadLanguage ("en");
+        jassert (stringsLoaded);
+        juce::ignoreUnused (stringsLoaded);
+
+        // Install the XOA look-and-feel BEFORE creating the window so the window
+        // chrome (and every component) picks up the themed colours. A single
+        // app-wide TooltipWindow serves all tabs.
+        lookAndFeel = std::make_unique<XoaLookAndFeel>();
+        juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
+        tooltipWindow = std::make_unique<juce::TooltipWindow> (nullptr, 700);
+
+        mainWindow = std::make_unique<MainWindow> (getApplicationName(), commandLine);
     }
 
     void shutdown() override
     {
         mainWindow = nullptr;
+        tooltipWindow = nullptr;
+        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+        lookAndFeel = nullptr;
+
+        // Tear down the string/accessibility singletons while JUCE is still alive
+        // (clears the loaded string tree; destroys the TTS timer singleton) so the
+        // leak detector stays quiet.
+        LocalizationManager::getInstance().shutdown();
+        TTSManager::shutdown();
     }
 
     void systemRequestedQuit() override
@@ -43,17 +72,20 @@ public:
     class MainWindow : public juce::DocumentWindow
     {
     public:
-        explicit MainWindow (const juce::String& name)
+        MainWindow (const juce::String& name, const juce::String& commandLine)
             : DocumentWindow (name,
                               juce::Desktop::getInstance().getDefaultLookAndFeel()
                                   .findColour (juce::ResizableWindow::backgroundColourId),
                               DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar (true);
-            setContentOwned (new MainComponent(), true);
+            setContentOwned (new xoa::ui::AppShell (commandLine), true);
             setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
             setVisible (true);
+
+            // Dark native title bar (Windows DWM / macOS dark Aqua); no-op on Linux.
+            WindowUtils::enableDarkTitleBar (this);
         }
 
         void closeButtonPressed() override
@@ -66,7 +98,11 @@ public:
     };
 
 private:
-    std::unique_ptr<MainWindow> mainWindow;
+    // Declared before mainWindow so it outlives the window during teardown; the
+    // explicit ordering in shutdown() is the authoritative cleanup path.
+    std::unique_ptr<XoaLookAndFeel>      lookAndFeel;
+    std::unique_ptr<juce::TooltipWindow> tooltipWindow;
+    std::unique_ptr<MainWindow>          mainWindow;
 };
 
 //==============================================================================

@@ -62,12 +62,34 @@ juce_add_gui_app(XOA
 
 target_sources(XOA PRIVATE
     Source/Main.cpp
-    Source/MainComponent.cpp
     Source/Parameters/XoaValueTreeState.cpp
     Source/Parameters/XoaFileManager.cpp
     Source/Audio/FilePlayer.cpp
     Source/Audio/AudioEngine.cpp
-    Source/DSP/ConvexHull.cpp)
+    Source/DSP/AmbiCalculationEngine.cpp
+    Source/DSP/ConvexHull.cpp
+    Source/Localization/LocalizationManager.cpp
+    Source/Network/OSCManager.cpp
+    # WP10 GUI application (C5): shell, header, tabs.
+    Source/App/AppShell.cpp
+    Source/App/HeaderBar.cpp
+    Source/GUI/Tabs/SystemConfigTab.cpp
+    Source/GUI/Tabs/NetworkTab.cpp
+    Source/GUI/Tabs/InputsTab.cpp
+    Source/GUI/Tabs/SpeakersDecoderTab.cpp
+    Source/GUI/Layout/SpeakerLayoutPanel.cpp)
+
+# GUI kit (WP10). Headers are picked up via the Source include dir; only
+# translation units need listing here. The macOS dark-title-bar helper is
+# Objective-C++ and compiles on Apple only (OBJCXX enabled at the top level by
+# spatcore_enable_consumer_languages()).
+if(APPLE)
+    target_sources(XOA PRIVATE Source/GUI/WindowUtils.mm)
+endif()
+
+# Temporary WP10 C2 compile-check: forces the whole ported widget kit to compile
+# before any tab wires it up. Removed in WP10 C10 once the tabs include the kit.
+target_sources(XOA PRIVATE Source/GUI/GuiKitCompileCheck.cpp)
 
 target_include_directories(XOA PRIVATE Source)
 
@@ -90,6 +112,17 @@ target_link_libraries(XOA PRIVATE
 # were baselined with (spatcore's DSP is header-only from the consumer's
 # point of view, so the app's flags are the flags it compiles under).
 spatcore_apply_compile_flags(XOA)
+
+# Stage the localization files (loose JSON, WP10 C3) next to the binary so
+# LocalizationManager's default resource-dir resolution (<exeDir>/Resources/lang)
+# finds them. WFS-DIY relied on Projucer bundle copying; the CMake app stages
+# them here. The unit test reads them from the source tree instead
+# (XOA_LANG_SOURCE_DIR), so this staging is a runtime convenience, not a test dep.
+add_custom_command(TARGET XOA POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/Resources/lang"
+            "$<TARGET_FILE_DIR:XOA>/Resources/lang"
+    COMMENT "Staging Resources/lang next to the XOA binary")
 
 # ---------------------------------------------------------------------------
 # Tests — the xoa-tests console app, registered with ctest.

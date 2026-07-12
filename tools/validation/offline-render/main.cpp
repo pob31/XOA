@@ -14,7 +14,8 @@
     (--scenario all --blocks 40, no --check).
 
     CLI:
-      --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|all>
+      --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|
+                  comp-offcenter|encode-static|encode-move|all>
       [--blocks N] [--block 512] [--sr 48000] [--speakers 24]
       [--wav out.wav] [--raw out.f32]
       [--check baselines/<machine>.json] [--update] [--bench] [--warmup 16]
@@ -44,6 +45,8 @@
 #include "Audio/TestSceneGenerator.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiDecoderDesigner.h"
+#include "DSP/AmbiEncoder.h"
+#include "DSP/AmbiNFCFilter.h"
 #include "DSP/AmbiRtTypes.h"
 #include "DSP/AmbiSphericalHarmonics.h"
 #include "DSP/DecoderMatrixBuilder.h"
@@ -123,7 +126,11 @@ dec::SpeakerLayout makeShoebox()
 // Per-speaker comp POD for the shoebox: distance mode 2 (delay aligns every
 // speaker to the farthest; attenuate-only gain law) plus a -6 dB trim on
 // speaker 0 - mirrors composeSpeakerCompParams (which the unit tests pin).
-xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout)
+// The optional listener offset (D18) re-references distances to (lx,ly,lz);
+// at the default origin the output is bit-identical to the pre-D18 mirror, so
+// the `comp` baseline is unchanged and `comp-offcenter` differs only by it.
+xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout,
+                                          double lx = 0.0, double ly = 0.0, double lz = 0.0)
 {
     xoa::SpeakerCompRtParams p;
     p.numSpeakers = layout.count;
@@ -134,7 +141,8 @@ xoa::SpeakerCompRtParams makeShoeboxComp (const dec::SpeakerLayout& layout)
     for (int s = 0; s < layout.count; ++s)
     {
         const auto& c = layout.positions[s];
-        radius[(size_t) s] = std::sqrt (c.x * c.x + c.y * c.y + c.z * c.z);
+        const double dx = c.x - lx, dy = c.y - ly, dz = c.z - lz;
+        radius[(size_t) s] = std::sqrt (dx * dx + dy * dy + dz * dz);
         rMax = std::max (rMax, radius[(size_t) s]);
     }
     for (int s = 0; s < layout.count; ++s)
@@ -169,6 +177,7 @@ struct RigSpec
     dec::SpeakerLayout       layout;
     dec::DesignOptions       options;
     bool                     comp = false;
+    bool                     encoder = false;   // WP8 mono-encoder scenarios
     xoa::SpeakerCompRtParams compParams;
     xoa::SpeakerEqParams     eqParams;
 };
@@ -193,6 +202,17 @@ RigSpec rigFor (scenario::Id id, const Config& cfg)
             rig.compParams = makeShoeboxComp (rig.layout);
             rig.eqParams = makeShoeboxEq (rig.layout.count);
             break;
+        case scenario::Id::CompOffCenter:    // identical rig; D18 listener at (1, 0.5, 0)
+            rig.layout = makeShoebox();
+            rig.comp = true;
+            rig.compParams = makeShoeboxComp (rig.layout, 1.0, 0.5, 0.0);
+            rig.eqParams = makeShoeboxEq (rig.layout.count);
+            break;
+        case scenario::Id::EncodeStatic:
+        case scenario::Id::EncodeMove:
+            rig.layout = makeRing (cfg.speakers, 2.0);   // r_ref = 2 m ring
+            rig.encoder = true;
+            break;
         default:                             // static3 / rotate / order-adapt / scene10
             rig.layout = makeRing (cfg.speakers, 2.0);
             break;
@@ -214,9 +234,30 @@ ChannelData renderScenario (scenario::Id id, const Config& cfg)
     spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;
     spatcore::rt::RtSnapshot<xoa::rt::BusRtParams>      busSnap;
 
+    // WP8 encoder seams (encoder scenarios only): app-owned live matrices +
+    // the scalar side-band, composed per tick below exactly as the message
+    // thread would. r_ref is the 2 m ring radius.
+    constexpr double rRef = 2.0;
+    std::vector<float>  encMatrix;
+    std::vector<double> nfcPages;
+    spatcore::rt::RtSnapshot<xoa::rt::EncoderRtParams> encSnap;
+    juce::AudioBuffer<float> stems;
+
     xoa::AmbiBusAlgorithm algo;
-    algo.prepare (xoa::kNumSHChannels, numOut, cfg.sr, cfg.block,
-                  &builder, &rotSnap, &busSnap, true);
+    if (rig.encoder)
+    {
+        encMatrix.assign ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.0f);
+        nfcPages.assign  ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0);
+        stems.setSize (xoa::kMaxInputs, cfg.block, false, false, true);
+        algo.prepare (xoa::kNumSHChannels, numOut, cfg.sr, cfg.block,
+                      &builder, &rotSnap, &busSnap, true,
+                      encMatrix.data(), nfcPages.data(), &encSnap);
+    }
+    else
+    {
+        algo.prepare (xoa::kNumSHChannels, numOut, cfg.sr, cfg.block,
+                      &builder, &rotSnap, &busSnap, true);
+    }
 
     // Optional per-speaker compensation stage (comp scenario only).
     spatcore::rt::RtSnapshot<xoa::SpeakerCompRtParams> compSnap;
@@ -255,21 +296,65 @@ ChannelData renderScenario (scenario::Id id, const Config& cfg)
         scenario::rotation (id, tick, yaw, pitch, roll);
         rotSnap.publish (xoa::rt::makeRotationState (yaw, pitch, roll, (juce::uint32) (tick + 1)));
 
-        const int cOrder = scenario::contentOrder (id, tick);
-        const int numFile = xoa::sh::numChannels (cOrder);
-        busSnap.publish (xoa::rt::makeBusParams (cOrder, sOrder, 0, numFile, 0.0,
-                                                 (juce::uint32) (tick + 1)));
+        int numStems = 0;
+        if (rig.encoder)
+        {
+            // Silent HOA (the stems carry the signal), then compose the encode
+            // rows / NFC pages for this tick exactly as the calc engine would.
+            busSnap.publish (xoa::rt::makeBusParams (0, 0, 0, 0, 0.0, (juce::uint32) (tick + 1)));
+            input.clear();
 
-        for (int c = 0; c < sceneCh; ++c)
-            inPtrs[c] = input.getWritePointer (c);
-        xoa::scene::renderScene (sOrder, blockStart, cfg.block, cfg.sr, inPtrs);
+            numStems = scenario::stemCount (id);
+            juce::uint64 mask = 0;
+            for (int src = 0; src < numStems; ++src)
+            {
+                const auto spec = scenario::sourceSpec (id, src, tick);
+                xoa::enc::SourceParams sp;
+                sp.x = spec.x; sp.y = spec.y; sp.z = spec.z;
+                sp.gainDb = spec.gainDb; sp.spreadDeg = spec.spreadDeg;
+                xoa::enc::composeRow (sp, rRef,
+                                      encMatrix.data() + (size_t) src * xoa::kNumSHChannels);
+                if (spec.nfc)
+                {
+                    const double rSrc = std::sqrt (spec.x * spec.x + spec.y * spec.y + spec.z * spec.z);
+                    xoa::nfc::designSourceSections (rSrc, rRef, cfg.sr,
+                        nfcPages.data() + (size_t) src * xoa::nfc::kCoeffsPerSource);
+                    mask |= (juce::uint64) 1 << src;
+                }
+            }
+            xoa::rt::EncoderRtParams ep;
+            ep.numSources = numStems; ep.nfcMask = mask;
+            ep.referenceRadius = (float) rRef; ep.epoch = (juce::uint32) (tick + 1);
+            encSnap.publish (ep);
+
+            for (int src = 0; src < numStems; ++src)
+            {
+                float* d = stems.getWritePointer (src);
+                for (int j = 0; j < cfg.block; ++j)
+                    d[j] = scenario::stemSample (id, src, blockStart + j, cfg.sr);
+            }
+        }
+        else
+        {
+            const int cOrder = scenario::contentOrder (id, tick);
+            const int numFile = xoa::sh::numChannels (cOrder);
+            busSnap.publish (xoa::rt::makeBusParams (cOrder, sOrder, 0, numFile, 0.0,
+                                                     (juce::uint32) (tick + 1)));
+
+            for (int c = 0; c < sceneCh; ++c)
+                inPtrs[c] = input.getWritePointer (c);
+            xoa::scene::renderScene (sOrder, blockStart, cfg.block, cfg.sr, inPtrs);
+        }
 
         if (cfg.bench && b == cfg.warmup)
             benchStart = Clock::now();
 
         output.clear();
         juce::AudioSourceChannelInfo info (&output, 0, cfg.block);
-        algo.processBlock (info, input, sceneCh, numOut);
+        if (rig.encoder)
+            algo.processBlock (info, input, 0, numOut, &stems, numStems);
+        else
+            algo.processBlock (info, input, sceneCh, numOut);
 
         if (rig.comp)
             speakerComp.processBlock (output, numOut, cfg.block);
@@ -361,7 +446,7 @@ juce::File taggedFile (const juce::File& base, const std::string& tag)
 void usage()
 {
     std::fprintf (stderr,
-        "usage: xoa-offline-render --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|all>\n"
+        "usage: xoa-offline-render --scenario <static3|rotate|order-adapt|scene10|shoebox-allrad|dual-band|comp|comp-offcenter|all>\n"
         "                          [--blocks N] [--block 512] [--sr 48000] [--speakers 24]\n"
         "                          [--wav out.wav] [--raw out.f32]\n"
         "                          [--check baselines/<machine>.json] [--update]\n"

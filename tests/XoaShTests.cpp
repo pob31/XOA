@@ -532,6 +532,92 @@ static void testOrderAdaptation()
 }
 
 //==============================================================================
+// S13 - source-spread order taper (FR-5, WP8)
+//==============================================================================
+static double rENorm (const double* g, int N)   // ||rE|| from the standard formula
+{
+    double numr = 0.0, den = 0.0;
+    for (int l = 0; l < N; ++l)   numr += 2.0 * (l + 1) * g[l] * g[l + 1];
+    for (int l = 0; l <= N; ++l)  den  += (2.0 * l + 1.0) * g[l] * g[l];
+    return den > 0.0 ? numr / den : 0.0;
+}
+
+static void testSpreadTaper()
+{
+    const int N = xoa::kAmbisonicOrder;
+    double g[xoa::kAmbisonicOrder + 1];
+
+    // sigma = 0 -> identity (point source): all weights 1.
+    weights::spreadTaper (N, 0.0, g);
+    for (int l = 0; l <= N; ++l)
+        CHECK (approx (g[l], 1.0, 1e-12));
+
+    // sigma = 180 -> omni: order 0 only, energy folded into g_0 = sqrt((N+1)^2).
+    weights::spreadTaper (N, 180.0, g);
+    CHECK (approx (g[0], static_cast<double> (N + 1), 1e-12));
+    for (int l = 1; l <= N; ++l)
+        CHECK (g[l] == 0.0);
+
+    // Energy sum_l (2l+1) g_l^2 is spread-invariant == (N+1)^2, across a sweep,
+    // g_0 stays positive/finite, and the taper never resurrects a zeroed order
+    // (monotone cutoff -> the nonzero orders are a contiguous prefix). The rE
+    // trajectory is UNIMODAL, not monotone: from basic (sigma 0) it rises to the
+    // max-rE peak (the P_l taper passes through the rE-maximizing weights) and
+    // then falls to 0 at omni. (The DEVPLAN's "monotonically decreasing" wording
+    // is a plan oversight - a mild high-order taper sharpens rE before widening.)
+    const double target = static_cast<double> ((N + 1) * (N + 1));
+    const int steps = 36;
+    std::vector<double> reSeq;
+    for (int step = 0; step <= steps; ++step)
+    {
+        const double sigma = 180.0 * step / steps;
+        weights::spreadTaper (N, sigma, g);
+
+        double energy = 0.0;
+        for (int l = 0; l <= N; ++l) energy += (2.0 * l + 1.0) * g[l] * g[l];
+        CHECK (approx (energy, target, 1e-9));
+        CHECK (g[0] > 0.0 && std::isfinite (g[0]));
+
+        bool zeroed = false;
+        for (int l = 0; l <= N; ++l)
+        {
+            if (g[l] == 0.0) zeroed = true;
+            else CHECK (! zeroed);          // no order revives after a cut
+        }
+        reSeq.push_back (rENorm (g, N));
+    }
+
+    // Unimodal: strictly up to a peak, then strictly down; ends well below start.
+    int peak = 0;
+    for (int i = 1; i < (int) reSeq.size(); ++i) if (reSeq[(size_t) i] > reSeq[(size_t) peak]) peak = i;
+    for (int i = 1; i <= peak; ++i)             CHECK (reSeq[(size_t) i]     >= reSeq[(size_t) i - 1] - 1e-9);
+    for (int i = peak + 1; i < (int) reSeq.size(); ++i) CHECK (reSeq[(size_t) i] <= reSeq[(size_t) i - 1] + 1e-9);
+    CHECK (reSeq.back() < 0.01);                                  // omni -> rE ~ 0
+    CHECK (reSeq.back() < reSeq.front());                        // net widening
+
+    // basic-weight anchor: at sigma = 0, ||rE|| = N/(N+1); the peak reaches the
+    // order-N max-rE rE.
+    CHECK (approx (reSeq.front(), static_cast<double> (N) / (N + 1), 1e-9));
+    double reMax[xoa::kAmbisonicOrder + 1];
+    weights::maxRe (N, reMax);
+    CHECK (approx (reSeq[(size_t) peak], rENorm (reMax, N), 5e-3));
+
+    // max-rE reproduction: at sigma/2 = acos(r_E(N)) the taper is the order-N
+    // max-rE family (up to the shared energy scale).
+    for (int order = 1; order <= N; ++order)
+    {
+        const double rE = weights::maxReCosine (order);
+        const double sigma = 2.0 * juce::radiansToDegrees (std::acos (rE));
+        weights::spreadTaper (order, sigma, g);
+
+        double re[xoa::kAmbisonicOrder + 1];
+        weights::maxRe (order, re);            // re[0] == 1
+        for (int l = 0; l <= order; ++l)
+            CHECK (approx (g[l] / g[0], re[l], 1e-11));   // ratios match max-rE
+    }
+}
+
+//==============================================================================
 void runXoaShTests()
 {
     testIndexing();
@@ -546,4 +632,5 @@ void runXoaShTests()
     testConventions();
     testFuma();
     testOrderAdaptation();
+    testSpreadTaper();
 }

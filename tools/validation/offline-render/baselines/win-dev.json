@@ -1,6 +1,9 @@
 {
   "cpu/comp": "4f1d5cfcf2550bf6408aa302fba6ddab7fb037baac9aa9ae1b9dbfc4ed4fbd38",
+  "cpu/comp-offcenter": "7771a891f363e7a17c7c92d90dafd8e78105061f2b283af1bc061ec8cc9bcb8c",
   "cpu/dual-band": "1d99dd1aa26080db8b2843809ba294687275221cd7a74f74817ec39916aa90df",
+  "cpu/encode-move": "7744ecf14f960a9d0a796a5a16cf99067e333660ab23d54821a48a4d5bb726ed",
+  "cpu/encode-static": "355c2dd29231493412ccc92c1a7b2514a2c7d356820a3bfeeaf2eb2b7c504705",
   "cpu/order-adapt": "39c46d2e4d168c56d06fa90636e8f4f9bf1b794c924aeeb0bf51371fdaa1eb11",
   "cpu/rotate": "414a941674d32e37af33cf6e30aaf613b19449929984b2d7b2646191f4a9f1d5",
   "cpu/scene10": "089f446b46eb6b0a790cce767ad06fb83f5d66eb094e566a8f293e43c69b0dd3",

@@ -34,6 +34,13 @@ constexpr bool   oscEnabledDefault = false;
 constexpr double oscReceivePortDefault = 9000.0, oscPortMin = 1.0, oscPortMax = 65535.0;
 constexpr double oscSendPortDefault    = 9001.0;
 inline const juce::String oscSendAddressDefault { "127.0.0.1" };
+// WP9 OSC transport additions. TCP off by default (UDP is the common path);
+// feedback on so a peer sees the effect of others' edits; meters off (opt-in).
+constexpr bool   oscTcpEnabledDefault = false;
+constexpr double oscTcpPortDefault = 9002.0;
+constexpr bool   oscAcceptAnyHostDefault = true;    // trackers are rarely send-targets
+constexpr bool   oscFeedbackEnabledDefault = true;
+constexpr bool   oscMeterEnabledDefault = false;
 
 // Config / Scene rotation (degrees, WP4 yaw-pitch-roll convention: intrinsic
 // Z-Y'-X''). Pitch is limited to +/-90 so every orientation has exactly one
@@ -56,6 +63,14 @@ constexpr double playbackConventionDefault = 0.0,
 constexpr double distanceCompModeDefault = 0.0,
                  distanceCompModeMin = 0.0, distanceCompModeMax = 2.0;   // 0 off, 1 delay, 2 delay+gain
 
+// Config / listener position (D18/FR-25), meters. Default origin = rig center;
+// at the origin the compensation re-reference is bit-identical to the pre-D18
+// law (see SpeakerCompParams.h). Bounds share the position range [-100, 100].
+constexpr double listenerXDefault = 0.0, listenerYDefault = 0.0, listenerZDefault = 0.0;
+
+// Config / mono encoders (WP8). Default off keeps the RT bus bit-identical to M2.
+constexpr bool   monoInputsEnabledDefault = false;
+
 // Inputs ----------------------------------------------------------------
 constexpr double inputGainDefault = 0.0, inputGainMin = -60.0, inputGainMax = 12.0;       // dB
 constexpr bool   inputMuteDefault = false;
@@ -67,6 +82,10 @@ constexpr double positionMin = -100.0, positionMax = 100.0;                     
 constexpr double coordinateModeDefault = 0.0, coordinateModeMin = 0.0, coordinateModeMax = 2.0;
 constexpr double inputSpreadDefault = 0.0, inputSpreadMin = 0.0, inputSpreadMax = 180.0;  // degrees
 constexpr bool   inputNfcEnabledDefault = false;
+// Position conditioning (WP8). maxSpeed 0 = off; the limiter's own clamp is
+// [0.01, 20] m/s. trackingSmooth is the 1-Euro percentage (0 = raw, 100 = max).
+constexpr double inputMaxSpeedDefault = 0.0, inputMaxSpeedMin = 0.0, inputMaxSpeedMax = 20.0;   // m/s
+constexpr double inputTrackingSmoothDefault = 50.0, inputTrackingSmoothMin = 0.0, inputTrackingSmoothMax = 100.0;  // %
 
 // Speakers --------------------------------------------------------------
 constexpr double speakerGainDefault  = 0.0, speakerGainMin = -60.0, speakerGainMax = 12.0; // dB trim

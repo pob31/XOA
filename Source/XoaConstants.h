@@ -41,4 +41,9 @@ constexpr int kNumEqBands = 6;
     (order 10 needs 121; the headroom matches the PRD's stated cap). */
 constexpr int kMaxFileChannels = 128;
 
+/** Speed of sound (m/s), the single project-wide value. Used by the WP7
+    per-speaker distance compensation (delay alignment) and the WP8 near-field
+    compensation filters (the s·r/c normalization). */
+constexpr double kSpeedOfSound = 343.0;
+
 } // namespace xoa

@@ -1,7 +1,10 @@
 #include "Audio/AudioEngine.h"
 #include "Audio/TestSceneGenerator.h"
 
+#include "Parameters/XoaParameterDefaults.h"
 #include "Parameters/XoaParameterIDs.h"
+
+#include <cmath>
 
 namespace xoa
 {
@@ -12,7 +15,7 @@ static constexpr int kDecoderDebounceMs = 150;
 
 //==============================================================================
 AudioEngine::AudioEngine (XoaValueTreeState& s)
-    : store (s)
+    : store (s), calcEngine (s)
 {
     registerListeners();
 
@@ -22,6 +25,7 @@ AudioEngine::AudioEngine (XoaValueTreeState& s)
     publishBusParams();
     publishSpeakerComp();
     rebuildDecoderNow();
+    updateReferenceRadius();   // seed the encoder r_ref from the speaker layout
 }
 
 AudioEngine::~AudioEngine()
@@ -52,6 +56,13 @@ void AudioEngine::registerListeners()
     // only the comp POD -> republish, no decoder rebuild.
     store.addParameterListener (ids::distanceCompMode, [this] (const juce::var&) { publishSpeakerComp(); });
 
+    // Listener position (D18/FR-25) re-references the distance comp -> republish
+    // the comp POD only. It does NOT move the rig geometry, so the decoder and
+    // the encoder r_ref (updateReferenceRadius) are deliberately untouched.
+    store.addParameterListener (ids::listenerX, [this] (const juce::var&) { publishSpeakerComp(); });
+    store.addParameterListener (ids::listenerY, [this] (const juce::var&) { publishSpeakerComp(); });
+    store.addParameterListener (ids::listenerZ, [this] (const juce::var&) { publishSpeakerComp(); });
+
     // The Speakers and Decoder subtrees drive decoder rebuilds; one listener on
     // each catches position edits, count changes (child add/remove) and merges.
     // Hold the subtree handles as members: a ValueTree registers listeners by
@@ -76,6 +87,9 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::playbackContentOrder);
     store.removeParameterListeners (ids::playbackConvention);
     store.removeParameterListeners (ids::distanceCompMode);
+    store.removeParameterListeners (ids::listenerX);
+    store.removeParameterListeners (ids::listenerY);
+    store.removeParameterListeners (ids::listenerZ);
 
     speakersSection.removeListener (this);
     decoderSection.removeListener (this);
@@ -90,16 +104,24 @@ void AudioEngine::openAudioDevice()
     std::unique_ptr<juce::XmlElement> savedXml =
         saved.isNotEmpty() ? juce::parseXML (saved) : nullptr;
 
-    deviceManager.initialise (0, xoa::kMaxSpeakers, savedXml.get(), true);
+    // WP8: open device INPUTS too (identity-mapped to encoder stems). Hardware
+    // with fewer inputs opens what it has; numInputChannels reflects the actual.
+    deviceManager.initialise (xoa::kMaxInputs, xoa::kMaxSpeakers, savedXml.get(), true);
     deviceManager.addChangeListener (this);
     deviceManager.addAudioCallback (this);
     callbackRegistered = true;
+
+    // Bring the encoder engine to the device's sample rate / rig radius and keep
+    // its live matrices fresh at 50 Hz while the device is open.
+    syncCalcEngineToDevice();
+    calcEngine.startTicking();
 }
 
 void AudioEngine::closeAudioDevice()
 {
     if (callbackRegistered)
     {
+        calcEngine.stopTicking();
         deviceManager.removeAudioCallback (this);
         deviceManager.removeChangeListener (this);
         callbackRegistered = false;
@@ -179,6 +201,7 @@ void AudioEngine::onSpeakerStructureChanged()
     markDecoderDirty();
     publishSpeakerComp();
     updateSpeakerEq();
+    updateReferenceRadius();   // the encoder r_ref follows the rig
 }
 
 // D17 property split - route each per-speaker / decoder edit to the minimum
@@ -208,6 +231,7 @@ void AudioEngine::valueTreePropertyChanged (juce::ValueTree&, const juce::Identi
     {
         markDecoderDirty();
         publishSpeakerComp();
+        updateReferenceRadius();   // the encoder r_ref follows the rig
         return;
     }
 
@@ -276,10 +300,46 @@ void AudioEngine::rebuildDecoderNow()
 }
 
 //==============================================================================
+// Mean speaker radius -> encoder r_ref (NFC poles + distance-gain reference).
+// Origin-placed speakers (r == 0) are skipped; an empty/degenerate rig falls
+// back to the default radius. Message thread.
+void AudioEngine::updateReferenceRadius()
+{
+    const int n = store.getNumSpeakers();
+    double sum = 0.0;
+    int cnt = 0;
+    for (int s = 0; s < n; ++s)
+    {
+        const double x = store.getFloatParameter (ids::speakerPositionX, s);
+        const double y = store.getFloatParameter (ids::speakerPositionY, s);
+        const double z = store.getFloatParameter (ids::speakerPositionZ, s);
+        const double r = std::sqrt (x * x + y * y + z * z);
+        if (r > 1.0e-6) { sum += r; ++cnt; }
+    }
+    calcEngine.setReferenceRadius (cnt > 0 ? sum / cnt : defaults::kDefaultRigRadius);
+}
+
+// Push the running device's sample rate to the encoder engine and recompute its
+// live matrices now (message thread: called from openAudioDevice / device state
+// changes, never the audio callback).
+void AudioEngine::syncCalcEngineToDevice()
+{
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+        if (const double sr = dev->getCurrentSampleRate(); sr > 0.0)
+            calcEngine.setSampleRate (sr);
+    updateReferenceRadius();
+    calcEngine.tick();
+}
+
+//==============================================================================
 void AudioEngine::changeListenerCallback (juce::ChangeBroadcaster*)
 {
     if (auto xml = deviceManager.createStateXml())
         store.setParameterWithoutUndo (ids::audioDeviceState, xml->toString());
+
+    // A device (re)start may have changed the sample rate; keep the encoder
+    // engine's NFC design in step (message thread).
+    syncCalcEngineToDevice();
 }
 
 //==============================================================================
@@ -297,11 +357,13 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
                              std::memory_order_relaxed);
 
     inputScratch.setSize (xoa::kMaxFileChannels, block, false, false, true);
+    stemScratch.setSize (xoa::kMaxInputs, block, false, false, true);
     filePlayer.prepareToPlay (sr, block);
 
     const int numOut = device->getActiveOutputChannels().countNumberOfSetBits();
     algorithm.prepare (xoa::kNumSHChannels, numOut, sr, block,
-                       &decoderBuilder, &rotationSnapshot, &busParamsSnapshot, true);
+                       &decoderBuilder, &rotationSnapshot, &busParamsSnapshot, true,
+                       calcEngine.encodeMatrix(), calcEngine.nfcCoeffs(), &calcEngine.encoderSource());
 
     // Per-speaker comp runs after the decode. Allocate its per-output state for
     // the actual device outs, then seed the RT biquads from the current EQ (the
@@ -328,7 +390,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
                                                     int numSamples,
                                                     const juce::AudioIODeviceCallbackContext& context)
 {
-    juce::ignoreUnused (inputChannelData, numInputChannels, context);
+    juce::ignoreUnused (context);
 
     juce::ScopedNoDenormals noDenormals;
 
@@ -346,6 +408,47 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
 
     juce::AudioSourceChannelInfo info (&outBuf, 0, n);
 
+    // Mono-encoder stems (WP8): device inputs (identity-mapped) or the internal
+    // test feed. Filled whenever a source could exist, so the encoder's one-block
+    // ramp-out on deactivation still has audio to fade. The RT stage gates on the
+    // published numSources, so filling here when disabled is harmless.
+    const bool testStems = stemFeed.load (std::memory_order_relaxed) == StemFeed::test;
+    const juce::AudioBuffer<float>* stemsPtr = nullptr;
+    int numStems = 0;
+    if (testStems || numInputChannels > 0)
+    {
+        numStems = juce::jmin (xoa::kMaxInputs, stemScratch.getNumChannels());
+        if (testStems)
+        {
+            const double sr = deviceSampleRate.load (std::memory_order_relaxed);
+            const double f0 = 2.0 * juce::MathConstants<double>::pi / (sr > 0.0 ? sr : 48000.0);
+            for (int i = 0; i < numStems; ++i)
+            {
+                float* d = stemScratch.getWritePointer (i);
+                const double w = f0 * (220.0 + 40.0 * i);   // distinct tone per input
+                for (int j = 0; j < n; ++j)
+                    d[j] = 0.2f * (float) std::sin (w * (double) (sceneCounter + j));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < numStems; ++i)
+            {
+                float* d = stemScratch.getWritePointer (i);
+                if (i < numInputChannels && inputChannelData[i] != nullptr)
+                    juce::FloatVectorOperations::copy (d, inputChannelData[i], n);
+                else
+                    juce::FloatVectorOperations::clear (d, n);
+            }
+        }
+        stemsPtr = &stemScratch;
+    }
+
+    // Per-input stem meters (observation-only): the gathered stem magnitudes.
+    for (int i = 0; i < xoa::kMaxInputs; ++i)
+        inputPeak[(size_t) i].store (i < numStems ? stemScratch.getMagnitude (i, 0, n) : 0.0f,
+                                     std::memory_order_relaxed);
+
     if (inputSource.load (std::memory_order_relaxed) == InputSource::testScene)
     {
         float* ptrs[xoa::kNumSHChannels];
@@ -353,13 +456,15 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
             ptrs[c] = inputScratch.getWritePointer (c);
         scene::renderScene (xoa::kAmbisonicOrder, sceneCounter, n,
                             deviceSampleRate.load (std::memory_order_relaxed), ptrs);
-        algorithm.processBlock (info, inputScratch, xoa::kNumSHChannels, numOutputChannels);
+        algorithm.processBlock (info, inputScratch, xoa::kNumSHChannels, numOutputChannels,
+                                stemsPtr, numStems);
     }
     else
     {
         filePlayer.renderNextBlock (inputScratch, n);
         algorithm.processBlock (info, inputScratch,
-                                fileNumChannels.load (std::memory_order_relaxed), numOutputChannels);
+                                fileNumChannels.load (std::memory_order_relaxed), numOutputChannels,
+                                stemsPtr, numStems);
     }
 
     // Per-speaker compensation (delay/EQ/gain) on the decoded output, in place.

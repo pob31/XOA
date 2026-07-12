@@ -53,6 +53,15 @@ void runXoaEngineTests();
 void runXoaVbapTests();
 void runXoaCompTests();
 void runXoaTestSignalTests();
+void runXoaNfcTests();
+void runXoaCalcEngineTests();
+void runXoaEncoderTests();
+void runXoaOscRouterTests();
+void runXoaOscManagerTests();
+void runXoaLocalizationTests();
+void runXoaUiDescriptorTests();
+void runXoaLayoutGeneratorTests();
+void runXoaRvReViewTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -116,6 +125,15 @@ int main()
         runXoaVbapTests();
         runXoaCompTests();
         runXoaTestSignalTests();
+        runXoaNfcTests();
+        runXoaCalcEngineTests();
+        runXoaEncoderTests();
+        runXoaOscRouterTests();
+        runXoaOscManagerTests();
+        runXoaLocalizationTests();
+        runXoaUiDescriptorTests();
+        runXoaLayoutGeneratorTests();
+        runXoaRvReViewTests();
     }
     catch (const std::exception& e)
     {

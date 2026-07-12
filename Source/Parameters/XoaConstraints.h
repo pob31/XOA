@@ -43,6 +43,7 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::masterGain,     { d::masterGainMin, d::masterGainMax, d::masterGainDefault, false } },
         { ids::oscReceivePort, { d::oscPortMin, d::oscPortMax, d::oscReceivePortDefault, true } },
         { ids::oscSendPort,    { d::oscPortMin, d::oscPortMax, d::oscSendPortDefault, true } },
+        { ids::oscTcpPort,     { d::oscPortMin, d::oscPortMax, d::oscTcpPortDefault, true } },
 
         // Config / scene rotation + playback (playbackLoop is bool and
         // playbackFilePath is string -> unbounded by convention)
@@ -52,6 +53,9 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::playbackContentOrder, { d::playbackContentOrderMin, d::playbackContentOrderMax, d::playbackContentOrderDefault, true } },
         { ids::playbackConvention,   { d::playbackConventionMin, d::playbackConventionMax, d::playbackConventionDefault, true } },
         { ids::distanceCompMode,     { d::distanceCompModeMin, d::distanceCompModeMax, d::distanceCompModeDefault, true } },
+        { ids::listenerX,            { d::positionMin, d::positionMax, d::listenerXDefault, false } },
+        { ids::listenerY,            { d::positionMin, d::positionMax, d::listenerYDefault, false } },
+        { ids::listenerZ,            { d::positionMin, d::positionMax, d::listenerZDefault, false } },
 
         // Structural counts
         { ids::inputCount,   { 1.0, (double) xoa::kMaxInputs,   (double) xoa::kDefaultInputs,   true } },
@@ -64,6 +68,8 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::inputPositionZ,      { d::positionMin, d::positionMax, d::inputPositionZDefault, false } },
         { ids::inputCoordinateMode, { d::coordinateModeMin, d::coordinateModeMax, d::coordinateModeDefault, true } },
         { ids::inputSpread,         { d::inputSpreadMin, d::inputSpreadMax, d::inputSpreadDefault, false } },
+        { ids::inputMaxSpeed,       { d::inputMaxSpeedMin, d::inputMaxSpeedMax, d::inputMaxSpeedDefault, false } },
+        { ids::inputTrackingSmooth, { d::inputTrackingSmoothMin, d::inputTrackingSmoothMax, d::inputTrackingSmoothDefault, false } },
 
         // Speakers
         { ids::speakerGain,           { d::speakerGainMin, d::speakerGainMax, d::speakerGainDefault, false } },

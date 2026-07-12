@@ -56,6 +56,15 @@ inline const juce::Identifier oscSendPort      { "oscSendPort" };
 inline const juce::Identifier oscSendAddress   { "oscSendAddress" };
 inline const juce::Identifier audioDeviceState { "audioDeviceState" };
 
+// Config / OSC transport (WP9). Transport parameters are read-only over OSC
+// itself (a peer must not reconfigure the socket out from under itself) - they
+// are set from the UI / project file only.
+inline const juce::Identifier oscTcpEnabled      { "oscTcpEnabled" };     // bind the TCP receiver
+inline const juce::Identifier oscTcpPort         { "oscTcpPort" };        // TCP receive port
+inline const juce::Identifier oscAcceptAnyHost   { "oscAcceptAnyHost" };  // false -> IP allow-list
+inline const juce::Identifier oscFeedbackEnabled { "oscFeedbackEnabled" }; // emit parameter feedback
+inline const juce::Identifier oscMeterEnabled    { "oscMeterEnabled" };   // emit /xoa/monitor/*
+
 // Config / Scene rotation (FR-9/FR-10 — the runtime SO(3) orientation;
 // "rotation*"/"playback*" ride the everything-else-is-Config scope rule)
 inline const juce::Identifier rotationYaw   { "rotationYaw" };
@@ -73,6 +82,17 @@ inline const juce::Identifier playbackConvention   { "playbackConvention" };    
 // Config; the per-speaker delay/gain come from speaker positions, not schema.
 inline const juce::Identifier distanceCompMode { "distanceCompMode" };  // 0 off, 1 delay, 2 delay+gain
 
+// Config / listener position (D18/FR-25). Sweet-spot shift: the distance-comp
+// delays/gains are referenced to this point instead of the rig origin.
+// "listener*" routes to Config. Default (0,0,0) = origin (comp bit-identical).
+inline const juce::Identifier listenerX { "listenerX" };
+inline const juce::Identifier listenerY { "listenerY" };
+inline const juce::Identifier listenerZ { "listenerZ" };
+
+// Config / mono encoders (FR-5/FR-6, WP8). Master gate for the encoder stage;
+// off by default so the RT bus is bit-identical to M2 (no stems mixed in).
+inline const juce::Identifier monoInputsEnabled { "monoInputsEnabled" };
+
 // Input / Channel
 inline const juce::Identifier inputName { "inputName" };
 inline const juce::Identifier inputGain { "inputGain" };
@@ -83,6 +103,9 @@ inline const juce::Identifier inputPositionX      { "inputPositionX" };
 inline const juce::Identifier inputPositionY      { "inputPositionY" };
 inline const juce::Identifier inputPositionZ      { "inputPositionZ" };
 inline const juce::Identifier inputCoordinateMode { "inputCoordinateMode" };
+// Position conditioning (WP8): speed-limited moves + 1-Euro tracking smoothing.
+inline const juce::Identifier inputMaxSpeed       { "inputMaxSpeed" };       // m/s, 0 = off
+inline const juce::Identifier inputTrackingSmooth { "inputTrackingSmooth" }; // %, 1-Euro smoothing
 
 // Input / Encoder
 inline const juce::Identifier inputSpread     { "inputSpread" };
