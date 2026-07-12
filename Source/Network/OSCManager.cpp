@@ -5,6 +5,7 @@
 
 #include "spatcore/control/osc/OSCIngestQueue.h"
 #include "spatcore/control/osc/OSCParser.h"
+#include "spatcore/control/osc/OSCRateLimiter.h"
 #include "spatcore/control/osc/OSCReceiverWithSenderIP.h"
 #include "spatcore/control/osc/OSCSerializer.h"
 #include "spatcore/control/osc/OSCTCPReceiver.h"
@@ -23,11 +24,22 @@ namespace sc = spatcore::control::osc;
 OSCManager::OSCManager (XoaValueTreeState& storeToUse, AudioEngine& engineToUse)
     : store (storeToUse), engine (engineToUse)
 {
-    juce::ignoreUnused (engine);   // used by the C6 head-tracking path
+    // Outbound feedback path (works with or without start(): no sockets). The
+    // rate limiter coalesces per address at 50 Hz; the store's post-write
+    // observer feeds every non-OSC-origin change here.
+    rateLimiter = std::make_unique<sc::OSCRateLimiter> (sc::MAX_RATE_HZ);
+    rateLimiter->setSendCallback ([this] (int, const juce::OSCMessage& m) { sendToTarget (m); });
+
+    store.setPostWriteObserver ([this] (const juce::ValueTree& n, const juce::Identifier& id,
+                                        const juce::var& v, int ch)
+    {
+        onStoreWrite (n, id, v, ch);
+    });
 }
 
 OSCManager::~OSCManager()
 {
+    store.setPostWriteObserver (nullptr);   // stop feedback before teardown
     stop();
 }
 
@@ -82,6 +94,7 @@ void OSCManager::start()
 
     registerConfigListeners();
     reconnect();
+    startTimerHz (10);   // /xoa/monitor/* meter frames (gated by oscMeterEnabled)
     started = true;
 }
 
@@ -90,6 +103,7 @@ void OSCManager::stop()
     if (! started)
         return;
 
+    stopTimer();
     unregisterConfigListeners();
     if (udpReceiver != nullptr) udpReceiver->disconnect();
     if (tcpReceiver != nullptr) tcpReceiver->disconnect();
@@ -280,6 +294,64 @@ void OSCManager::sendDatagram (const juce::String& ip, int port, const juce::OSC
 {
     const juce::MemoryBlock bytes = sc::OSCSerializer::serializeMessage (msg);
     txSocket.write (ip, port, bytes.getData(), (int) bytes.getSize());
+}
+
+//==============================================================================
+// Outbound feedback + meters.
+//==============================================================================
+void OSCManager::onStoreWrite (const juce::ValueTree& node, const juce::Identifier& id,
+                               const juce::var& value, int channelIndex)
+{
+    if (! static_cast<bool> (store.getParameter (ids::oscFeedbackEnabled)))
+        return;
+    if (sc::getCurrentOriginTag() == sc::OriginTag::OSC)
+        return;   // don't echo a peer's own write straight back to it
+
+    const osc::Binding* b = osc::findBindingById (id);
+    if (b == nullptr)
+        return;   // not OSC-exposed (transport params, ids, showName, ...)
+
+    // handlePostWrite resolves channelIndex to the speaker index even for EQ
+    // band properties; recover the band index from the changed node.
+    const int band = (node.getType() == ids::band)
+                         ? static_cast<int> (node.getProperty (ids::idProp, 0)) - 1
+                         : -1;
+
+    if (rateLimiter != nullptr)
+        rateLimiter->queueMessage (0, osc::makeFeedbackMessage (id, channelIndex, band, value));
+}
+
+void OSCManager::sendToTarget (const juce::OSCMessage& msg)
+{
+    const juce::String ip = store.getStringParameter (ids::oscSendAddress);
+    const int port = store.getIntParameter (ids::oscSendPort);
+    if (sendFn && ip.isNotEmpty() && port > 0)
+        sendFn (ip, port, msg);
+}
+
+void OSCManager::timerCallback()
+{
+    sendMeterFrame();
+}
+
+void OSCManager::sendMeterFrame()
+{
+    if (! static_cast<bool> (store.getParameter (ids::oscMeterEnabled)))
+        return;
+
+    const int numOut = juce::jmin (store.getNumSpeakers(), xoa::kMaxSpeakers);
+    for (int c = 0; c < numOut; ++c)
+        sendToTarget (juce::OSCMessage ("/xoa/monitor/output/peak",
+                                        (juce::int32) (c + 1), engine.getOutputPeakLevel (c)));
+
+    sendToTarget (juce::OSCMessage ("/xoa/monitor/cpu",       (float) engine.getCpuLoad()));
+    sendToTarget (juce::OSCMessage ("/xoa/monitor/latencyMs", (float) engine.getMeasuredLatencyMs()));
+}
+
+void OSCManager::flushOutbound()
+{
+    if (rateLimiter != nullptr)
+        rateLimiter->flushAll();
 }
 
 } // namespace xoa

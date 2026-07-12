@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_core/juce_core.h>
+#include <juce_data_structures/juce_data_structures.h>   // juce::ValueTree
 #include <juce_osc/juce_osc.h>
 
 #include <functional>
@@ -23,7 +24,8 @@
 // in C6/C5; this chunk is inbound parameters + get + ping.
 //==============================================================================
 
-namespace spatcore::control::osc { class OSCReceiverWithSenderIP; class OSCTCPReceiver; class OSCIngestQueue; }
+namespace spatcore::control::osc { class OSCReceiverWithSenderIP; class OSCTCPReceiver;
+                                   class OSCIngestQueue; class OSCRateLimiter; }
 
 namespace xoa
 {
@@ -31,7 +33,8 @@ namespace xoa
 class XoaValueTreeState;
 class AudioEngine;
 
-class OSCManager
+// private juce::Timer drives the 10 Hz /xoa/monitor/* meter stream.
+class OSCManager : private juce::Timer
 {
 public:
     OSCManager (XoaValueTreeState& storeToUse, AudioEngine& engineToUse);
@@ -61,6 +64,14 @@ public:
                           spatcore::control::osc::ConnectionMode transport
                               = spatcore::control::osc::ConnectionMode::UDP);
 
+    /** Flush any rate-limited parameter feedback immediately (shutdown / test
+        seam; the 50 Hz flush timer needs a running message loop otherwise). */
+    void flushOutbound();
+
+    /** Emit one /xoa/monitor/* frame now if metering is enabled (the 10 Hz
+        timer calls this; exposed for tests, which have no message loop). */
+    void sendMeterFrame();
+
 private:
     void reconnect();                 // (re)bind receivers to the current config
     void registerConfigListeners();
@@ -74,6 +85,14 @@ private:
     void handleGet  (const juce::OSCMessage& msg, const juce::String& ip, int port);
     void handlePing (const juce::OSCMessage& msg, const juce::String& ip, int port);
 
+    // Outbound feedback (C5): the store's post-write observer routes every
+    // non-OSC-origin change here; it is queued to the rate limiter for target 0.
+    void onStoreWrite (const juce::ValueTree& node, const juce::Identifier& id,
+                       const juce::var& value, int channelIndex);
+    void sendToTarget (const juce::OSCMessage& msg);   // -> oscSendAddress:oscSendPort
+
+    void timerCallback() override;   // 10 Hz meter tick
+
     bool isAllowedHost (const juce::String& ip) const;
     void sendReply (const juce::String& ip, int port, const juce::OSCMessage& msg);
     void sendDatagram (const juce::String& ip, int port, const juce::OSCMessage& msg);
@@ -84,6 +103,7 @@ private:
     std::unique_ptr<spatcore::control::osc::OSCReceiverWithSenderIP> udpReceiver;
     std::unique_ptr<spatcore::control::osc::OSCTCPReceiver>          tcpReceiver;
     std::unique_ptr<spatcore::control::osc::OSCIngestQueue>          ingestQueue;
+    std::unique_ptr<spatcore::control::osc::OSCRateLimiter>          rateLimiter;
 
     juce::DatagramSocket txSocket { false };   // send-only (never bound to receive)
     SendFn sendFn;

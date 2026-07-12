@@ -231,6 +231,106 @@ void testManagerIpFilter()
     CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::masterGain) + 3.0) < 1.0e-4);
 }
 
+//==============================================================================
+// C5 - outbound feedback + meters.
+//==============================================================================
+void testManagerFeedback()
+{
+    ManagerFixture f;
+
+    // A non-OSC-origin change is echoed to the target (default 127.0.0.1:9001)
+    // in indexed form.
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, -4.0);
+    f.mgr.flushOutbound();
+    CHECK (f.replies.size() == 1);
+    if (! f.replies.empty())
+    {
+        const auto& r = f.replies.back();
+        CHECK (r.ip == "127.0.0.1");
+        CHECK (r.port == 9001);
+        CHECK (r.msg.getAddressPattern().toString() == "/xoa/config/masterGain");
+        CHECK (r.msg[0].isFloat32());
+        CHECK (std::abs (r.msg[0].getFloat32() + 4.0f) < 1.0e-4f);
+    }
+
+    // Channelized feedback uses the indexed address.
+    f.replies.clear();
+    f.store.setNumSpeakers (4);
+    f.store.setParameterWithoutUndo (xoa::ids::speakerGain, -6.0, 2);   // speaker 3 (0-based 2)
+    f.mgr.flushOutbound();
+    bool sawSpeaker3 = false;
+    for (const auto& r : f.replies)
+        if (r.msg.getAddressPattern().toString() == "/xoa/speaker/3/gain")
+        {
+            sawSpeaker3 = true;
+            CHECK (std::abs (r.msg[0].getFloat32() + 6.0f) < 1.0e-4f);
+        }
+    CHECK (sawSpeaker3);
+}
+
+void testManagerFeedbackSuppressesOscEcho()
+{
+    ManagerFixture f;
+    f.inject (OSCMessage ("/xoa/config/masterGain", -5.0f));   // OSC origin
+    f.mgr.flushOutbound();
+    CHECK (f.replies.empty());   // a peer's own write is not echoed back
+    CHECK (std::abs ((double) f.store.getFloatParameter (xoa::ids::masterGain) + 5.0) < 1.0e-4);
+}
+
+void testManagerFeedbackCoalesces()
+{
+    ManagerFixture f;
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, -1.0);
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, -2.0);
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, -3.0);
+    f.mgr.flushOutbound();
+    CHECK (f.replies.size() == 1);   // rate limiter coalesces per address
+    if (! f.replies.empty())
+        CHECK (std::abs (f.replies.back().msg[0].getFloat32() + 3.0f) < 1.0e-4f);
+}
+
+void testManagerFeedbackDisabled()
+{
+    ManagerFixture f;
+    f.store.setParameterWithoutUndo (xoa::ids::oscFeedbackEnabled, false);
+    f.store.setParameterWithoutUndo (xoa::ids::masterGain, -6.0);
+    f.mgr.flushOutbound();
+    CHECK (f.replies.empty());
+}
+
+void testManagerMeters()
+{
+    ManagerFixture f;
+    f.store.setNumSpeakers (3);
+
+    // Disabled by default -> no frame.
+    f.mgr.sendMeterFrame();
+    CHECK (f.replies.empty());
+
+    // Enabled -> one peak per output + cpu + latency.
+    f.store.setParameterWithoutUndo (xoa::ids::oscMeterEnabled, true);
+    f.mgr.sendMeterFrame();
+    CHECK (f.replies.size() == 5);
+
+    int peaks = 0, cpu = 0, lat = 0;
+    for (const auto& r : f.replies)
+    {
+        const auto a = r.msg.getAddressPattern().toString();
+        if (a == "/xoa/monitor/output/peak")
+        {
+            ++peaks;
+            CHECK (r.msg.size() == 2);
+            CHECK (r.msg[0].isInt32());
+            CHECK (r.msg[1].isFloat32());
+        }
+        else if (a == "/xoa/monitor/cpu")       { ++cpu; CHECK (r.msg.size() == 1); }
+        else if (a == "/xoa/monitor/latencyMs") { ++lat; CHECK (r.msg.size() == 1); }
+    }
+    CHECK (peaks == 3);
+    CHECK (cpu == 1);
+    CHECK (lat == 1);
+}
+
 } // namespace
 
 //==============================================================================
@@ -244,4 +344,9 @@ void runXoaOscManagerTests()
     testManagerGet();
     testManagerPing();
     testManagerIpFilter();
+    testManagerFeedback();
+    testManagerFeedbackSuppressesOscEcho();
+    testManagerFeedbackCoalesces();
+    testManagerFeedbackDisabled();
+    testManagerMeters();
 }

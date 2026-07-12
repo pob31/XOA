@@ -233,11 +233,14 @@ int XoaValueTreeState::resolveChannelIndex (const juce::ValueTree& changedNode) 
     return -1;
 }
 
-void XoaValueTreeState::handlePostWrite (juce::ValueTree&, const juce::Identifier&,
-                                         const juce::var&, int)
+void XoaValueTreeState::handlePostWrite (juce::ValueTree& node, const juce::Identifier& property,
+                                         const juce::var& value, int channelIndex)
 {
-    // Deliberately empty (see header). Cross-parameter invariants register
-    // here when the schema grows some.
+    // No cross-parameter invariants in v1; the hook exists for the WP9 C5
+    // feedback observer, which reads the current OriginTag to decide whether
+    // to echo the change out over OSC.
+    if (postWriteObserver)
+        postWriteObserver (node, property, value, channelIndex);
 }
 
 //==============================================================================
