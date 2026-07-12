@@ -20,6 +20,7 @@ AudioEngine::AudioEngine (XoaValueTreeState& s)
     // (and thus the algorithm) can read one.
     publishRotation();
     publishBusParams();
+    publishSpeakerComp();
     rebuildDecoderNow();
 }
 
@@ -46,6 +47,11 @@ void AudioEngine::registerListeners()
     store.addParameterListener (ids::playbackContentOrder, [this] (const juce::var&) { publishBusParams(); });
     store.addParameterListener (ids::playbackConvention,   [this] (const juce::var&) { publishBusParams(); });
 
+    // Distance-comp mode lives in Config, so it needs its own listener (the
+    // Speakers subtree listener below only sees per-speaker edits). It changes
+    // only the comp POD -> republish, no decoder rebuild.
+    store.addParameterListener (ids::distanceCompMode, [this] (const juce::var&) { publishSpeakerComp(); });
+
     // The Speakers and Decoder subtrees drive decoder rebuilds; one listener on
     // each catches position edits, count changes (child add/remove) and merges.
     // Hold the subtree handles as members: a ValueTree registers listeners by
@@ -69,6 +75,7 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::masterGain);
     store.removeParameterListeners (ids::playbackContentOrder);
     store.removeParameterListeners (ids::playbackConvention);
+    store.removeParameterListeners (ids::distanceCompMode);
 
     speakersSection.removeListener (this);
     decoderSection.removeListener (this);
@@ -151,6 +158,61 @@ void AudioEngine::publishBusParams()
             overrideOrder, fileDetectedOrder.load (std::memory_order_relaxed), convention,
             fileNumChannels.load (std::memory_order_relaxed), masterDb, ++busEpoch));
     }
+}
+
+void AudioEngine::publishSpeakerComp()
+{
+    speakerCompSnapshot.publish (composeSpeakerCompParams (store, ++speakerCompEpoch));
+}
+
+void AudioEngine::updateSpeakerEq()
+{
+    // Benign-staleness (D3): push coefficients onto the RT-owned biquads from
+    // the message thread. A no-op before the device is prepared (0 channels).
+    speakerComp.setEqParameters (composeSpeakerEqParams (store));
+}
+
+void AudioEngine::onSpeakerStructureChanged()
+{
+    // A speaker was added/removed/reordered: the decoder must redesign AND the
+    // comp delay/gain + EQ maps shift with the new channel set.
+    markDecoderDirty();
+    publishSpeakerComp();
+    updateSpeakerEq();
+}
+
+// D17 property split - route each per-speaker / decoder edit to the minimum
+// work it actually requires.
+void AudioEngine::valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier& property)
+{
+    // Trim / mute / solo: comp gain only (no decoder rebuild).
+    if (property == ids::speakerGain || property == ids::speakerDelay
+        || property == ids::speakerMute || property == ids::speakerSolo)
+    {
+        publishSpeakerComp();
+        return;
+    }
+
+    // EQ: RT biquad coefficients only.
+    if (property == ids::speakerEqEnabled || property == ids::eqShape
+        || property == ids::eqFrequency || property == ids::eqGain
+        || property == ids::eqQ || property == ids::eqSlope)
+    {
+        updateSpeakerEq();
+        return;
+    }
+
+    // Positions drive both the decode geometry and the distance comp.
+    if (property == ids::speakerPositionX || property == ids::speakerPositionY
+        || property == ids::speakerPositionZ)
+    {
+        markDecoderDirty();
+        publishSpeakerComp();
+        return;
+    }
+
+    // Decoder props, coordinate-mode, names, ids: decoder rebuild (safe default).
+    markDecoderDirty();
 }
 
 void AudioEngine::markDecoderDirty()
@@ -240,11 +302,18 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     const int numOut = device->getActiveOutputChannels().countNumberOfSetBits();
     algorithm.prepare (xoa::kNumSHChannels, numOut, sr, block,
                        &decoderBuilder, &rotationSnapshot, &busParamsSnapshot, true);
+
+    // Per-speaker comp runs after the decode. Allocate its per-output state for
+    // the actual device outs, then seed the RT biquads from the current EQ (the
+    // ms-based comp POD is already published and needs no rebuild for the SR).
+    speakerComp.prepare (sr, block, numOut, &speakerCompSnapshot);
+    updateSpeakerEq();
 }
 
 void AudioEngine::audioDeviceStopped()
 {
     algorithm.releaseResources();
+    speakerComp.releaseResources();
     filePlayer.releaseResources();
     deviceSampleRate.store (0.0, std::memory_order_relaxed);
     deviceBlockSize.store (0, std::memory_order_relaxed);
@@ -290,6 +359,15 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         algorithm.processBlock (info, inputScratch,
                                 fileNumChannels.load (std::memory_order_relaxed), numOutputChannels);
     }
+
+    // Per-speaker compensation (delay/EQ/gain) on the decoded output, in place.
+    speakerComp.processBlock (outBuf, numOutputChannels, n);
+
+    // Post-comp block-peak meters (what actually leaves the device).
+    for (int s = 0; s < numOutputChannels && s < xoa::kMaxSpeakers; ++s)
+        outputPeak[(size_t) s].store (outBuf.getMagnitude (s, 0, n), std::memory_order_relaxed);
+    for (int s = juce::jmax (0, numOutputChannels); s < xoa::kMaxSpeakers; ++s)
+        outputPeak[(size_t) s].store (0.0f, std::memory_order_relaxed);
 
     sceneCounter += n;
 }

@@ -265,6 +265,110 @@ void testDecoderRebuildTimingBudget()
    #endif
 }
 
+//==============================================================================
+// WP7 C7 — per-speaker compensation wiring (D17 listener split).
+//==============================================================================
+
+// Publish-before-enable: the comp POD is valid at construction, and the default
+// config (mode 0, no trim, all audible) is neutral.
+void testCompInitialPublish()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+
+    const auto p = engine.speakerCompSource().acquire();
+    CHECK (p.epoch > 0);
+    CHECK (p.numSpeakers == store.getNumSpeakers());
+    for (int s = 0; s < p.numSpeakers; ++s)
+    {
+        CHECK (p.delayMs[s] == 0.0f);
+        CHECK (std::abs (p.gainLinear[s] - 1.0f) < 1.0e-6f);
+    }
+}
+
+// D17: a trim edit republishes comp immediately and does NOT arm a decoder rebuild.
+void testCompTrimNoDecoderRebuild()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+    const auto e0 = engine.speakerCompSource().acquire().epoch;
+    CHECK (! engine.isDecoderRebuildPending());
+
+    store.setParameter (xoa::ids::speakerGain, -6.0, 1);
+
+    const auto p = engine.speakerCompSource().acquire();
+    CHECK (p.epoch > e0);                                                        // comp republished
+    CHECK (std::abs (p.gainLinear[1] - (float) std::pow (10.0, -6.0 / 20.0)) < 1.0e-5f);
+    CHECK (! engine.isDecoderRebuildPending());                                  // decoder untouched
+}
+
+// Mute folds to gain 0, still no decoder rebuild.
+void testCompMuteNoDecoderRebuild()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+
+    store.setParameter (xoa::ids::speakerMute, true, 0);
+    CHECK (engine.speakerCompSource().acquire().gainLinear[0] == 0.0f);
+    CHECK (! engine.isDecoderRebuildPending());
+}
+
+// EQ edits refresh the RT biquads only — the EQ route touches NEITHER the
+// decoder rebuild NOR the comp POD (which distinguishes it from the trim and
+// position routes; the biquad update itself is covered by C7b's EQ test).
+void testCompEqNoDecoderRebuild()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+    const auto e0 = engine.speakerCompSource().acquire().epoch;
+
+    store.setParameter (xoa::ids::speakerEqEnabled, true, 0);
+    store.setEqBandParameter (0, 0, xoa::ids::eqShape, 3);
+
+    CHECK (! engine.isDecoderRebuildPending());                       // not the decoder route
+    CHECK (engine.speakerCompSource().acquire().epoch == e0);         // not the comp route
+}
+
+// Positions drive BOTH: comp republishes AND the decoder rebuild arms.
+void testCompPositionTriggersBoth()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+    const auto e0 = engine.speakerCompSource().acquire().epoch;
+
+    store.setParameter (xoa::ids::speakerPositionX, 2.5, 0);
+
+    CHECK (engine.speakerCompSource().acquire().epoch > e0);   // comp updated
+    CHECK (engine.isDecoderRebuildPending());                  // decoder armed
+}
+
+// distanceCompMode (a Config param) republishes comp with distance-aligned
+// delays, and does not rebuild the decoder.
+void testCompDistanceModeListener()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+
+    store.setNumSpeakers (3);
+    for (int s = 0; s < 3; ++s)
+    {
+        store.setParameter (xoa::ids::speakerPositionX, (double) (s + 1), s);   // radii 1,2,3
+        store.setParameter (xoa::ids::speakerPositionY, 0.0, s);
+        store.setParameter (xoa::ids::speakerPositionZ, 0.0, s);
+    }
+    engine.flushDecoderRebuild();   // clear the rebuild armed by the edits above
+
+    const auto e0 = engine.speakerCompSource().acquire().epoch;
+    store.setParameter (xoa::ids::distanceCompMode, 1);   // align to the farthest (r=3)
+
+    const auto p = engine.speakerCompSource().acquire();
+    CHECK (p.epoch > e0);
+    const double expected0 = (3.0 - 1.0) / xoa::kSpeedOfSound * 1000.0;
+    CHECK (std::abs (p.delayMs[0] - expected0) < 1.0e-3);
+    CHECK (p.delayMs[2] == 0.0f);                 // farthest -> no added delay
+    CHECK (! engine.isDecoderRebuildPending());   // config-only, no rebuild
+}
+
 } // namespace
 
 //==============================================================================
@@ -280,4 +384,10 @@ void runXoaEngineTests()
     testAsyncRebuildStaleDiscard();
     testAsyncRebuildFlushWins();
     testDecoderRebuildTimingBudget();
+    testCompInitialPublish();
+    testCompTrimNoDecoderRebuild();
+    testCompMuteNoDecoderRebuild();
+    testCompEqNoDecoderRebuild();
+    testCompPositionTriggersBoth();
+    testCompDistanceModeListener();
 }

@@ -2,6 +2,7 @@
 
 #include <juce_audio_devices/juce_audio_devices.h>
 
+#include <array>
 #include <atomic>
 #include <functional>
 
@@ -10,6 +11,8 @@
 #include "XoaConstants.h"
 #include "Audio/DecoderRebuildWorker.h"
 #include "Audio/FilePlayer.h"
+#include "Audio/SpeakerCompParams.h"
+#include "Audio/SpeakerCompProcessor.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiDecoderDesigner.h"
 #include "DSP/AmbiRtTypes.h"
@@ -92,7 +95,15 @@ public:
     //==========================================================================
     // Metering / status (any thread; atomics).
     //==========================================================================
-    float  getOutputPeakLevel (int channel) const noexcept { return algorithm.getOutputPeakLevel (channel); }
+    /** POST-compensation block-peak of an output channel (engine-owned meter,
+        measured after the per-speaker delay/EQ/gain stage - what actually
+        leaves the device). The bus-algorithm meters stay pre-comp. */
+    float  getOutputPeakLevel (int channel) const noexcept
+    {
+        if (channel < 0 || channel >= xoa::kMaxSpeakers)
+            return 0.0f;
+        return outputPeak[(size_t) channel].load (std::memory_order_relaxed);
+    }
     double getMeasuredLatencyMs() const noexcept { return measuredLatencyMs.load (std::memory_order_relaxed); }
     double getCpuLoad() const { return deviceManager.getCpuUsage(); }
     double getSampleRate() const noexcept { return deviceSampleRate.load (std::memory_order_relaxed); }
@@ -106,6 +117,11 @@ public:
     //==========================================================================
     const spatcore::rt::RtSnapshot<rt::RotationRtState>& rotationSource() const noexcept { return rotationSnapshot; }
     const spatcore::rt::RtSnapshot<rt::BusRtParams>&     busParamsSource() const noexcept { return busParamsSnapshot; }
+    const spatcore::rt::RtSnapshot<SpeakerCompRtParams>& speakerCompSource() const noexcept { return speakerCompSnapshot; }
+
+    /** Recompose + publish the per-speaker comp POD now (test seam; also the
+        listener path for gain/delay/mute/solo/distance-mode edits). */
+    void publishSpeakerComp();
 
 private:
     //==========================================================================
@@ -120,11 +136,15 @@ private:
     // juce::ChangeListener (device state persistence)
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 
-    // juce::ValueTree::Listener (Speakers/Decoder subtree -> decoder rebuild)
-    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { markDecoderDirty(); }
-    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { markDecoderDirty(); }
-    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { markDecoderDirty(); }
-    void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { markDecoderDirty(); }
+    // juce::ValueTree::Listener (Speakers/Decoder subtree). The property route
+    // splits work (D17): trim/mute/solo -> cheap comp republish only; EQ ->
+    // biquad refresh only; positions -> decoder rebuild AND comp; everything
+    // else (decoder props, names) -> decoder rebuild. A count change touches
+    // both, so child add/remove/reorder republish comp as well as redesigning.
+    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier& property) override;
+    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { onSpeakerStructureChanged(); }
+    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { onSpeakerStructureChanged(); }
+    void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { onSpeakerStructureChanged(); }
     void valueTreeParentChanged (juce::ValueTree&) override {}
 
     // juce::Timer (decoder rebuild debounce)
@@ -136,6 +156,8 @@ private:
     //==========================================================================
     void publishRotation();
     void publishBusParams();
+    void updateSpeakerEq();              // push the 6-band EQ onto the RT biquads
+    void onSpeakerStructureChanged();    // count change -> rebuild + comp + EQ
     void markDecoderDirty();
     void rebuildDecoderNow();
     void registerListeners();
@@ -164,7 +186,13 @@ private:
 
     spatcore::rt::RtSnapshot<rt::RotationRtState> rotationSnapshot;
     spatcore::rt::RtSnapshot<rt::BusRtParams>     busParamsSnapshot;
+    spatcore::rt::RtSnapshot<SpeakerCompRtParams> speakerCompSnapshot;
     AmbiBusAlgorithm         algorithm;
+    SpeakerCompProcessor     speakerComp;
+
+    // Post-comp output meters (what leaves the device), updated per block on the
+    // audio thread. Distinct from AmbiBusAlgorithm's pre-comp meters.
+    std::array<std::atomic<float>, xoa::kMaxSpeakers> outputPeak {};
 
     juce::AudioBuffer<float> inputScratch;   // [kMaxFileChannels x block]
 
@@ -175,6 +203,7 @@ private:
     // Epochs advance on the message thread only (one writer per snapshot).
     juce::uint32 rotationEpoch = 0;
     juce::uint32 busEpoch = 0;
+    juce::uint32 speakerCompEpoch = 0;
 
     std::atomic<double> measuredLatencyMs { 0.0 };
     std::atomic<double> deviceSampleRate { 0.0 };
