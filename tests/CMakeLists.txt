@@ -17,6 +17,7 @@ target_sources(xoa-tests PRIVATE
     XoaEngineTests.cpp
     XoaVbapTests.cpp
     XoaCompTests.cpp
+    XoaTestSignalTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/FilePlayer.cpp

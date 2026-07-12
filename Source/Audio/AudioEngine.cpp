@@ -308,6 +308,8 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     // ms-based comp POD is already published and needs no rebuild for the SR).
     speakerComp.prepare (sr, block, numOut, &speakerCompSnapshot);
     updateSpeakerEq();
+
+    testSignal.prepare (sr, block);
 }
 
 void AudioEngine::audioDeviceStopped()
@@ -363,7 +365,12 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     // Per-speaker compensation (delay/EQ/gain) on the decoded output, in place.
     speakerComp.processBlock (outBuf, numOutputChannels, n);
 
-    // Post-comp block-peak meters (what actually leaves the device).
+    // Output test signal (FR-21), injected post-comp with replace-semantics on
+    // its target channel(s) so it lands exactly where the meters read it.
+    if (testSignal.isActive())
+        testSignal.renderNextBlock (outBuf, 0, n);
+
+    // Post-comp / post-test-signal block-peak meters (what leaves the device).
     for (int s = 0; s < numOutputChannels && s < xoa::kMaxSpeakers; ++s)
         outputPeak[(size_t) s].store (outBuf.getMagnitude (s, 0, n), std::memory_order_relaxed);
     for (int s = juce::jmax (0, numOutputChannels); s < xoa::kMaxSpeakers; ++s)

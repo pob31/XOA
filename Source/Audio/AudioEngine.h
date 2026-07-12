@@ -13,6 +13,7 @@
 #include "Audio/FilePlayer.h"
 #include "Audio/SpeakerCompParams.h"
 #include "Audio/SpeakerCompProcessor.h"
+#include "Audio/TestSignalGenerator.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiDecoderDesigner.h"
 #include "DSP/AmbiRtTypes.h"
@@ -61,6 +62,7 @@ public:
     juce::AudioDeviceManager& getDeviceManager() noexcept { return deviceManager; }
     FilePlayer&               getFilePlayer()    noexcept { return filePlayer; }
     DecoderMatrixBuilder&     getDecoderBuilder() noexcept { return decoderBuilder; }
+    TestSignalGenerator&      getTestSignalGenerator() noexcept { return testSignal; }
 
     //==========================================================================
     // Input source + file (message thread).
@@ -189,6 +191,7 @@ private:
     spatcore::rt::RtSnapshot<SpeakerCompRtParams> speakerCompSnapshot;
     AmbiBusAlgorithm         algorithm;
     SpeakerCompProcessor     speakerComp;
+    TestSignalGenerator      testSignal;
 
     // Post-comp output meters (what leaves the device), updated per block on the
     // audio thread. Distinct from AmbiBusAlgorithm's pre-comp meters.
