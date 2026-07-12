@@ -21,6 +21,7 @@
 #include "XoaConstants.h"
 #include "Audio/AudioEngine.h"
 #include "Audio/TestSignalGenerator.h"
+#include "Network/OSCManager.h"
 #include "Parameters/XoaFileManager.h"
 #include "Parameters/XoaValueTreeState.h"
 #include "InputListComponent.h"
@@ -31,7 +32,10 @@ class MainComponent : public juce::Component,
                       private juce::Timer
 {
 public:
-    MainComponent();
+    /** commandLine (from Main.cpp) may name an XOA project to load on startup
+        and/or carry "--osc" to force-enable the OSC receiver - the headless
+        entry point the control-replay harness drives. */
+    explicit MainComponent (const juce::String& commandLine = {});
     ~MainComponent() override;
 
     void paint (juce::Graphics&) override;
@@ -41,6 +45,8 @@ private:
     void timerCallback() override;
 
     void openFileDialog();
+    void applyLoadedProject (const juce::File& folderOrManifest);   // load + refresh UI
+    void applyStartupCommandLine (const juce::String& commandLine);
     void updateSuggestionLabel();
     void refreshStatusLine();
 
@@ -53,10 +59,12 @@ private:
     // Bind a toggle to a bool store param (two-way).
     void bindToggle (juce::ToggleButton&, const juce::Identifier& id);
 
-    // Store -> engine -> device (declared in construction order).
+    // Store -> engine -> device (declared in construction order). The OSC
+    // manager comes last so it tears down first (before engine/store).
     xoa::XoaValueTreeState store;
     xoa::XoaFileManager    fileManager { store };
     xoa::AudioEngine       engine { store };
+    xoa::OSCManager        oscManager { store, engine };
 
     // Transport.
     juce::TextButton   openButton  { "Open file…" };

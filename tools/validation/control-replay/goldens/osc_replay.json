@@ -1,0 +1,14 @@
+{
+  "crossover": 500.0,
+  "distanceCompMode": 2,
+  "input1.positionX": 2.5,
+  "input2.gain": -9.0,
+  "listenerX": 1.25,
+  "listenerY": -0.5,
+  "masterGain": -6.5,
+  "rotationPitch": -30.0,
+  "rotationYaw": 45.0,
+  "speaker1.mute": 1,
+  "speaker2.eq3.freq": 1200.0,
+  "speaker3.gain": -3.0
+}

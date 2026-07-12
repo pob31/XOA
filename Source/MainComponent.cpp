@@ -19,7 +19,7 @@
 namespace ids = xoa::ids;
 
 //==============================================================================
-MainComponent::MainComponent()
+MainComponent::MainComponent (const juce::String& commandLine)
 {
     // --- Transport --------------------------------------------------------
     addAndMakeVisible (openButton);
@@ -135,12 +135,7 @@ MainComponent::MainComponent()
         {
             const auto f = fc.getResult();
             if (f == juce::File()) return;
-            fileManager.loadProject (f);
-            engine.flushDecoderRebuild();
-            updateSuggestionLabel();
-            speakerList->rebuildRows();   // speaker count may have changed
-            inputList->rebuildRows();     // input count may have changed
-            resized();
+            applyLoadedProject (f);
         });
     };
 
@@ -285,13 +280,57 @@ MainComponent::MainComponent()
     updateSuggestionLabel();
     engine.openAudioDevice();
 
+    // Apply any startup project / --osc flag, then bring the OSC receiver up
+    // per the (possibly just-loaded) config. The manager is a no-op until
+    // oscEnabled is set.
+    applyStartupCommandLine (commandLine);
+    oscManager.start();
+
     setSize (1000, 1100);   // room for the WP8 mono-encoder panel
     startTimerHz (25);
 }
 
 MainComponent::~MainComponent()
 {
+    oscManager.stop();
     engine.closeAudioDevice();
+}
+
+//==============================================================================
+void MainComponent::applyLoadedProject (const juce::File& folderOrManifest)
+{
+    fileManager.loadProject (folderOrManifest);
+    engine.flushDecoderRebuild();
+    updateSuggestionLabel();
+    if (speakerList != nullptr) speakerList->rebuildRows();   // speaker count may have changed
+    if (inputList   != nullptr) inputList->rebuildRows();     // input count may have changed
+    resized();
+}
+
+// commandLine may carry a project path (folder or .xoa manifest) and/or the
+// literal token "--osc" to force-enable the receiver for headless automation
+// (the control-replay harness). Anything else is ignored.
+void MainComponent::applyStartupCommandLine (const juce::String& commandLine)
+{
+    juce::StringArray tokens = juce::StringArray::fromTokens (commandLine, true);
+    tokens.removeEmptyStrings();
+
+    bool forceOsc = false;
+    for (const auto& raw : tokens)
+    {
+        const juce::String tok = raw.unquoted();
+        if (tok == "--osc")
+        {
+            forceOsc = true;
+            continue;
+        }
+        const juce::File f (tok);
+        if (f.exists())
+            applyLoadedProject (f);
+    }
+
+    if (forceOsc)
+        store.setParameterWithoutUndo (xoa::ids::oscEnabled, true);
 }
 
 //==============================================================================
