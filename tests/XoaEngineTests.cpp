@@ -372,6 +372,33 @@ void testCompDistanceModeListener()
 } // namespace
 
 //==============================================================================
+// WP8 C5 - the engine owns and wires the mono-encoder calculation engine.
+void testEncoderEngineWiring()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+    auto& calc = engine.getCalculationEngine();
+
+    // Default: mono inputs disabled -> the encoder stage is off (numSources 0),
+    // and the RT seams are non-null (handed to the algorithm at prepare).
+    CHECK (calc.encoderSource().acquire().numSources == 0);
+    CHECK (calc.encodeMatrix() != nullptr);
+    CHECK (calc.nfcCoeffs() != nullptr);
+
+    // Enabling the gate flips numSources to the input count.
+    store.setParameter (xoa::ids::monoInputsEnabled, true);
+    CHECK (calc.encoderSource().acquire().numSources == store.getNumInputs());
+
+    // r_ref tracks the default rig (24-ring at radius 2 m).
+    CHECK (std::abs (calc.getReferenceRadius() - 2.0) < 1.0e-6);
+
+    // Stem-feed selection round-trips (runtime only).
+    CHECK (engine.getStemFeed() == xoa::AudioEngine::StemFeed::device);
+    engine.setStemFeed (xoa::AudioEngine::StemFeed::test);
+    CHECK (engine.getStemFeed() == xoa::AudioEngine::StemFeed::test);
+}
+
+//==============================================================================
 void runXoaEngineTests()
 {
     testInitialPublishBeforeEnable();
@@ -390,4 +417,5 @@ void runXoaEngineTests()
     testCompEqNoDecoderRebuild();
     testCompPositionTriggersBoth();
     testCompDistanceModeListener();
+    testEncoderEngineWiring();
 }

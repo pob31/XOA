@@ -253,7 +253,7 @@ MainComponent::MainComponent()
 
     deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent> (
         engine.getDeviceManager(),
-        0, 0,                       // no inputs in v1
+        0, xoa::kMaxInputs,         // mono-encoder stems (WP8): up to kMaxInputs
         0, xoa::kMaxSpeakers,       // up to 256 outputs (FR-20)
         false, false, false, false);
     addAndMakeVisible (*deviceSelector);

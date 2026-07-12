@@ -15,6 +15,7 @@
 #include "Audio/SpeakerCompProcessor.h"
 #include "Audio/TestSignalGenerator.h"
 #include "DSP/AmbiBusAlgorithm.h"
+#include "DSP/AmbiCalculationEngine.h"
 #include "DSP/AmbiDecoderDesigner.h"
 #include "DSP/AmbiRtTypes.h"
 #include "DSP/DecoderMatrixBuilder.h"
@@ -50,6 +51,11 @@ class AudioEngine : private juce::AudioIODeviceCallback,
 public:
     enum class InputSource { file, testScene };
 
+    /** Where the mono-encoder stems come from: device input channels
+        (identity-mapped hw ch i -> input i) or a deterministic internal test
+        feed (audible without hardware). Runtime-only, not persisted. */
+    enum class StemFeed { device, test };
+
     explicit AudioEngine (XoaValueTreeState& store);
     ~AudioEngine() override;
 
@@ -69,6 +75,14 @@ public:
     //==========================================================================
     void setInputSource (InputSource source);
     InputSource getInputSource() const noexcept { return inputSource.load (std::memory_order_relaxed); }
+
+    /** Select the mono-encoder stem source (message thread). */
+    void setStemFeed (StemFeed feed) { stemFeed.store (feed, std::memory_order_relaxed); }
+    StemFeed getStemFeed() const noexcept { return stemFeed.load (std::memory_order_relaxed); }
+
+    /** The control-side encoder engine (UI/tests drive tick() and parameters
+        through the store; this exposes it for the offline harness and tests). */
+    AmbiCalculationEngine& getCalculationEngine() noexcept { return calcEngine; }
 
     /** Open a file, point the input at it, and persist the path. On success
         the bus gather is recomposed for the file's channel count/order. */
@@ -164,6 +178,8 @@ private:
     void rebuildDecoderNow();
     void registerListeners();
     void unregisterListeners();
+    void updateReferenceRadius();        // mean speaker radius -> calc engine (r_ref)
+    void syncCalcEngineToDevice();       // push device sample rate -> calc engine
 
     XoaValueTreeState& store;
 
@@ -177,6 +193,7 @@ private:
     juce::AudioDeviceManager deviceManager;
     FilePlayer               filePlayer;
     DecoderMatrixBuilder     decoderBuilder;
+    AmbiCalculationEngine    calcEngine;   // control-side encoder (owns the live matrices)
 
     // Background decoder design. rebuildGeneration is a message-thread-only
     // counter; the worker stamps each job with it and handleAsyncUpdate
@@ -198,8 +215,10 @@ private:
     std::array<std::atomic<float>, xoa::kMaxSpeakers> outputPeak {};
 
     juce::AudioBuffer<float> inputScratch;   // [kMaxFileChannels x block]
+    juce::AudioBuffer<float> stemScratch;    // [kMaxInputs x block] mono-encoder stems
 
     std::atomic<InputSource> inputSource { InputSource::file };
+    std::atomic<StemFeed>    stemFeed { StemFeed::device };
     std::atomic<int> fileNumChannels { 0 };
     std::atomic<int> fileDetectedOrder { 0 };
 
