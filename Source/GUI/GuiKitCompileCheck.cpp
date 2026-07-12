@@ -21,6 +21,10 @@
 #include "HelpCard.h"
 #include "XoaHelpCards.h"
 
+#include "Binding/UiParameterDescriptors.h"
+#include "Binding/TabParameterRegistry.h"
+#include "Binding/ParamBindings.h"
+
 #include "../Accessibility/TTSManager.h"
 
 #include "Widgets/XoaSliderBase.h"
