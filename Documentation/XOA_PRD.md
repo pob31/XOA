@@ -94,6 +94,18 @@ One HOA bus per project. All inputs are encoded to / adapted to the bus, transfo
 - **FR-23 MCP server** (reuse spatcore control-plane framework: Streamable HTTP, auto-generated tool surface from parameter CSV, three-tier confirmation, AI undo/redo). XOA ships with its own parameter CSV; tool count will be far smaller than WFS-DIY's (~60–100 tools expected).
 - **FR-24** Show/project files (JSON, human-diffable), compatible layout section with WFS-DIY.
 
+### 4.7 Listener position (added post-v0.1, scheduled with M3)
+
+- **FR-25 Listener-position sweet-spot shift.** A configurable listener
+  position **P** (default: rig origin) re-references the FR-15 distance
+  compensation: per-speaker delays and gains are computed from ‖speaker − P‖
+  instead of the distance to the origin, moving the time/level sweet spot
+  off-center. Settable from the UI and OSC (generic position message;
+  specific tracker profiles later, same policy as FR-10). Scope: this
+  corrects **arrival time and level only** — decoder matrices remain
+  designed from center-view speaker directions; decoder redesign from P
+  (the directional correction) is post-v1. See DEVPLAN decision D18.
+
 ---
 
 ## 5. DSP Specification Notes (implementation guidance)
@@ -142,7 +154,7 @@ New, XOA-specific modules: SH evaluation, rotation matrices, decoder designers (
 1. **M0 — spatcore split complete** (shared engine builds standalone; WFS-DIY consumes it unchanged).
 2. **M1 — Core bus:** AmbiX file playback, order adapt, rotation, SAD decode to regular ring, CPU only. *First audible milestone.*
 3. **M2 — AllRAD + dual-band + per-speaker comp** (the shoebox works).
-4. **M3 — Mono encoders + NFC + OSC.**
+4. **M3 — Mono encoders + NFC + OSC + listener position (FR-25).**
 5. **M4 — GPU decode path + profiling** (Nsight SM/memory throughput report vs targets).
 6. **M5 — MCP server, rV/rE visualization, project I/O, beta.**
 
@@ -154,6 +166,7 @@ New, XOA-specific modules: SH evaluation, rotation matrices, decoder designers (
 - **NFC at order 10** is numerically delicate near Nyquist and at small radii — validate against Daniel's reference curves early (M3).
 - **FuMa beyond order 3** is non-standard — explicitly out of scope; reject with a clear message.
 - **Head-tracker latency** over OSC for rotation: acceptable for playback use; document, don't promise VR-grade.
+- **Off-center listener shift (FR-25) is time/level only** — users must not expect full off-center imaging correction; the directional half (decoder redesign from the listener position) is post-v1. Continuously streamed positions glide the delays, so mild pitch artifacts are inherent — document alongside the head-tracker caveat.
 - Order-10 *content* is rare; provide an internal test-scene generator (encoded moving sources) for validation without external material.
 
 ---

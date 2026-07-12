@@ -58,7 +58,7 @@ hardware in CI).
 | WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | |
-| WP9 | OSC & head-tracking (generic quaternion) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
+| WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
 | WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
 | WP11 | GPU decode path (two tracks, cross-repo) | **M4 exit** | P7 | WP7 (+ spatcore track) | XL | |
 | WP12 | MCP server + AI undo | M5 part | P4 | WP2, WP9, WP10 (UI bits) | M | |
@@ -67,7 +67,8 @@ hardware in CI).
 
 Parked to post-v1 (see §8): binaural monitoring (was P6), zoom/focus warping
 (FR-11 v1.1), PSN/RTTrP/MQTT tracker profiles + OSCQuery (P3 tail),
-SH-domain reverb, A→B conversion, `spatcore/ambi/` extraction.
+decoder redesign from the listener position (D18 tail), SH-domain reverb,
+A→B conversion, `spatcore/ambi/` extraction.
 
 ---
 
@@ -169,6 +170,22 @@ Recorded here so no work package has to re-litigate them.
   must not start before the matrix contracts freeze (post-WP7), and it runs
   as a parallel track anyway; rV/rE visualization needs the WP10 GUI kit;
   both land before WP13 acceptance either way.
+- **D18 — Listener-position sweet-spot shift lands in WP9, delay/gain only.**
+  (D7–D17 were minted during WP7 chunk planning; D18 is the next free number.)
+  The WP7 per-speaker distance compensation re-references from the rig origin
+  to a listener position **P**: the radii in `composeSpeakerCompParams`
+  become ‖speaker − P‖, so delay alignment to the farthest speaker and the
+  attenuate-only gain law move the time/level sweet spot off-center. This is
+  the standard live-sound compromise: it corrects **arrival time and level,
+  not direction** — the decode matrix still assumes center-view speaker
+  angles. Scope note: recorded in the PRD as **FR-25** (§4.7, added
+  alongside this decision); S-sized (three Config parameters + one changed
+  distance computation; the `SpeakerCompProcessor` RT path is untouched). At the default P = origin the
+  computation is unchanged, so existing baselines hold. The `/xoa/listener/…`
+  OSC namespace is reserved in the WP9 address map regardless of when the
+  streaming form ships. Deferred to post-v1 (§8): decoder redesign from the
+  listener position (the directional correction) and listener position via
+  PSN/RTTrP tracker profiles (D3).
 
 ---
 
@@ -620,9 +637,11 @@ movement (measure; 1-Euro conditioning helps).
 ### WP9 — OSC & head-tracking — **M3 exit** (M)
 
 **Goal.** Every runtime parameter drivable over OSC; a generic quaternion
-head-tracker rotates the field.
+head-tracker rotates the field; a listener-position parameter shifts the
+time/level sweet spot off-center (D18).
 
-**PRD coverage.** FR-22, FR-10 (OSC + tracker sources); M3 exit.
+**PRD coverage.** FR-22, FR-10 (OSC + tracker sources), FR-25
+(listener-position sweet-spot shift, D18); M3 exit.
 
 **Tasks.**
 - **Freeze the address map first**: `Documentation/XOA-OSC-MAP.md` —
@@ -637,6 +656,14 @@ head-tracker rotates the field.
   coalesce), `OriginTagScope` for origin attribution.
 - Head-tracking: generic OSC quaternion → `TrackingIngestQueue` → rotation
   `RtSnapshot` (D3: no PSN/RTTrP/MQTT profiles, no OSCQuery in v1).
+- **Listener position (D18)**: `listenerX/Y/Z` parameters in the Config
+  section (default origin); `composeSpeakerCompParams` radii become
+  ‖speaker − listener‖ with `rMax` re-derived per publish; listener edits
+  reach the RT stage through the existing D17 cheap-comp-republish route.
+  Reserve `/xoa/listener/…` in the address map (freeze it with the rest).
+  Stretch: continuous listener position over OSC through
+  `TrackingIngestQueue` + `TrackingPositionFilter` (1-Euro), accepting the
+  inherent delay-glide pitch artifacts.
 - OSC out: parameter feedback + meter/state streams.
 - Port `tools/validation/control-replay/osc_replay.py` with XOA fixtures.
 
@@ -647,11 +674,16 @@ head-tracker rotates the field.
 rotation, decoder trims, mutes) drivable and readable over OSC per the map
 doc; head-tracker quaternion rotates the field within the ≤ 2-buffer
 response target; `osc_replay.py` green in CI; PRD §9's head-tracker-latency
-caveat documented in the map doc (playback-grade, not VR-grade).
+caveat documented in the map doc (playback-grade, not VR-grade); an
+off-center listener position re-references the comp delays/gains per the D18
+law (offline-render `comp` scenario extended) and is **bit-identical to the
+M2 baselines at the default P = origin**.
 
 **Risks.** Address-scheme churn (that's why the map freezes first);
 rate-limiter interaction with encode-matrix ramps (test fast position
-streams).
+streams); streamed listener position glides delays continuously — mild
+pitch artifacts are inherent to the technique (document in the map doc;
+same class as WFS moving sources).
 
 ---
 
@@ -895,6 +927,7 @@ spatcore and with the repo's no-new-dependencies posture.
 | FR-22 OSC in/out all runtime params | WP9 |
 | FR-23 MCP server | WP12 |
 | FR-24 project files (XML per D1), WFS-compatible layout | WP2 |
+| FR-25 listener-position sweet-spot shift (D18) | WP9 (delay/gain re-reference); decoder-redesign tail **parked** §8 |
 
 Binaural monitoring (PRD non-goal / XOA-PLAN P6) is **parked** — see §8.
 
@@ -908,18 +941,24 @@ In rough priority order:
    layout, SOFA loading, head-tracked via the WP9 `RtSnapshot` seam.
 2. **Zoom/focus warping** (FR-11 v1.1): order-weighted soundfield warping.
 3. **Tracker profiles + OSCQuery** (P3 tail): PSN/RTTrP/MQTT receivers
-   (vendor PSN-CPP when needed), OSCQuery server.
-4. **User-placeable imaginary speakers** for AllRAD on severe shoeboxes
+   (vendor PSN-CPP when needed), OSCQuery server. Listener position via
+   these profiles rides along (the D18 parameter is the ingest target).
+4. **Decoder redesign from the listener position** (D18 tail): the
+   directional half of sweet-spot correction — recompute speaker unit
+   directions from P and redesign via the non-blocking WP7 rebuild worker.
+   Static/slow positions only (rebuild ≤ 2 s, not per-block); complements
+   the D18 delay/gain shift, which stays the continuous-tracking path.
+5. **User-placeable imaginary speakers** for AllRAD on severe shoeboxes
    (promote into v1.x if the WP7 listening checkpoint demands it).
-5. **SH-domain reverb**: spatcore FDN/IR families on the 121-ch bus
+6. **SH-domain reverb**: spatcore FDN/IR families on the 121-ch bus
    (spatcore docs flag the SDN 32-node cap — prefer FDN/IR).
-6. **JSON project export** (D1 mitigation) alongside the XML files.
-7. **A→B conversion** (microphone processing).
-8. **`spatcore/ambi/` extraction**: move the stabilized `Source/DSP/Ambi*`
+7. **JSON project export** (D1 mitigation) alongside the XML files.
+8. **A→B conversion** (microphone processing).
+9. **`spatcore/ambi/` extraction**: move the stabilized `Source/DSP/Ambi*`
    modules into spatcore behind bit-exact baselines (spatcore-repo project +
    version bump) — completing the prototype-then-extract lifecycle.
-9. DAW plugin versions; Linux multitouch JUCE patch set (only if XOA
-   targets touch UIs on Linux).
+10. DAW plugin versions; Linux multitouch JUCE patch set (only if XOA
+    targets touch UIs on Linux).
 
 ---
 
