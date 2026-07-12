@@ -72,6 +72,7 @@ private:
     juce::TextButton   stopButton  { "Stop" };
     juce::ToggleButton loopButton  { "Loop" };
     juce::ToggleButton sceneButton { "Test scene (order 10)" };
+    juce::ToggleButton oscButton   { "OSC receive" };   // WP9: bound to oscEnabled
     juce::Slider       positionSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::Label        fileLabel;
 

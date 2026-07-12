@@ -27,6 +27,8 @@ MainComponent::MainComponent (const juce::String& commandLine)
     addAndMakeVisible (stopButton);
     addAndMakeVisible (loopButton);
     addAndMakeVisible (sceneButton);
+    addAndMakeVisible (oscButton);
+    bindToggle (oscButton, xoa::ids::oscEnabled);   // toggles the OSC receiver (manager reconnects)
     addAndMakeVisible (positionSlider);
     addAndMakeVisible (fileLabel);
     fileLabel.setText ("No file loaded — use the test scene or open an AmbiX file.",
@@ -462,6 +464,10 @@ void MainComponent::refreshStatusLine()
     if (engine.isDecoderRebuildInFlight())
         s << "  ·  rebuilding…";
 
+    s << "  ·  OSC " << (oscManager.isReceiving()
+                             ? "rx :" + juce::String (oscManager.getUdpPort())
+                             : juce::String ("off"));
+
     statusLabel.setText (s, juce::dontSendNotification);
 }
 
@@ -539,6 +545,7 @@ void MainComponent::resized()
         stopButton .setBounds (r.removeFromLeft (70));  r.removeFromLeft (12);
         loopButton .setBounds (r.removeFromLeft (70));  r.removeFromLeft (12);
         sceneButton.setBounds (r.removeFromLeft (170));
+        oscButton  .setBounds (r.removeFromRight (110));
     }
     area.removeFromTop (6);
     fileLabel.setBounds (row (22));

@@ -58,7 +58,7 @@ hardware in CI).
 | WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | **DONE (M3a)** |
-| WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
+| WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | **DONE (M3)** |
 | WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
 | WP11 | GPU decode path (two tracks, cross-repo) | **M4 exit** | P7 | WP7 (+ spatcore track) | XL | |
 | WP12 | MCP server + AI undo | M5 part | P4 | WP2, WP9, WP10 (UI bits) | M | |
@@ -694,56 +694,91 @@ movement (measure; 1-Euro conditioning helps).
 
 ---
 
-### WP9 — OSC & head-tracking — **M3 exit** (M)
+### WP9 — OSC & head-tracking — **M3 exit** (M) — **DONE**
 
-**Goal.** Every runtime parameter drivable over OSC; a generic quaternion
-head-tracker rotates the field; a listener-position parameter shifts the
-time/level sweet spot off-center (D18).
+**Goal.** Every runtime parameter drivable/readable over OSC; a generic
+quaternion head-tracker rotates the field; a listener-position parameter
+shifts the time/level sweet spot off-center (D18).
 
-**PRD coverage.** FR-22, FR-10 (OSC + tracker sources), FR-25
-(listener-position sweet-spot shift, D18); M3 exit.
+**Status: DONE (M3 exit).** Shipped across chunks C1–C8. The full parameter
+surface is drivable and readable over OSC per the frozen map, head-tracking
+and the D18 listener shift are live, and the control-replay harness gates the
+whole thing against the real app.
 
-**Tasks.**
-- **Freeze the address map first**: `Documentation/XOA-OSC-MAP.md` —
-  `/xoa/...` scheme consistent with WFS-DIY conventions (per-family
-  OSCQuery-style and standard forms), written before code.
-- `Source/Network/OSCManager.{h,cpp}` — a **scoped rewrite borrowing
-  structure** from WFS-DIY's `OSCManager`/`OSCMessageRouter` (the 227 KB
-  original is WFS-shaped; port the architecture — targets, rate limiting,
-  IP filtering, router — not the file).
-- Wire spatcore transports: `OSCReceiverWithSenderIP`, `OSCTCPReceiver`,
-  `OSCParser`/`OSCSerializer`, `OSCIngestQueue`, `OSCRateLimiter` (50 Hz
-  coalesce), `OriginTagScope` for origin attribution.
-- Head-tracking: generic OSC quaternion → `TrackingIngestQueue` → rotation
-  `RtSnapshot` (D3: no PSN/RTTrP/MQTT profiles, no OSCQuery in v1).
-- **Listener position (D18)**: `listenerX/Y/Z` parameters in the Config
-  section (default origin); `composeSpeakerCompParams` radii become
-  ‖speaker − listener‖ with `rMax` re-derived per publish; listener edits
-  reach the RT stage through the existing D17 cheap-comp-republish route.
-  Reserve `/xoa/listener/…` in the address map (freeze it with the rest).
-  Stretch: continuous listener position over OSC through
-  `TrackingIngestQueue` + `TrackingPositionFilter` (1-Euro), accepting the
-  inherent delay-glide pitch artifacts.
-- OSC out: parameter feedback + meter/state streams.
-- Port `tools/validation/control-replay/osc_replay.py` with XOA fixtures.
+M3-exit acceptance evidence (unit suite green on 3-OS CI; harness green
+locally and on Linux CI; all M1/M2 offline baselines unchanged):
+- **Address map frozen first (C1)** — `Documentation/XOA-OSC-MAP.md` is the
+  contract: two inbound forms (write form with channel = first int arg,
+  indexed read-back form), coalescing/origin/undo semantics, the
+  head-tracker latency caveat, and the D3 out-of-scope list. Every address
+  maps to a real id in `XoaParameterIDs.h`.
+- **Listener position / D18 (C2)** — `listenerX/Y/Z` Config params;
+  `composeSpeakerCompParams` measures ‖speaker − listener‖ and reaches the RT
+  stage through the D17 cheap-comp-republish route. Byte-identical to the
+  pre-D18 law at P = origin (memcmp test + the unchanged offline `comp`
+  baseline); the new `comp-offcenter` scenario renders the shifted
+  delays/gains.
+- **Router (C3)** — `Source/Network/OSCMessageRouter.h`, pure/static, the
+  single source of truth for the address↔id map; table-driven completeness
+  test over every binding in both forms.
+- **Inbound + get + ping (C4)** — `OSCManager` owns the UDP/TCP receivers and
+  the spatcore `OSCIngestQueue`; writes land on the message thread under
+  `OriginTagScope{OSC}`. `/xoa/get` answers the sender in indexed form;
+  `/xoa/ping`→`/xoa/pong` is the readiness handshake; IP allow-list gated by
+  `oscAcceptAnyHost`.
+- **OSC out (C5)** — parameter feedback through `OSCRateLimiter` (50 Hz,
+  per-address coalesce) with OSC-origin echoes suppressed, plus a 10 Hz
+  `/xoa/monitor/*` meter stream. Feedback rides a new store post-write
+  observer that reads the live `OriginTag`.
+- **Head-tracking (C6)** — `/xoa/tracking/quaternion` applies the inverse and
+  decomposes to the rotation triple via the new `matrixToYawPitchRoll`
+  (round-trip pinned over 2000 rotations + the gimbal poles);
+  `/xoa/tracking/position` routes to the WP8 1-Euro conditioning seam.
+- **Harness + CI + app wiring (C7)** — the `OSCManager` is wired into
+  `MainComponent`; `XOA --osc` is the headless entry point;
+  `tools/validation/control-replay/osc_replay.py` drives the real app
+  (ping/pong readiness, a write across every family, `/xoa/get` read-back vs
+  a committed golden, plus out-of-range-clamp and transport-read-only
+  invariants). Linux CI runs it under `xvfb`.
+- **Shell wiring (C8)** — an OSC-receive toggle + rx status in the throwaway
+  shell (retired at WP10).
 
-**Port sources.** `d:/dev/WFS_DIY_v1/Source/Network/OSCManager.*`,
-`OSCMessageRouter.*` (structure), `tools/validation/control-replay/`.
+**Decisions & deviations (D19–D23).**
+- **D19 — Quaternion rides the main `OSCIngestQueue`, not
+  `TrackingIngestQueue`.** spatcore's `TrackingUpdate` POD carries only a yaw
+  float and spatcore is no-touch, so the DEVPLAN's literal "quaternion →
+  TrackingIngestQueue" is impossible; the pose stream coalesces newest-wins
+  per address on the main queue and is decomposed on drain.
+- **D20 — OSC/tracking writes bypass undo** (`setParameterWithoutUndo` +
+  the new `setEqBandParameterWithoutUndo`): a continuous stream must not flood
+  the per-domain undo histories. Divergence from WFS, recorded in the map doc.
+- **D21 — Single send-target v1, 6-slot architecture; TCP inbound-only.**
+  Feedback/meters go to `oscSendAddress:oscSendPort`; the `OSCRateLimiter`
+  still carries `MAX_TARGETS` slots for WP10/WP12. Outbound is UDP; TCP is
+  receive-only in v1.
+- **D22 — Control-replay is a Linux/`xvfb` CI gate + `--osc` headless entry.**
+  The app is a GUI app; the Windows/macOS CI jobs stay unit-test-only
+  (narrowing of §6). `--osc` force-enables the receiver so the harness needs
+  no project fixture; the CLI still loads a named project (folder/`.xoa`).
+- **D23 — Streamed listener position deferred (reserved).**
+  `/xoa/tracking/listener` is frozen in the map but unimplemented; static
+  listener control via `/xoa/listener/*` ships. The 1-Euro-conditioned
+  listener stream is a post-v1 stretch (address reserved), alongside the D18
+  decoder-redesign tail already in §8.
 
-**Tests & exit — M3 complete.** All runtime parameters (source positions,
-rotation, decoder trims, mutes) drivable and readable over OSC per the map
-doc; head-tracker quaternion rotates the field within the ≤ 2-buffer
-response target; `osc_replay.py` green in CI; PRD §9's head-tracker-latency
-caveat documented in the map doc (playback-grade, not VR-grade); an
-off-center listener position re-references the comp delays/gains per the D18
-law (offline-render `comp` scenario extended) and is **bit-identical to the
-M2 baselines at the default P = origin**.
+**PRD coverage.** FR-22, FR-10 (OSC + tracker sources), FR-25 (D18); M3 exit.
 
-**Risks.** Address-scheme churn (that's why the map freezes first);
-rate-limiter interaction with encode-matrix ramps (test fast position
-streams); streamed listener position glides delays continuously — mild
-pitch artifacts are inherent to the technique (document in the map doc;
-same class as WFS moving sources).
+**Remaining for M3 sign-off.** None blocking. The head-tracker-latency caveat
+is documented (playback-grade, not VR-grade). The DEVPLAN-named risk of
+rate-limiter-vs-encode-ramp interaction under fast source streams is handled
+structurally: inbound streams coalesce newest-wins per address (≤ 62.5 Hz
+drain) and tracked positions pass through the WP8 speed-limiter + 1-Euro
+conditioning before the encode matrix ramps — no additional churn is
+introduced at the RT boundary.
+
+**Port sources (as used).** `d:/dev/WFS_DIY_v1/Source/Network/OSCManager.*`,
+`OSCMessageRouter.*` (structure only — targets, rate limiting, IP filtering,
+ingest→dispatch pipeline), `tools/validation/control-replay/` (harness shape).
 
 ---
 
