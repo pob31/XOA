@@ -36,7 +36,7 @@ namespace xoa
     plus the distance-alignment headroom (~300 ms at ~100 m). */
 constexpr double kMaxCompDelayMs = 800.0;
 
-constexpr double kSpeedOfSound = 343.0;   // m/s
+// kSpeedOfSound now lives in XoaConstants.h (shared with the WP8 NFC filters).
 
 struct SpeakerCompRtParams
 {

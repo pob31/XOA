@@ -34,7 +34,10 @@ py -3.14 -m venv .venv
 - Tolerances used by the consuming tests are stated in the data file header
   (double-precision design math: typically 1e-10…1e-12).
 
-## Planned generators (DEVPLAN §9)
+## Generators (DEVPLAN §9)
+
+All of the below are committed and runnable; "Arrives with" records the work
+package each landed in.
 
 | Script | Produces | Arrives with |
 |---|---|---|
