@@ -19,6 +19,16 @@ The three planning documents split authority like this:
 
 ## 1. Status and mapping
 
+**Milestone M2 reached** (WP0–WP7 done). On top of the M1 chain, WP7 adds
+AllRAD decoding (decode to a Womersley t=33 virtual t-design → VBAP to the real
+rig, with imaginary loudspeakers auto-inserted at coverage gaps), dual-band
+decoding (LR4 split, basic weights LF / max-rE HF, factorized to a single decode
+GEMM), per-speaker compensation (distance delay + attenuate-only gain + 6-band
+EQ + trim/mute/solo, D17 listener split), an output test-signal generator
+(pink/tone/sweep/dirac + speaker-ID), and a non-blocking async decoder rebuild.
+M2 "the shoebox works" evidence is below in §WP7; the remaining check —
+listening validation on a real irregular rig (PRD §9) — is a developer step.
+
 **Milestone M1 reached** (WP0–WP6 done). The repo is a CMake-native spatcore
 v0.1.1 consumer with the full CPU Ambisonics chain: the parameter store +
 XML project I/O (WP2), the SH math core (WP3), SO(3) rotation + mirror (WP4),
@@ -46,7 +56,7 @@ hardware in CI).
 | WP4 | Rotation & mirror | M1 part | P2 | WP3 | M | **DONE** |
 | WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | **DONE** |
 | WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
-| WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | next |
+| WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | |
 | WP9 | OSC & head-tracking (generic quaternion) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | |
 | WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
@@ -458,11 +468,53 @@ keep per-machine baselines like WFS-DIY until §6 promotes them).
 
 ---
 
-### WP7 — AllRAD, dual-band, per-speaker compensation, test signals — **M2** (XL)
+### WP7 — AllRAD, dual-band, per-speaker compensation, test signals — **M2** (XL) — **DONE**
 
 **Goal.** "The shoebox works": irregular rigs decode honestly, the decoder
 splits into velocity/energy bands, and per-speaker alignment makes real
 rooms usable.
+
+**Status: DONE (M2).** Shipped across chunks C1–C10 (+ C3b, the Python AllRAD
+raw-matrix goldens, deferred as the one remaining follow-up — the AllRAD math is
+covered meanwhile by the C++ behavioural gates and the offline-render scenario).
+
+M2 acceptance evidence (all green, 3-OS CI):
+- **AllRAD** — `Source/DSP/AmbiAllRAD.h` decodes to the committed Womersley
+  t=33 / 564-point design (`TDesignTables.h`, quadrature self-checked ≤ t=21)
+  via VBAP (`AmbiVBAP.h`, `convhull_3d` hull) with imaginary loudspeakers
+  inserted at the nadir/zenith gaps. The `shoebox-allrad` offline scenario
+  renders an irregular room rig (nadir gap → imaginary speaker) deterministically.
+- **Origin-enclosure gate** — a triangulation is accepted only if the hull
+  strictly encloses the listener; non-enclosing rigs retry with forced poles,
+  then fall back to SAD (`allRadFellBack`). Coplanar/flat-ring degeneracy tested.
+- **Dual-band (FR-14)** — factorized to a single decode GEMM (`hfDiagonal[c] =
+  maxRe[l_c]·α_maxRe/α_basic`); the RT bus splits LR4 and applies `lo + hf[c]·hi`.
+  Allpass-null and band-routing tests pass; the OFF path is bit-identical.
+- **Rebuild ≤ 2 s, non-blocking (§7)** — order-10 / 250-speaker AllRAD design
+  timed < 2 s (Release); `DecoderRebuildWorker` runs it off the message thread
+  with a latest-wins slot + generation guard; tests cover non-blocking,
+  stale-discard, flush-wins, destruction-under-load.
+- **Per-speaker comp (FR-15)** — `SpeakerCompProcessor` (delay → 6-band EQ →
+  gain) driven by a value-POD snapshot; distance delay aligns to the farthest
+  speaker and the gain law is **attenuate-only referenced to the farthest**
+  (`clamp(20·log10(r_s/r_max), −24, 0)` dB — headroom-safe, the product
+  decision). Verified by the `comp` offline scenario; the neutral path is
+  bit-transparent so the M1 baselines are unchanged.
+- **Test signals (FR-21)** — `TestSignalGenerator` (deterministic seed) with a
+  speaker-ID mode stepping bursts across the rig; injected post-comp.
+- **Shell UI** — dual-band toggle + crossover + rig-scaled suggestion, a
+  distance-comp mode selector, a scrollable per-speaker trim/mute/solo table,
+  a test-signal panel, and a "rebuilding…" status during async redesign.
+
+**D15 naming deviation.** The plan named the hull TU `AmbiAllRAD.cpp`; it
+shipped as `Source/DSP/ConvexHull.{h,cpp}` (the single `CONVHULL_3D_ENABLE`
+translation unit) with `AmbiAllRAD.h` staying header-only, so VBAP could land
+and be tested one commit before AllRAD. No functional change.
+
+**Remaining for M2 sign-off.** The listening-validation checkpoint on a real
+irregular rig (PRD §9) — a developer step, like the M1 loopback check; no
+irregular >64-out hardware in CI. User-placeable imaginary speakers stay on the
+post-v1 backlog.
 
 **PRD coverage.** FR-13, FR-14, FR-15, FR-21; §7 decoder-rebuild target.
 

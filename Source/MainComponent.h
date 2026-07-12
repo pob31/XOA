@@ -20,8 +20,10 @@
 
 #include "XoaConstants.h"
 #include "Audio/AudioEngine.h"
+#include "Audio/TestSignalGenerator.h"
 #include "Parameters/XoaFileManager.h"
 #include "Parameters/XoaValueTreeState.h"
+#include "SpeakerListComponent.h"
 
 //==============================================================================
 class MainComponent : public juce::Component,
@@ -47,6 +49,8 @@ private:
                      const juce::String& suffix);
     // Bind a combo (item index == the int param value) to a store param.
     void bindCombo (juce::ComboBox&, const juce::Identifier& id);
+    // Bind a toggle to a bool store param (two-way).
+    void bindToggle (juce::ToggleButton&, const juce::Identifier& id);
 
     // Store -> engine -> device (declared in construction order).
     xoa::XoaValueTreeState store;
@@ -76,6 +80,23 @@ private:
     juce::Label    suggestionLabel;
     juce::TextButton importWfsButton   { "Import WFS layout…" };
     juce::TextButton loadProjectButton { "Load project…" };
+
+    // Dual-band decode (FR-14).
+    juce::ToggleButton dualBandButton { "Dual-band" };
+    juce::Slider       crossoverSlider;
+    juce::Label        crossoverLabel { {}, "Crossover" };
+
+    // Per-speaker compensation (FR-15): distance mode + the trim/mute/solo table.
+    juce::ComboBox   distanceModeCombo;
+    juce::Label      distanceModeLabel { {}, "Distance comp" };
+    juce::Viewport   speakerViewport;
+    std::unique_ptr<SpeakerListComponent> speakerList;
+
+    // Output test signal (FR-21) — engine-owned, not persisted.
+    juce::ComboBox testSignalCombo;
+    juce::Slider   testLevelSlider, testFreqSlider, testChannelSlider;
+    juce::Label    testSignalLabel { {}, "Test signal" };
+    juce::Label    testInfoLabel;
 
     // Status + device.
     juce::Label statusLabel;

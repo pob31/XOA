@@ -121,6 +121,8 @@ MainComponent::MainComponent()
             fileManager.importWfsSpeakerLayout (f);
             engine.flushDecoderRebuild();
             updateSuggestionLabel();
+            speakerList->rebuildRows();   // speaker count may have changed
+            resized();
         });
     };
     loadProjectButton.onClick = [this]
@@ -136,8 +138,103 @@ MainComponent::MainComponent()
             fileManager.loadProject (f);
             engine.flushDecoderRebuild();
             updateSuggestionLabel();
+            speakerList->rebuildRows();   // speaker count may have changed
+            resized();
         });
     };
+
+    // --- Dual-band decode (FR-14) -----------------------------------------
+    bindToggle (dualBandButton, ids::decoderDualBandEnabled);
+    crossoverLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (crossoverLabel);
+    crossoverSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    crossoverSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
+    crossoverSlider.setRange (80.0, 2000.0, 1.0);
+    crossoverSlider.setSkewFactorFromMidPoint (400.0);
+    crossoverSlider.setTextValueSuffix (" Hz");
+    crossoverSlider.setValue (store.getFloatParameter (ids::decoderCrossoverFrequency),
+                              juce::dontSendNotification);
+    crossoverSlider.onValueChange = [this]
+    {
+        store.setParameter (ids::decoderCrossoverFrequency, crossoverSlider.getValue());
+    };
+    store.addParameterListener (ids::decoderCrossoverFrequency, [this] (const juce::var& v)
+    {
+        crossoverSlider.setValue ((double) v, juce::dontSendNotification);
+    });
+    addAndMakeVisible (crossoverSlider);
+
+    // --- Per-speaker compensation (FR-15) ---------------------------------
+    distanceModeLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (distanceModeLabel);
+    distanceModeCombo.addItem ("Off", 1);            // value 0
+    distanceModeCombo.addItem ("Delay", 2);          // value 1
+    distanceModeCombo.addItem ("Delay + gain", 3);   // value 2
+    bindCombo (distanceModeCombo, ids::distanceCompMode);
+
+    speakerList = std::make_unique<SpeakerListComponent> (store);
+    speakerViewport.setViewedComponent (speakerList.get(), false);
+    speakerViewport.setScrollBarsShown (true, false);
+    addAndMakeVisible (speakerViewport);
+    speakerList->rebuildRows();
+
+    // --- Output test signal (FR-21) ---------------------------------------
+    testSignalLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (testSignalLabel);
+    testSignalCombo.addItem ("Off", 1);
+    testSignalCombo.addItem ("Pink noise", 2);
+    testSignalCombo.addItem ("Tone", 3);
+    testSignalCombo.addItem ("Sweep", 4);
+    testSignalCombo.addItem ("Dirac", 5);
+    testSignalCombo.addItem ("Speaker ID", 6);
+    testSignalCombo.setSelectedId (1, juce::dontSendNotification);
+    testSignalCombo.onChange = [this]
+    {
+        engine.getTestSignalGenerator().setSignalType (
+            static_cast<xoa::TestSignalGenerator::SignalType> (testSignalCombo.getSelectedId() - 1));
+    };
+    addAndMakeVisible (testSignalCombo);
+
+    testLevelSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    testLevelSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 56, 18);
+    testLevelSlider.setRange (-92.0, 0.0, 0.1);
+    testLevelSlider.setTextValueSuffix (" dB");
+    testLevelSlider.setValue (-40.0, juce::dontSendNotification);
+    testLevelSlider.onValueChange = [this]
+    {
+        engine.getTestSignalGenerator().setLevel ((float) testLevelSlider.getValue());
+    };
+    addAndMakeVisible (testLevelSlider);
+
+    testFreqSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    testFreqSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18);
+    testFreqSlider.setRange (20.0, 20000.0, 1.0);
+    testFreqSlider.setSkewFactorFromMidPoint (1000.0);
+    testFreqSlider.setTextValueSuffix (" Hz");
+    testFreqSlider.setValue (1000.0, juce::dontSendNotification);
+    testFreqSlider.onValueChange = [this]
+    {
+        engine.getTestSignalGenerator().setFrequency ((float) testFreqSlider.getValue());
+    };
+    addAndMakeVisible (testFreqSlider);
+
+    testChannelSlider.setSliderStyle (juce::Slider::IncDecButtons);
+    testChannelSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 44, 18);
+    testChannelSlider.setRange (0.0, (double) (xoa::kMaxSpeakers - 1), 1.0);
+    testChannelSlider.setValue (0.0, juce::dontSendNotification);
+    testChannelSlider.onValueChange = [this]
+    {
+        engine.getTestSignalGenerator().setOutputChannel ((int) testChannelSlider.getValue());
+    };
+    addAndMakeVisible (testChannelSlider);
+
+    testInfoLabel.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (testInfoLabel);
+
+    // Seed the generator's non-schema state to match the controls above.
+    engine.getTestSignalGenerator().setLevel (-40.0f);
+    engine.getTestSignalGenerator().setFrequency (1000.0f);
+    engine.getTestSignalGenerator().setOutputChannel (0);
 
     // --- Status + device --------------------------------------------------
     statusLabel.setJustificationType (juce::Justification::centredLeft);
@@ -164,7 +261,7 @@ MainComponent::MainComponent()
     updateSuggestionLabel();
     engine.openAudioDevice();
 
-    setSize (960, 720);
+    setSize (1000, 940);
     startTimerHz (25);
 }
 
@@ -199,6 +296,17 @@ void MainComponent::bindCombo (juce::ComboBox& c, const juce::Identifier& id)
         c.setSelectedId ((int) v + 1, juce::dontSendNotification);
     });
     addAndMakeVisible (c);
+}
+
+void MainComponent::bindToggle (juce::ToggleButton& b, const juce::Identifier& id)
+{
+    b.setToggleState (static_cast<bool> (store.getParameter (id)), juce::dontSendNotification);
+    b.onClick = [this, &b, id] { store.setParameter (id, b.getToggleState()); };
+    store.addParameterListener (id, [&b] (const juce::var& v)
+    {
+        b.setToggleState (static_cast<bool> (v), juce::dontSendNotification);
+    });
+    addAndMakeVisible (b);
 }
 
 //==============================================================================
@@ -256,8 +364,20 @@ void MainComponent::updateSuggestionLabel()
     const char* suggest = c.suggestedDecoderType == 0 ? "SAD"
                         : c.suggestedDecoderType == 1 ? "Mode-matching" : "AllRAD";
 
+    // Mean speaker radius -> suggested dual-band crossover (UI hint only, D16).
+    double meanR = 0.0;
+    for (int s = 0; s < layout.count; ++s)
+    {
+        const auto& p = layout.positions[s];
+        meanR += std::sqrt (p.x * p.x + p.y * p.y + p.z * p.z);
+    }
+    if (layout.count > 0) meanR /= (double) layout.count;
+    const double suggestedHz = xoa::decoder::suggestedCrossoverHz (meanR);
+
     suggestionLabel.setText (juce::String (layout.count) + " speakers · detected " + klass
-                                 + " · suggested: " + suggest + " (override free)",
+                                 + " · suggested: " + suggest
+                                 + " · crossover ~" + juce::String (juce::roundToInt (suggestedHz))
+                                 + " Hz (override free)",
                              juce::dontSendNotification);
 }
 
@@ -276,6 +396,8 @@ void MainComponent::refreshStatusLine()
         s << "  ·  audio device stopped";
     if (decoderStatus.isNotEmpty())
         s << "  ·  " << decoderStatus;
+    if (engine.isDecoderRebuildInFlight())
+        s << "  ·  rebuilding…";
 
     statusLabel.setText (s, juce::dontSendNotification);
 }
@@ -287,6 +409,25 @@ void MainComponent::timerCallback()
     if (! positionSlider.isMouseButtonDown())
         positionSlider.setValue (engine.getFilePlayer().getPositionSeconds(),
                                  juce::dontSendNotification);
+
+    // Test-signal feedback: which speaker is under test (SpeakerId), or the
+    // target channel for the other modes.
+    auto& gen = engine.getTestSignalGenerator();
+    if (gen.getSignalType() == xoa::TestSignalGenerator::SignalType::SpeakerId)
+    {
+        const int spk = gen.getCurrentSpeakerIndex();
+        testInfoLabel.setText (spk >= 0 ? "testing Spk " + juce::String (spk + 1) : "(gap)",
+                               juce::dontSendNotification);
+    }
+    else if (gen.isActive())
+    {
+        testInfoLabel.setText ("-> ch " + juce::String (gen.getOutputChannel()),
+                               juce::dontSendNotification);
+    }
+    else
+    {
+        testInfoLabel.setText ({}, juce::dontSendNotification);
+    }
 
     refreshStatusLine();
     repaint (meterArea);
@@ -376,6 +517,44 @@ void MainComponent::resized()
         loadProjectButton .setBounds (r.removeFromLeft (130));
     }
     suggestionLabel.setBounds (row (22));
+    area.removeFromTop (8);
+
+    // Dual-band row.
+    {
+        auto r = row (26);
+        dualBandButton .setBounds (r.removeFromLeft (100)); r.removeFromLeft (12);
+        crossoverLabel .setBounds (r.removeFromLeft (72));  r.removeFromLeft (6);
+        crossoverSlider.setBounds (r.removeFromLeft (240));
+    }
+    area.removeFromTop (6);
+
+    // Distance-comp mode row.
+    {
+        auto r = row (26);
+        distanceModeLabel.setBounds (r.removeFromLeft (100)); r.removeFromLeft (6);
+        distanceModeCombo.setBounds (r.removeFromLeft (140));
+    }
+    area.removeFromTop (6);
+
+    // Test-signal row.
+    {
+        auto r = row (26);
+        testSignalLabel  .setBounds (r.removeFromLeft (80));  r.removeFromLeft (6);
+        testSignalCombo  .setBounds (r.removeFromLeft (110)); r.removeFromLeft (10);
+        testLevelSlider  .setBounds (r.removeFromLeft (160)); r.removeFromLeft (8);
+        testFreqSlider   .setBounds (r.removeFromLeft (170)); r.removeFromLeft (8);
+        testChannelSlider.setBounds (r.removeFromLeft (110)); r.removeFromLeft (8);
+        testInfoLabel    .setBounds (r);
+    }
+    area.removeFromTop (6);
+
+    // Per-speaker trim/mute/solo table (scrollable).
+    {
+        speakerViewport.setBounds (row (130));
+        if (speakerList != nullptr)
+            speakerList->setSize (speakerViewport.getMaximumVisibleWidth(),
+                                  juce::jmax (speakerViewport.getHeight(), speakerList->preferredHeight()));
+    }
     area.removeFromTop (8);
 
     // Meter strip.
