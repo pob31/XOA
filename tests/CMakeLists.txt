@@ -19,10 +19,12 @@ target_sources(xoa-tests PRIVATE
     XoaCompTests.cpp
     XoaTestSignalTests.cpp
     XoaNfcTests.cpp
+    XoaCalcEngineTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/FilePlayer.cpp
     ../Source/Audio/AudioEngine.cpp
+    ../Source/DSP/AmbiCalculationEngine.cpp
     ../Source/DSP/ConvexHull.cpp)
 
 # XoaConstants.h and, later, the Source/DSP/Ambi* headers under test.

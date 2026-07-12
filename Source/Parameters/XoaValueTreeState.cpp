@@ -59,6 +59,7 @@ void XoaValueTreeState::initializeDefaultState()
     config.setProperty (ids::playbackContentOrder, static_cast<int> (d::playbackContentOrderDefault), nullptr);
     config.setProperty (ids::playbackConvention, static_cast<int> (d::playbackConventionDefault), nullptr);
     config.setProperty (ids::distanceCompMode, static_cast<int> (d::distanceCompModeDefault), nullptr);
+    config.setProperty (ids::monoInputsEnabled, d::monoInputsEnabledDefault, nullptr);
     state.appendChild (config, nullptr);
 
     juce::ValueTree inputs (ids::inputs);
@@ -100,6 +101,8 @@ juce::ValueTree XoaValueTreeState::createDefaultInput (int index) const
     position.setProperty (ids::inputPositionY, d::inputPositionYDefault, nullptr);
     position.setProperty (ids::inputPositionZ, d::inputPositionZDefault, nullptr);
     position.setProperty (ids::inputCoordinateMode, static_cast<int> (d::coordinateModeDefault), nullptr);
+    position.setProperty (ids::inputMaxSpeed, d::inputMaxSpeedDefault, nullptr);
+    position.setProperty (ids::inputTrackingSmooth, d::inputTrackingSmoothDefault, nullptr);
     input.appendChild (position, nullptr);
 
     juce::ValueTree encoder (ids::encoder);

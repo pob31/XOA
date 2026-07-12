@@ -73,6 +73,10 @@ inline const juce::Identifier playbackConvention   { "playbackConvention" };    
 // Config; the per-speaker delay/gain come from speaker positions, not schema.
 inline const juce::Identifier distanceCompMode { "distanceCompMode" };  // 0 off, 1 delay, 2 delay+gain
 
+// Config / mono encoders (FR-5/FR-6, WP8). Master gate for the encoder stage;
+// off by default so the RT bus is bit-identical to M2 (no stems mixed in).
+inline const juce::Identifier monoInputsEnabled { "monoInputsEnabled" };
+
 // Input / Channel
 inline const juce::Identifier inputName { "inputName" };
 inline const juce::Identifier inputGain { "inputGain" };
@@ -83,6 +87,9 @@ inline const juce::Identifier inputPositionX      { "inputPositionX" };
 inline const juce::Identifier inputPositionY      { "inputPositionY" };
 inline const juce::Identifier inputPositionZ      { "inputPositionZ" };
 inline const juce::Identifier inputCoordinateMode { "inputCoordinateMode" };
+// Position conditioning (WP8): speed-limited moves + 1-Euro tracking smoothing.
+inline const juce::Identifier inputMaxSpeed       { "inputMaxSpeed" };       // m/s, 0 = off
+inline const juce::Identifier inputTrackingSmooth { "inputTrackingSmooth" }; // %, 1-Euro smoothing
 
 // Input / Encoder
 inline const juce::Identifier inputSpread     { "inputSpread" };

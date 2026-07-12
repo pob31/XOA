@@ -56,6 +56,9 @@ constexpr double playbackConventionDefault = 0.0,
 constexpr double distanceCompModeDefault = 0.0,
                  distanceCompModeMin = 0.0, distanceCompModeMax = 2.0;   // 0 off, 1 delay, 2 delay+gain
 
+// Config / mono encoders (WP8). Default off keeps the RT bus bit-identical to M2.
+constexpr bool   monoInputsEnabledDefault = false;
+
 // Inputs ----------------------------------------------------------------
 constexpr double inputGainDefault = 0.0, inputGainMin = -60.0, inputGainMax = 12.0;       // dB
 constexpr bool   inputMuteDefault = false;
@@ -67,6 +70,10 @@ constexpr double positionMin = -100.0, positionMax = 100.0;                     
 constexpr double coordinateModeDefault = 0.0, coordinateModeMin = 0.0, coordinateModeMax = 2.0;
 constexpr double inputSpreadDefault = 0.0, inputSpreadMin = 0.0, inputSpreadMax = 180.0;  // degrees
 constexpr bool   inputNfcEnabledDefault = false;
+// Position conditioning (WP8). maxSpeed 0 = off; the limiter's own clamp is
+// [0.01, 20] m/s. trackingSmooth is the 1-Euro percentage (0 = raw, 100 = max).
+constexpr double inputMaxSpeedDefault = 0.0, inputMaxSpeedMin = 0.0, inputMaxSpeedMax = 20.0;   // m/s
+constexpr double inputTrackingSmoothDefault = 50.0, inputTrackingSmoothMin = 0.0, inputTrackingSmoothMax = 100.0;  // %
 
 // Speakers --------------------------------------------------------------
 constexpr double speakerGainDefault  = 0.0, speakerGainMin = -60.0, speakerGainMax = 12.0; // dB trim

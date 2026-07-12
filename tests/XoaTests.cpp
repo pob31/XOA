@@ -54,6 +54,7 @@ void runXoaVbapTests();
 void runXoaCompTests();
 void runXoaTestSignalTests();
 void runXoaNfcTests();
+void runXoaCalcEngineTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -118,6 +119,7 @@ int main()
         runXoaCompTests();
         runXoaTestSignalTests();
         runXoaNfcTests();
+        runXoaCalcEngineTests();
     }
     catch (const std::exception& e)
     {
