@@ -76,7 +76,9 @@ target_sources(XOA PRIVATE
     Source/App/HeaderBar.cpp
     Source/GUI/Tabs/SystemConfigTab.cpp
     Source/GUI/Tabs/NetworkTab.cpp
-    Source/GUI/Tabs/InputsTab.cpp)
+    Source/GUI/Tabs/InputsTab.cpp
+    Source/GUI/Tabs/SpeakersDecoderTab.cpp
+    Source/GUI/Layout/SpeakerLayoutPanel.cpp)
 
 # GUI kit (WP10). Headers are picked up via the Source include dir; only
 # translation units need listing here. The macOS dark-title-bar helper is

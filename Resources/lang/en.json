@@ -82,6 +82,32 @@
     "stemsDevice": "Device inputs",
     "stemsTest": "Test feed"
   },
+  "speakers": {
+    "speaker": "Speaker",
+    "eq": "EQ",
+    "decoder": "Decoder",
+    "comp": "Compensation & listener",
+    "test": "Test signal",
+    "layout": "Layout",
+    "rebuild": "Rebuild now",
+    "testType": "Signal",
+    "testLevel": "Level",
+    "testFreq": "Frequency",
+    "testChannel": "Channel"
+  },
+  "layout": {
+    "preset": "Preset",
+    "ring": "Ring",
+    "line": "Line",
+    "dome": "Dome",
+    "grid": "Ceiling grid",
+    "count": "Count",
+    "radius": "Radius",
+    "height": "Height",
+    "rings": "Rings",
+    "spacing": "Spacing",
+    "applyUndo": "Apply layout"
+  },
   "help": {
     "rotation": "Rotate the whole soundfield (yaw, pitch, roll). Driven by these dials, by OSC, or by a head-tracker quaternion.",
     "masterGain": "Master output gain applied after decoding, before the device outputs.",
@@ -157,6 +183,10 @@
     },
     "decoderType": { "sad": "Sampling (SAD)", "modeMatch": "Mode-matching", "allRad": "AllRAD" },
     "decoderWeighting": { "basic": "Basic", "maxRe": "Max-rE" },
-    "decoderNormalization": { "amplitude": "Amplitude", "energy": "Energy" }
+    "decoderNormalization": { "amplitude": "Amplitude", "energy": "Energy" },
+    "testSignal": {
+      "off": "Off", "pink": "Pink noise", "tone": "Tone", "sweep": "Sweep",
+      "dirac": "Dirac", "speakerId": "Speaker ID"
+    }
   }
 }

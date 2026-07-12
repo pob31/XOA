@@ -89,6 +89,33 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::inputs, i::inputTrackingSmooth },
         { Surface::inputs, i::inputSpread },
         { Surface::inputs, i::inputNfcEnabled },
+
+        // Speakers + Decoder tab (C7).
+        { Surface::speakersDecoder, i::speakerCount },
+        { Surface::speakersDecoder, i::speakerName },
+        { Surface::speakersDecoder, i::speakerGain },
+        { Surface::speakersDecoder, i::speakerDelay },
+        { Surface::speakersDecoder, i::speakerMute },
+        { Surface::speakersDecoder, i::speakerSolo },
+        { Surface::speakersDecoder, i::speakerPositionX },
+        { Surface::speakersDecoder, i::speakerPositionY },
+        { Surface::speakersDecoder, i::speakerPositionZ },
+        { Surface::speakersDecoder, i::speakerCoordinateMode },
+        { Surface::speakersDecoder, i::speakerEqEnabled },
+        { Surface::speakersDecoder, i::eqShape },
+        { Surface::speakersDecoder, i::eqFrequency },
+        { Surface::speakersDecoder, i::eqGain },
+        { Surface::speakersDecoder, i::eqQ },
+        { Surface::speakersDecoder, i::eqSlope },
+        { Surface::speakersDecoder, i::decoderType },
+        { Surface::speakersDecoder, i::decoderWeighting },
+        { Surface::speakersDecoder, i::decoderNormalization },
+        { Surface::speakersDecoder, i::decoderDualBandEnabled },
+        { Surface::speakersDecoder, i::decoderCrossoverFrequency },
+        { Surface::speakersDecoder, i::distanceCompMode },
+        { Surface::speakersDecoder, i::listenerX },
+        { Surface::speakersDecoder, i::listenerY },
+        { Surface::speakersDecoder, i::listenerZ },
     };
     return rows;
 }
