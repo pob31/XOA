@@ -20,6 +20,7 @@ target_sources(xoa-tests PRIVATE
     XoaTestSignalTests.cpp
     XoaNfcTests.cpp
     XoaCalcEngineTests.cpp
+    XoaEncoderTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/FilePlayer.cpp
