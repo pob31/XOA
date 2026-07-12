@@ -2,10 +2,11 @@
   ==============================================================================
 
     XOA — tenth-order Ambisonics spatial audio processor.
-    GuiKitCompileCheck — TEMPORARY translation unit (WP10 C2). It includes every
-    ported GUI-kit header so the build validates the whole kit compiles before any
-    tab wires it up. Deleted in WP10 C10 once the tabs reference these headers
-    directly.
+    GuiKitCompileCheck — the GUI-kit compile guard. It includes every ported
+    widget-kit header so the whole kit keeps compiling. Originally a temporary C2
+    scaffold; kept permanently at C10 because the tabs exercise only a SUBSET of
+    the ported kit (the remaining widgets are a reusable library for later work,
+    e.g. WP12), and this TU ensures they never rot.
 
     This file is part of XOA, released under the GNU General Public License
     v3.0. See LICENSE for details.

@@ -88,24 +88,4 @@ protected:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TabPage)
 };
 
-/** A not-yet-built tab: shows a localized "coming soon" note. Replaced by the
-    real tab in its chunk (Inputs C6, Speakers+Decoder C7, Monitoring/Map C9). */
-class PlaceholderTab : public TabPage
-{
-public:
-    PlaceholderTab (AppContext& ctx, Surface tabSurface, const juce::String& titleText)
-        : TabPage (ctx, tabSurface)
-    {
-        title.setText (titleText, juce::dontSendNotification);
-        title.setJustificationType (juce::Justification::centred);
-        title.setFont (juce::FontOptions (20.0f * XoaLookAndFeel::uiScale));
-        addAndMakeVisible (title);
-    }
-
-    void resized() override { title.setBounds (getLocalBounds()); }
-
-private:
-    juce::Label title;
-};
-
 } // namespace xoa::ui

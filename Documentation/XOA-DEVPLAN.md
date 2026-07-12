@@ -19,6 +19,13 @@ The three planning documents split authority like this:
 
 ## 1. Status and mapping
 
+**Milestone M3 reached + M5 visualization** (WP0–WP10 done). On top of M2, WP8
+added the mono encoders / NFC / spread, WP9 the OSC + head-tracking control plane
+and the D18 listener shift (M3 exit), and WP10 replaced the throwaway shell with
+the real six-tab application UI on the ported WFS-DIY kit plus the FR-18 rV/rE
+decoder-inspection plots (the visualization half of M5). Remaining before v1: GPU
+decode (WP11/M4), the MCP server (WP12), and acceptance/ship (WP13/WP14).
+
 **Milestone M2 reached** (WP0–WP7 done). On top of the M1 chain, WP7 adds
 AllRAD decoding (decode to a Womersley t=33 virtual t-design → VBAP to the real
 rig, with imaginary loudspeakers auto-inserted at coverage gaps), dual-band
@@ -59,7 +66,7 @@ hardware in CI).
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | **DONE (M3a)** |
 | WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | **DONE (M3)** |
-| WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | |
+| WP10 | GUI framework port, XOA tabs, rV/rE visualization | M5 viz part | P5 | WP6, WP9 | XL | **DONE (M5 viz)** |
 | WP11 | GPU decode path (two tracks, cross-repo) | **M4 exit** | P7 | WP7 (+ spatcore track) | XL | |
 | WP12 | MCP server + AI undo | M5 part | P4 | WP2, WP9, WP10 (UI bits) | M | |
 | WP13 | Acceptance, hardening, performance — **v1.0** | **M5 exit** | — | all | L | |
@@ -782,11 +789,71 @@ ingest→dispatch pipeline), `tools/validation/control-replay/` (harness shape).
 
 ---
 
-### WP10 — GUI framework port, XOA tabs, rV/rE visualization (XL)
+### WP10 — GUI framework port, XOA tabs, rV/rE visualization (XL) — **DONE (M5 viz)**
 
 **Goal.** Replace the throwaway shell with the real application UI, built
 from WFS-DIY's portable kit, including the decoder-inspection plots that
 make FR-18 whole.
+
+**Status: DONE (M5 visualization part).** Shipped across chunks C1–C10. The
+throwaway WP6 shell is retired; the app is a themed, six-tab AppShell built on
+the ported WFS-DIY kit, every v1 parameter is reachable and the FR-18 plots
+render exactly the CSV export.
+
+M5-viz acceptance evidence (unit + offline-render green on 3-OS CI; a new Linux
+xvfb GUI-smoke gate green; all M1/M2/M3 offline baselines unchanged):
+- **Kit port (C1–C3)** — `ColorScheme`, `XoaLookAndFeel` (3 runtime themes, dark
+  title bar), the widget kit (sliders/dials/buttons/meter bars, the one OriginTag
+  repoint), `TTSManager`, `StatusBar`, `HelpCard`, and `LocalizationManager` (EN +
+  FR minimal tier, `XoaLocalizationTests` gating the overlay). The macOS Obj-C++
+  `.mm` risk was front-loaded to C1.
+- **Binding layer (C4)** — the id-keyed `UiParameterDescriptors` (labels/units/
+  steps/kinds/enum labels; ranges come only from `XoaConstraints`, retiring the
+  shell's divergent hardcoded ranges), the `TabParameterRegistry`, and the
+  reusable `BindingSet` (store↔widget, per-channel `setChannel`, EQ-band, engine-
+  backed). `XoaUiDescriptorTests` is the completeness gate.
+- **Shell + tabs (C5–C9)** — `AppShell` (backend ownership, one 25 Hz timer, the
+  single decoder-rebuild fan-out, `--osc`/`--gui-smoke`/project-path entry), the
+  persistent `HeaderBar` (transport / rotation dials / master / live status), and
+  the six tabs: System Config, Network, Inputs, Speakers+Decoder (incl. the 6-band
+  EQ, decoder suggestion, per-speaker comp + D18 listener, engine test signals,
+  and the ring/line/**dome**/**3-D grid** layout preset editor), Monitoring
+  (input+output meter walls + perf), and the time-boxed 2-D Map (draggable sources
+  + listener).
+- **FR-18 (C8)** — `RvReAnalysisService` runs the analysis off the message thread
+  (newest-wins); `RvReMapComponent` renders the equirectangular metric raster and
+  exports analysis/matrix CSV+JSON. `XoaRvReViewTests` pins the plot ≡ CSV-export
+  identity (byte-identical) over a ring and a dome.
+- **Completeness (C9)** — `XoaUiDescriptorTests` asserts every non-system
+  descriptor is placed on ≥1 surface: 55/55 non-system parameters reachable from
+  the GUI (the DEVPLAN exit, mechanized).
+
+**Decisions (D24–D34).**
+- **D24** — PatchMatrixComponent not ported; v1 keeps identity channel mapping.
+- **D25** — Network tab exposes the single OSC send-target only; multi-target → WP12.
+- **D26** — Localization ships EN + FR (minimal tier), proving the overlay scaffold.
+- **D27** — A persistent HeaderBar hosts transport/rotation/master/status; StatusBar
+  stays a contextual hover-help + transient-message strip (not telemetry).
+- **D28** — `Wfs*`→`Xoa*` rename; new GUI code in `namespace xoa::ui`; XOA settings paths.
+- **D29** — The descriptor table + registry are the GUI single source of truth;
+  ranges come only from `XoaConstraints`.
+- **D30** — rV/rE analysis runs off the message thread; the plot renders the exact
+  sample vector `toCsv` serializes (byte-identity is the test).
+- **D31** — Metering: additive per-input peak accessor; in-tab meter walls; no
+  pop-out window and no SH-bus meters in v1.
+- **D32** — Map is a 2-D plan + side strip; draggable sources + listener, read-only
+  speakers.
+- **D33** — GUI smoke = a Linux xvfb `--gui-smoke` lane (Debug, asserts active,
+  incl. the per-tab registry-coverage check); Windows/macOS stay unit-test-only.
+- **D34 (deviation)** — `GuiKitCompileCheck.cpp` is **kept** (not deleted at C10 as
+  planned): the tabs exercise only a subset of the ported kit, so this TU is
+  retained permanently as the kit-compile guard so the unused (reusable) widgets
+  never rot. The WFS-domain widgets (DirectionalDial, InputDirectivityDial,
+  LFOIndicators, WidthExpansionSlider) were deliberately not ported.
+
+**Remaining for v1 (WP13).** The rV/rE acceptance tolerances are enforced against
+committed fixtures in WP13; a real-rig listening pass is a developer step. Runtime
+language switching relabels on restart (labels are read at tab construction).
 
 **PRD coverage.** FR-18 (plots), FR-10 (dials), FR-16 (suggestion UI),
 §7 latency display; the visualization half of M5.

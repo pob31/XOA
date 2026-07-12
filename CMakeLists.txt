@@ -62,7 +62,6 @@ juce_add_gui_app(XOA
 
 target_sources(XOA PRIVATE
     Source/Main.cpp
-    Source/MainComponent.cpp
     Source/Parameters/XoaValueTreeState.cpp
     Source/Parameters/XoaFileManager.cpp
     Source/Audio/FilePlayer.cpp
