@@ -27,6 +27,8 @@ AudioEngine::~AudioEngine()
 {
     closeAudioDevice();
     stopTimer();
+    rebuildWorker.stop();      // join the worker BEFORE cancelling async updates,
+    cancelPendingUpdate();     // so no triggerAsyncUpdate can fire into a dead object
     unregisterListeners();
 }
 
@@ -159,13 +161,48 @@ void AudioEngine::markDecoderDirty()
 void AudioEngine::timerCallback()
 {
     stopTimer();
-    rebuildDecoderNow();
+    requestAsyncRebuild();   // debounce elapsed -> design off the message thread
+}
+
+void AudioEngine::requestAsyncRebuild()
+{
+    ++rebuildGeneration;
+    rebuildInFlight.store (true, std::memory_order_release);
+    rebuildWorker.submit ({ DecoderMatrixBuilder::layoutFromStore (store),
+                            DecoderMatrixBuilder::optionsFromStore (store),
+                            rebuildGeneration });
+}
+
+void AudioEngine::handleAsyncUpdate()
+{
+    juce::uint64 gen = 0;
+    decoder::DesignResult result;
+    if (! rebuildWorker.takeCompleted (gen, result))
+        return;
+
+    // Discard results superseded by a newer request or a synchronous flush.
+    if (gen != rebuildGeneration)
+        return;
+
+    decoderBuilder.adoptResult (std::move (result));
+    decoderBuilder.publish();
+    rebuildInFlight.store (false, std::memory_order_release);
+    if (onDecoderRebuilt)
+        onDecoderRebuilt (decoderBuilder.lastDesignResult());
+}
+
+void AudioEngine::finishPendingAsyncRebuild()
+{
+    rebuildWorker.waitUntilIdle();
+    handleAsyncUpdate();
 }
 
 void AudioEngine::flushDecoderRebuild()
 {
     stopTimer();
+    ++rebuildGeneration;   // invalidate any in-flight async result
     rebuildDecoderNow();
+    rebuildInFlight.store (false, std::memory_order_release);
 }
 
 void AudioEngine::rebuildDecoderNow()

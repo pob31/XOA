@@ -12,10 +12,12 @@
 
 #include "XoaConstants.h"
 #include "Audio/AudioEngine.h"
+#include "DSP/AmbiDecoderDesigner.h"
 #include "DSP/AmbiRtTypes.h"
 #include "Parameters/XoaParameterIDs.h"
 #include "Parameters/XoaValueTreeState.h"
 
+#include <chrono>
 #include <cmath>
 
 namespace
@@ -148,6 +150,121 @@ void testDecoderStatusCallback()
     CHECK (lastOrder == 3);   // 24 speakers clamp to order 3
 }
 
+//==============================================================================
+// WP7 C4 — async decoder rebuild.
+//==============================================================================
+
+// requestAsyncRebuild returns immediately and defers the publish; the result
+// arrives (and matches a fresh synchronous design) only after the worker runs.
+void testAsyncRebuildNonBlocking()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+
+    const auto before = engine.getDecoderBuilder().acquire();
+    store.setParameter (xoa::ids::decoderWeighting, 0);   // maxRe -> basic
+
+    engine.requestAsyncRebuild();
+    // Deferred: nothing published yet, and the store stays writable during the
+    // background design (a non-decoder write, so the reference below is unaffected).
+    CHECK (engine.getDecoderBuilder().acquire().epoch == before.epoch);
+    store.setParameter (xoa::ids::rotationYaw, 30.0);   // proves non-blocking
+
+    engine.finishPendingAsyncRebuild();
+    const auto after = engine.getDecoderBuilder().acquire();
+    CHECK (after.epoch > before.epoch);
+    CHECK (! engine.isDecoderRebuildInFlight());
+
+    // The published matrix equals a fresh synchronous design of the same store.
+    xoa::DecoderMatrixBuilder ref;
+    ref.rebuild (store);
+    const auto& a = engine.getDecoderBuilder().masterMatrix();
+    const auto& b = ref.masterMatrix();
+    CHECK (a.numSpeakers == b.numSpeakers && a.order == b.order);
+    double worst = 0.0;
+    for (size_t i = 0; i < a.d.size() && i < b.d.size(); ++i)
+        worst = std::max (worst, std::abs (a.d[i] - b.d[i]));
+    CHECK (worst < 1e-12);
+}
+
+// Two requests before the worker drains: exactly one publish, matching the
+// LATEST store state (the stale generation is discarded).
+void testAsyncRebuildStaleDiscard()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+    const auto e0 = engine.getDecoderBuilder().acquire().epoch;
+
+    store.setParameter (xoa::ids::decoderType, 0);   // SAD
+    engine.requestAsyncRebuild();
+    store.setParameter (xoa::ids::decoderType, 1);   // mode-match (the intended final state)
+    engine.requestAsyncRebuild();
+
+    engine.finishPendingAsyncRebuild();
+    // A second drain must be a no-op (idempotent).
+    engine.finishPendingAsyncRebuild();
+
+    const auto after = engine.getDecoderBuilder().acquire();
+    CHECK (after.epoch == e0 + 1);   // exactly one publish despite two requests
+
+    xoa::DecoderMatrixBuilder ref;
+    ref.rebuild (store);   // store == the latest (mode-match) state
+    CHECK (std::abs (engine.getDecoderBuilder().masterMatrix().at (0, 0)
+                     - ref.masterMatrix().at (0, 0)) < 1e-12);
+}
+
+// A synchronous flush during an in-flight async rebuild wins; the late worker
+// result is discarded (its generation no longer matches).
+void testAsyncRebuildFlushWins()
+{
+    xoa::XoaValueTreeState store;
+    xoa::AudioEngine engine (store);
+    const auto e0 = engine.getDecoderBuilder().acquire().epoch;
+
+    store.setParameter (xoa::ids::decoderType, 0);
+    engine.requestAsyncRebuild();      // gen N in flight
+    store.setParameter (xoa::ids::decoderType, 1);
+    engine.flushDecoderRebuild();      // gen N+1, synchronous publish now
+    const auto afterFlush = engine.getDecoderBuilder().acquire().epoch;
+    CHECK (afterFlush == e0 + 1);
+    CHECK (! engine.isDecoderRebuildInFlight());
+
+    // Let the stale worker finish; its result must be dropped (no extra publish).
+    engine.finishPendingAsyncRebuild();
+    CHECK (engine.getDecoderBuilder().acquire().epoch == afterFlush);
+}
+
+// PRD sec.7: a full-order AllRAD design on a 250-speaker rig completes in <= 2 s.
+// Timed on the pure design() (what the worker runs); NDEBUG-gated so Debug CI
+// stays green, but always printed.
+void testDecoderRebuildTimingBudget()
+{
+    xoa::decoder::SpeakerLayout layout;
+    layout.count = 250;
+    const double golden = juce::MathConstants<double>::pi * (3.0 - std::sqrt (5.0));
+    for (int i = 0; i < layout.count; ++i)
+    {
+        const double z = 1.0 - 2.0 * (i + 0.5) / layout.count;   // Fibonacci sphere
+        const double r = std::sqrt (std::max (0.0, 1.0 - z * z));
+        const double phi = golden * i;
+        layout.positions[i] = { 3.0 * r * std::cos (phi), 3.0 * r * std::sin (phi), 3.0 * z };
+    }
+
+    xoa::decoder::DesignOptions o;
+    o.type = xoa::decoder::Type::allRad;
+
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto r = xoa::decoder::design (layout, o);
+    const double ms = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - t0).count();
+
+    std::printf ("  [timing] AllRAD design, 250 speakers / order %d: %.0f ms\n", r.designOrder, ms);
+    CHECK (r.matrix.numSpeakers == 250);
+    CHECK (! r.allRadFellBack);   // a full sphere encloses the listener
+   #ifdef NDEBUG
+    CHECK (ms < 2000.0);          // the PRD budget (Release only)
+   #endif
+}
+
 } // namespace
 
 //==============================================================================
@@ -159,4 +276,8 @@ void runXoaEngineTests()
     testDecoderRebuildOnParamChange();
     testDecoderRebuildViaListenerAndTimer();
     testDecoderStatusCallback();
+    testAsyncRebuildNonBlocking();
+    testAsyncRebuildStaleDiscard();
+    testAsyncRebuildFlushWins();
+    testDecoderRebuildTimingBudget();
 }

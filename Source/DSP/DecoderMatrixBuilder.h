@@ -86,10 +86,13 @@ public:
     // Build + publish (message thread).
     //==========================================================================
 
-    decoder::DesignResult rebuild (const decoder::SpeakerLayout& layout,
-                                   const decoder::DesignOptions& opts)
+    /** Adopt an already-computed design (e.g. from a background worker) into
+        the inactive buffer. The design() call is the slow part; splitting it
+        out lets the async rebuild run design() off the message thread and only
+        marshal this cheap buffer-fill back. Message thread only. */
+    void adoptResult (decoder::DesignResult result)
     {
-        lastResult = decoder::design (layout, opts);
+        lastResult = std::move (result);
         master = lastResult.matrix;
 
         // Fill the inactive float buffer, zero-padded to the full bus width.
@@ -114,6 +117,12 @@ public:
             pendingHfGain[c] = (lastResult.dualBand && c < (int) lastResult.hfDiagonal.size())
                                    ? (float) lastResult.hfDiagonal[(size_t) c]
                                    : 1.0f;
+    }
+
+    decoder::DesignResult rebuild (const decoder::SpeakerLayout& layout,
+                                   const decoder::DesignOptions& opts)
+    {
+        adoptResult (decoder::design (layout, opts));
         return lastResult;
     }
 

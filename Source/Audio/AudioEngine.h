@@ -8,6 +8,7 @@
 #include "spatcore/rt/RtSnapshot.h"
 
 #include "XoaConstants.h"
+#include "Audio/DecoderRebuildWorker.h"
 #include "Audio/FilePlayer.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiDecoderDesigner.h"
@@ -39,7 +40,8 @@ namespace xoa
 class AudioEngine : private juce::AudioIODeviceCallback,
                     private juce::ChangeListener,
                     private juce::ValueTree::Listener,
-                    private juce::Timer
+                    private juce::Timer,
+                    private juce::AsyncUpdater
 {
 public:
     enum class InputSource { file, testScene };
@@ -67,12 +69,25 @@ public:
         the bus gather is recomposed for the file's channel count/order. */
     FilePlayer::OpenResult openFile (const juce::File& file);
 
-    /** Force the pending decoder rebuild now (startup + tests + explicit UI). */
+    /** Force the pending decoder rebuild now, synchronously (startup +
+        explicit UI + tests). Invalidates any in-flight async rebuild. */
     void flushDecoderRebuild();
+
+    /** Kick off an asynchronous rebuild on the worker thread (the debounce
+        timer path; also a test seam). Returns immediately; the result is
+        published on the message thread when design() finishes. */
+    void requestAsyncRebuild();
 
     /** True while a Speakers/Decoder change has armed the debounce but the
         rebuild has not yet run (test seam for the listener -> timer path). */
     bool isDecoderRebuildPending() const noexcept { return isTimerRunning(); }
+
+    /** True while a background decoder design is running (UI "rebuilding..."). */
+    bool isDecoderRebuildInFlight() const noexcept { return rebuildInFlight.load (std::memory_order_acquire); }
+
+    /** Block until the background worker is idle, then adopt+publish its result
+        now (headless test seam - no message loop needed). */
+    void finishPendingAsyncRebuild();
 
     //==========================================================================
     // Metering / status (any thread; atomics).
@@ -115,6 +130,9 @@ private:
     // juce::Timer (decoder rebuild debounce)
     void timerCallback() override;
 
+    // juce::AsyncUpdater (worker thread -> message thread hop)
+    void handleAsyncUpdate() override;
+
     //==========================================================================
     void publishRotation();
     void publishBusParams();
@@ -135,6 +153,14 @@ private:
     juce::AudioDeviceManager deviceManager;
     FilePlayer               filePlayer;
     DecoderMatrixBuilder     decoderBuilder;
+
+    // Background decoder design. rebuildGeneration is a message-thread-only
+    // counter; the worker stamps each job with it and handleAsyncUpdate
+    // publishes a completed job only if its stamp still matches (a later submit
+    // or a synchronous flush bumps the counter and thereby discards stale work).
+    DecoderRebuildWorker rebuildWorker { [this] { triggerAsyncUpdate(); } };
+    juce::uint64 rebuildGeneration = 0;
+    std::atomic<bool> rebuildInFlight { false };
 
     spatcore::rt::RtSnapshot<rt::RotationRtState> rotationSnapshot;
     spatcore::rt::RtSnapshot<rt::BusRtParams>     busParamsSnapshot;
