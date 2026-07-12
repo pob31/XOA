@@ -74,6 +74,21 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::network, i::oscSendPort },
         { Surface::network, i::oscFeedbackEnabled },
         { Surface::network, i::oscMeterEnabled },
+
+        // Inputs tab (C6): mono-encoder gate + per-input encoder.
+        { Surface::inputs, i::monoInputsEnabled },
+        { Surface::inputs, i::inputCount },
+        { Surface::inputs, i::inputName },
+        { Surface::inputs, i::inputGain },
+        { Surface::inputs, i::inputMute },
+        { Surface::inputs, i::inputPositionX },
+        { Surface::inputs, i::inputPositionY },
+        { Surface::inputs, i::inputPositionZ },
+        { Surface::inputs, i::inputCoordinateMode },
+        { Surface::inputs, i::inputMaxSpeed },
+        { Surface::inputs, i::inputTrackingSmooth },
+        { Surface::inputs, i::inputSpread },
+        { Surface::inputs, i::inputNfcEnabled },
     };
     return rows;
 }

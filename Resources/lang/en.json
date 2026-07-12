@@ -77,6 +77,11 @@
     "rxOn": "receiving",
     "rxOff": "not receiving"
   },
+  "inputs": {
+    "stems": "Stems",
+    "stemsDevice": "Device inputs",
+    "stemsTest": "Test feed"
+  },
   "help": {
     "rotation": "Rotate the whole soundfield (yaw, pitch, roll). Driven by these dials, by OSC, or by a head-tracker quaternion.",
     "masterGain": "Master output gain applied after decoding, before the device outputs.",

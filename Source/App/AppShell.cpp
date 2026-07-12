@@ -14,6 +14,7 @@
 
 #include "../GUI/Tabs/SystemConfigTab.h"
 #include "../GUI/Tabs/NetworkTab.h"
+#include "../GUI/Tabs/InputsTab.h"
 #include "DSP/AmbiDecoderDesigner.h"
 #include "Localization/LocalizationManager.h"
 
@@ -61,7 +62,7 @@ AppShell::AppShell (const juce::String& commandLine)
 
     addRealTab ("tabs.systemConfig", new SystemConfigTab (context));
     addRealTab ("tabs.network",      new NetworkTab (context));
-    addPlaceholder ("tabs.inputs",          Surface::inputs);
+    addRealTab ("tabs.inputs",       new InputsTab (context));
     addPlaceholder ("tabs.speakersDecoder", Surface::speakersDecoder);
     addPlaceholder ("tabs.monitoring",      Surface::monitoring);
     addPlaceholder ("tabs.map",             Surface::map);
