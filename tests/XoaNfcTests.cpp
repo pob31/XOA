@@ -60,7 +60,7 @@ cd thetaEval (int l, cd y)
 }
 
 // |H(e^{jw})| in dB for order l's sections within a designed page.
-double orderDigitalMagDb (const float* page, int l, double freqHz, double sr)
+double orderDigitalMagDb (const double* page, int l, double freqHz, double sr)
 {
     const double w = 2.0 * juce::MathConstants<double>::pi * freqHz / sr;
     const cd e1 = std::exp (cd (0.0, -w));
@@ -71,25 +71,25 @@ double orderDigitalMagDb (const float* page, int l, double freqHz, double sr)
     cd h (1.0, 0.0);
     for (int j = 0; j < count; ++j)
     {
-        const float* c = page + (size_t) (base + j) * xoa::nfc::kCoeffsPerSection;
-        const cd numr = (double) c[0] + (double) c[1] * e1 + (double) c[2] * e2;
-        const cd denr = 1.0 + (double) c[3] * e1 + (double) c[4] * e2;
+        const double* c = page + (size_t) (base + j) * xoa::nfc::kCoeffsPerSection;
+        const cd numr = c[0] + c[1] * e1 + c[2] * e2;
+        const cd denr = 1.0 + c[3] * e1 + c[4] * e2;
         h *= numr / denr;
     }
     return 20.0 * std::log10 (std::abs (h));
 }
 
 // DC gain (z = 1) in dB for order l's sections.
-double orderDcGainDb (const float* page, int l)
+double orderDcGainDb (const double* page, int l)
 {
     const int base  = xoa::nfc::tables::kSectionOffset[l];
     const int count = xoa::nfc::tables::kSectionCount[l];
     double g = 1.0;
     for (int j = 0; j < count; ++j)
     {
-        const float* c = page + (size_t) (base + j) * xoa::nfc::kCoeffsPerSection;
-        const double bsum = (double) c[0] + (double) c[1] + (double) c[2];
-        const double asum = 1.0 + (double) c[3] + (double) c[4];
+        const double* c = page + (size_t) (base + j) * xoa::nfc::kCoeffsPerSection;
+        const double bsum = c[0] + c[1] + c[2];
+        const double asum = 1.0 + c[3] + c[4];
         g *= bsum / asum;
     }
     return 20.0 * std::log10 (std::abs (g));
@@ -106,10 +106,14 @@ void testBesselRootResiduals()
         {
             const auto r = xoa::nfc::tables::kRoots[base + j];
             const cd q (r.re, r.im);
-            CHECK (std::abs (thetaEval (l, q)) < 1.0e-9);
+            // The roots are exact (generator validated to 1e-30 in 50-digit);
+            // this C++ double recurrence loses digits to catastrophic
+            // cancellation at high order (~9e-6 at l=10), so the tolerance only
+            // needs to catch a corrupted/wrong root (which would be O(1) off).
+            CHECK (std::abs (thetaEval (l, q)) < 1.0e-4);
             CHECK (r.re < 0.0);                     // every root strictly LHP
             if (r.im != 0.0)                        // conjugate must also be a root
-                CHECK (std::abs (thetaEval (l, std::conj (q))) < 1.0e-9);
+                CHECK (std::abs (thetaEval (l, std::conj (q))) < 1.0e-4);
         }
     }
     // section bookkeeping matches ceil(l/2) and the packed total
@@ -137,7 +141,7 @@ void testDigitalAndAnalogCurves()
     const double tolBelow4  = num (tol["analogBelowFsOver4Db"]);
     const double tolAbove4  = num (tol["analogAboveFsOver4Db"]);
 
-    std::vector<float> page ((size_t) xoa::nfc::kCoeffsPerSource);
+    std::vector<double> page ((size_t) xoa::nfc::kCoeffsPerSource);
 
     int digitalPts = 0, analogPts = 0;
     for (const auto& cv : *cases)
@@ -184,17 +188,17 @@ void testDigitalAndAnalogCurves()
 //==============================================================================
 // A 2nd-order section is stable iff |a2| < 1 and |a1| < 1 + a2; a 1st-order
 // (a2 == 0) iff |a1| < 1.
-bool sectionStable (const float* c)
+bool sectionStable (const double* c)
 {
     const double a1 = c[3], a2 = c[4];
-    if (c[2] == 0.0f && a2 == 0.0)          // 1st-order
+    if (c[2] == 0.0 && a2 == 0.0)           // 1st-order
         return std::abs (a1) < 1.0;
     return std::abs (a2) < 1.0 && std::abs (a1) < 1.0 + a2;
 }
 
 void testWorstCaseStability()
 {
-    std::vector<float> page ((size_t) xoa::nfc::kCoeffsPerSource);
+    std::vector<double> page ((size_t) xoa::nfc::kCoeffsPerSource);
     const double rSrcSmall = 0.05;          // below kMinSourceRadius -> clamped
 
     for (double sr : { 44100.0, 96000.0 })
@@ -240,7 +244,7 @@ void testWorstCaseStability()
 //==============================================================================
 void testClampCeilingAndContinuity()
 {
-    std::vector<float> page ((size_t) xoa::nfc::kCoeffsPerSource);
+    std::vector<double> page ((size_t) xoa::nfc::kCoeffsPerSource);
     const double rRef = 2.0, sr = 48000.0;
 
     // DC boost per order never exceeds the ceiling.
@@ -248,8 +252,10 @@ void testClampCeilingAndContinuity()
     for (int l = 1; l <= xoa::nfc::kMaxOrder; ++l)
         CHECK (orderDcGainDb (page.data(), l) < xoa::nfc::kMaxBoostDb + 0.05);
 
-    // Continuity: sweep r_src across each order's clamp boundary; DC gain must
-    // not jump, and below the boundary it stays pinned at the ceiling.
+    // Continuity: sweep r_src across each order's clamp boundary. The realized
+    // DC gain must equal the ground-truth (r_ref/r_eff)^l (r_eff = the per-order
+    // clamped radius, which also honours the min-radius floor), never exceed the
+    // ceiling, and rise monotonically (no jump) as the source approaches.
     for (int l = 1; l <= xoa::nfc::kMaxOrder; ++l)
     {
         const double boundary = rRef * std::pow (10.0, -xoa::nfc::kMaxBoostDb / (20.0 * l));
@@ -259,12 +265,13 @@ void testClampCeilingAndContinuity()
             const double rSrc = std::max (boundary * frac, 1.0e-4);
             xoa::nfc::designSourceSections (rSrc, rRef, sr, page.data());
             const double dc = orderDcGainDb (page.data(), l);
-            if (rSrc >= boundary)
-                CHECK (dc < xoa::nfc::kMaxBoostDb + 0.05);
-            else
-                CHECK (std::abs (dc - xoa::nfc::kMaxBoostDb) < 0.05);   // pinned at ceiling
+
+            const double rEff = xoa::nfc::clampedSourceRadius (rSrc, rRef, l);
+            const double expected = 20.0 * l * std::log10 (rRef / rEff);
+            CHECK (std::abs (dc - expected) < 1e-6);          // exact (double coeffs)
+            CHECK (dc < xoa::nfc::kMaxBoostDb + 1e-6);         // never exceeds the ceiling
             if (prev >= 0.0)
-                CHECK (dc - prev > -0.05);        // monotone non-decreasing as source nears
+                CHECK (dc - prev > -1e-6);                     // non-decreasing as source nears
             prev = dc;
         }
     }
@@ -273,7 +280,7 @@ void testClampCeilingAndContinuity()
 //==============================================================================
 void testBankLanesAndDcSettle()
 {
-    std::vector<float> page ((size_t) xoa::nfc::kCoeffsPerSource);
+    std::vector<double> page ((size_t) xoa::nfc::kCoeffsPerSource);
     const double rRef = 2.0, rSrc = 1.0, sr = 48000.0;
     xoa::nfc::designSourceSections (rSrc, rRef, sr, page.data());
 
@@ -290,10 +297,12 @@ void testBankLanesAndDcSettle()
     // lane 0 is the dry stem, bit-identical.
     for (int i = 0; i < n; ++i) CHECK (lanePtrs[0][i] == 1.0f);
 
-    // each lane l settles to its order-l DC gain (r_ref/r_src)^l.
+    // each lane l settles to its order-l DC gain (r_ref/r_eff)^l, where r_eff is
+    // the per-order clamped source radius (the clamp bites for l >= 4 here).
     for (int l = 1; l <= xoa::nfc::kMaxOrder; ++l)
     {
-        const double expected = std::pow (rRef / rSrc, (double) l);   // clamp inactive here
+        const double rEff = xoa::nfc::clampedSourceRadius (rSrc, rRef, l);
+        const double expected = std::pow (rRef / rEff, (double) l);
         CHECK (std::abs ((double) lanePtrs[l][n - 1] - expected) < expected * 1.0e-3 + 1.0e-4);
     }
 

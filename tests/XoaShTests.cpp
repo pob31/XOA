@@ -559,13 +559,18 @@ static void testSpreadTaper()
         CHECK (g[l] == 0.0);
 
     // Energy sum_l (2l+1) g_l^2 is spread-invariant == (N+1)^2, across a sweep,
-    // and g_0 stays positive and finite; the taper never resurrects a zeroed
-    // order (monotone cutoff -> the nonzero orders are a contiguous prefix).
+    // g_0 stays positive/finite, and the taper never resurrects a zeroed order
+    // (monotone cutoff -> the nonzero orders are a contiguous prefix). The rE
+    // trajectory is UNIMODAL, not monotone: from basic (sigma 0) it rises to the
+    // max-rE peak (the P_l taper passes through the rE-maximizing weights) and
+    // then falls to 0 at omni. (The DEVPLAN's "monotonically decreasing" wording
+    // is a plan oversight - a mild high-order taper sharpens rE before widening.)
     const double target = static_cast<double> ((N + 1) * (N + 1));
-    double prevRe = 2.0;
-    for (int step = 0; step <= 36; ++step)
+    const int steps = 36;
+    std::vector<double> reSeq;
+    for (int step = 0; step <= steps; ++step)
     {
-        const double sigma = 5.0 * step;   // 0..180
+        const double sigma = 180.0 * step / steps;
         weights::spreadTaper (N, sigma, g);
 
         double energy = 0.0;
@@ -579,16 +584,23 @@ static void testSpreadTaper()
             if (g[l] == 0.0) zeroed = true;
             else CHECK (! zeroed);          // no order revives after a cut
         }
-
-        // ||rE|| decreases monotonically with widening spread (source blurs).
-        const double re = rENorm (g, N);
-        CHECK (re <= prevRe + 1e-9);
-        prevRe = re;
+        reSeq.push_back (rENorm (g, N));
     }
 
-    // basic-weight anchor: at sigma = 0, ||rE|| = N/(N+1).
-    weights::spreadTaper (N, 0.0, g);
-    CHECK (approx (rENorm (g, N), static_cast<double> (N) / (N + 1), 1e-12));
+    // Unimodal: strictly up to a peak, then strictly down; ends well below start.
+    int peak = 0;
+    for (int i = 1; i < (int) reSeq.size(); ++i) if (reSeq[(size_t) i] > reSeq[(size_t) peak]) peak = i;
+    for (int i = 1; i <= peak; ++i)             CHECK (reSeq[(size_t) i]     >= reSeq[(size_t) i - 1] - 1e-9);
+    for (int i = peak + 1; i < (int) reSeq.size(); ++i) CHECK (reSeq[(size_t) i] <= reSeq[(size_t) i - 1] + 1e-9);
+    CHECK (reSeq.back() < 0.01);                                  // omni -> rE ~ 0
+    CHECK (reSeq.back() < reSeq.front());                        // net widening
+
+    // basic-weight anchor: at sigma = 0, ||rE|| = N/(N+1); the peak reaches the
+    // order-N max-rE rE.
+    CHECK (approx (reSeq.front(), static_cast<double> (N) / (N + 1), 1e-9));
+    double reMax[xoa::kAmbisonicOrder + 1];
+    weights::maxRe (N, reMax);
+    CHECK (approx (reSeq[(size_t) peak], rENorm (reMax, N), 5e-3));
 
     // max-rE reproduction: at sigma/2 = acos(r_E(N)) the taper is the order-N
     // max-rE family (up to the shared energy scale).

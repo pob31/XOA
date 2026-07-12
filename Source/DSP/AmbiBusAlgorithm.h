@@ -74,7 +74,7 @@ public:
                   const spatcore::rt::RtSnapshot<rt::BusRtParams>* busParamsSource,
                   bool processingEnabled,
                   const float* encodeMatrix = nullptr,
-                  const float* nfcCoeffs = nullptr,
+                  const double* nfcCoeffs = nullptr,
                   const spatcore::rt::RtSnapshot<rt::EncoderRtParams>* encoderSrc = nullptr)
     {
         juce::ignoreUnused (maxInputChannels, maxOutputChannels);
@@ -469,8 +469,8 @@ private:
     const spatcore::rt::RtSnapshot<rt::BusRtParams>* busParams = nullptr;
 
     // WP8 encoder seams (app-owned live matrices + the scalar side-band).
-    const float* encodeMatrixPtr = nullptr;      // [kMaxInputs x 121]
-    const float* nfcCoeffsPtr = nullptr;         // [kMaxInputs x 150]
+    const float*  encodeMatrixPtr = nullptr;     // [kMaxInputs x 121] float gains
+    const double* nfcCoeffsPtr = nullptr;        // [kMaxInputs x 150] double coeffs
     const spatcore::rt::RtSnapshot<rt::EncoderRtParams>* encoderSource = nullptr;
 
     juce::AudioBuffer<float> busA, busB, busT;   // gather / rotated / transition

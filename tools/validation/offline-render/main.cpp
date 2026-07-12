@@ -227,7 +227,8 @@ ChannelData renderScenario (scenario::Id id, const Config& cfg)
     // the scalar side-band, composed per tick below exactly as the message
     // thread would. r_ref is the 2 m ring radius.
     constexpr double rRef = 2.0;
-    std::vector<float> encMatrix, nfcPages;
+    std::vector<float>  encMatrix;
+    std::vector<double> nfcPages;
     spatcore::rt::RtSnapshot<xoa::rt::EncoderRtParams> encSnap;
     juce::AudioBuffer<float> stems;
 
@@ -235,7 +236,7 @@ ChannelData renderScenario (scenario::Id id, const Config& cfg)
     if (rig.encoder)
     {
         encMatrix.assign ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.0f);
-        nfcPages.assign  ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0f);
+        nfcPages.assign  ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0);
         stems.setSize (xoa::kMaxInputs, cfg.block, false, false, true);
         algo.prepare (xoa::kNumSHChannels, numOut, cfg.sr, cfg.block,
                       &builder, &rotSnap, &busSnap, true,

@@ -12,9 +12,10 @@ AmbiCalculationEngine::AmbiCalculationEngine (XoaValueTreeState& s)
     : store (s)
 {
     liveMatrix.assign ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.0f);
-    nfcPages.assign  ((size_t) xoa::kMaxInputs * nfc::kCoeffsPerSource, 0.0f);
+    nfcPages.assign  ((size_t) xoa::kMaxInputs * nfc::kCoeffsPerSource, 0.0);
     rowDirty.assign  ((size_t) xoa::kMaxInputs, 1);
     nfcDirty.assign  ((size_t) xoa::kMaxInputs, 1);
+    wasMoving.assign ((size_t) xoa::kMaxInputs, 0);
 
     speedLimiter.resize (xoa::kMaxInputs);
     trackingFilter.resize (xoa::kMaxInputs);
@@ -148,8 +149,15 @@ void AmbiCalculationEngine::tick()
     }
     speedLimiter.process (0.02f);
     for (int i = 0; i < numInputs; ++i)
-        if (speedLimiter.isInputMoving (i))         // a moving source: row + radius change
+    {
+        const bool moving = speedLimiter.isInputMoving (i);
+        // Recompute while moving AND on the moving->stopped edge: the limiter
+        // snaps to the exact target on the settle tick (isInputMoving already
+        // false), so without this the row would freeze one step short.
+        if (moving || wasMoving[(size_t) i])
             rowDirty[(size_t) i] = nfcDirty[(size_t) i] = 1;
+        wasMoving[(size_t) i] = moving ? 1 : 0;
+    }
 
     // 2. Recompute dirty rows and NFC pages (compose BEFORE publish so a count
     // grow never exposes an uncomposed row through numSources).

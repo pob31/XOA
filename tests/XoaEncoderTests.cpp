@@ -62,11 +62,12 @@ struct Harness
     spatcore::rt::RtSnapshot<xoa::rt::RotationRtState> rotSnap;   // unpublished -> unrotated
     spatcore::rt::RtSnapshot<xoa::rt::BusRtParams>     busSnap;
     spatcore::rt::RtSnapshot<xoa::rt::EncoderRtParams> encSnap;
-    std::vector<float> encMatrix, nfcPages;
+    std::vector<float>  encMatrix;
+    std::vector<double> nfcPages;
 
     Harness()
         : encMatrix ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.0f),
-          nfcPages  ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0f)
+          nfcPages  ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0)
     {
         builder.rebuild (makeRing (24, 2.0), xoa::decoder::DesignOptions {});
         builder.publish();
@@ -151,7 +152,7 @@ void testEncoderNeutrality()
 
     // Test: encoder seams present but numSources == 0, with a NONZERO stems buffer.
     std::vector<float> encMatrix ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.5f);
-    std::vector<float> nfcPages  ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0f);
+    std::vector<double> nfcPages ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0);
     spatcore::rt::RtSnapshot<xoa::rt::EncoderRtParams> encSnap; encSnap.publish ({ 0, 0, 2.0f, 1u });
 
     juce::AudioBuffer<float> testOut (numOut, n);
@@ -206,10 +207,16 @@ void testEncoderRampInOut()
     // Block 2: steady.
     runBlock();
     double steady[Harness::numOut];
-    for (int s = 0; s < Harness::numOut; ++s) steady[s] = out.getSample (s, n - 1);
+    double steadyMax = 0.0;
+    for (int s = 0; s < Harness::numOut; ++s)
+    {
+        steady[s] = out.getSample (s, n - 1);
+        steadyMax = std::max (steadyMax, std::abs (steady[s]));
+    }
 
     // Deactivate: numSources 0, keep the stem. The block ramps the contribution
-    // OUT using the still-present audio (starts ~steady, ends ~0).
+    // OUT using the still-present audio (starts ~steady, ends near 0 - JUCE's
+    // linear ramp reaches ~steady/n at the last sample, not exactly 0).
     h.encSnap.publish ({ 0, 0, 2.0f, 2u });
     runBlock();
     double outStart = 0.0, outEnd = 0.0;
@@ -219,10 +226,10 @@ void testEncoderRampInOut()
         outEnd   = std::max (outEnd,   std::abs ((double) out.getSample (s, n - 1)));
         for (int i = 0; i < n; ++i) CHECK (std::isfinite (out.getSample (s, i)));
     }
-    CHECK (outStart < 1.0e-3);          // starts at the previous steady value
-    CHECK (outEnd   < 1.0e-3);          // faded to silence by block end
+    CHECK (outStart < 1.0e-3);              // starts at the previous steady value
+    CHECK (outEnd   < steadyMax * 0.02);    // faded ~to silence (residual ~ steady/n)
 
-    // Next block: fully removed.
+    // Next block: fully removed (appliedCoeff now 0 -> the stage skips it).
     runBlock();
     double residual = 0.0;
     for (int s = 0; s < Harness::numOut; ++s)

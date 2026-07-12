@@ -22,7 +22,8 @@
 
 namespace
 {
-double maxAbsDiff (const float* a, const float* b, int n)
+template <typename T>
+double maxAbsDiff (const T* a, const T* b, int n)
 {
     double m = 0.0;
     for (int i = 0; i < n; ++i) m = std::max (m, (double) std::abs (a[i] - b[i]));
@@ -139,14 +140,14 @@ void testNfcMaskAndPages()
 
     // NFC pages are always designed (the mask only gates RT use). Input 0 is at
     // the default (1,0,0) -> radius 1 m; its page must match designSourceSections.
-    float expected[xoa::nfc::kCoeffsPerSource];
+    double expected[xoa::nfc::kCoeffsPerSource];
     xoa::nfc::designSourceSections (1.0, calc.getReferenceRadius(), calc.getSampleRate(), expected);
     CHECK (maxAbsDiff (calc.nfcCoeffs(), expected, xoa::nfc::kCoeffsPerSource) < 1.0e-6);
 
     // Moving a source rewrites its page for the new radius.
     store.setParameter (xoa::ids::inputPositionX, 0.5, 2);
     calc.tick();
-    float expected2[xoa::nfc::kCoeffsPerSource];
+    double expected2[xoa::nfc::kCoeffsPerSource];
     xoa::nfc::designSourceSections (0.5, calc.getReferenceRadius(), calc.getSampleRate(), expected2);
     CHECK (maxAbsDiff (calc.nfcCoeffs() + 2 * xoa::nfc::kCoeffsPerSource, expected2,
                        xoa::nfc::kCoeffsPerSource) < 1.0e-6);
@@ -166,7 +167,7 @@ void testReferenceRadiusAndSampleRate()
     CHECK (std::abs (calc.getReferenceRadius() - 3.0) < 1e-12);
 
     // page for input 0 (radius 1) must now use the new SR + r_ref.
-    float expected[xoa::nfc::kCoeffsPerSource];
+    double expected[xoa::nfc::kCoeffsPerSource];
     xoa::nfc::designSourceSections (1.0, 3.0, 96000.0, expected);
     CHECK (maxAbsDiff (calc.nfcCoeffs(), expected, xoa::nfc::kCoeffsPerSource) < 1.0e-6);
 

@@ -11,6 +11,7 @@
 #include "XoaConstants.h"
 #include "DSP/AmbiEncoder.h"
 #include "DSP/AmbiRtTypes.h"
+#include "Parameters/XoaParameterDefaults.h"
 #include "Parameters/XoaValueTreeState.h"
 
 //==============================================================================
@@ -50,8 +51,8 @@ public:
     //==========================================================================
     // RT-facing seams (stable pointers for AmbiBusAlgorithm::prepare).
     //==========================================================================
-    const float* encodeMatrix() const noexcept { return liveMatrix.data(); }   // [kMaxInputs*121]
-    const float* nfcCoeffs()    const noexcept { return nfcPages.data(); }      // [kMaxInputs*150]
+    const float*  encodeMatrix() const noexcept { return liveMatrix.data(); }   // [kMaxInputs*121] float gains
+    const double* nfcCoeffs()    const noexcept { return nfcPages.data(); }      // [kMaxInputs*150] double coeffs
     const spatcore::rt::RtSnapshot<rt::EncoderRtParams>& encoderSource() const noexcept
     {
         return snapshot;
@@ -108,8 +109,8 @@ private:
     XoaValueTreeState& store;
     juce::ValueTree inputsSection;                 // persistent handle (listener lifetime)
 
-    std::vector<float> liveMatrix;                 // kMaxInputs * 121, row-major [src*121 + acn]
-    std::vector<float> nfcPages;                   // kMaxInputs * 150, packed per source
+    std::vector<float>  liveMatrix;                // kMaxInputs * 121, row-major [src*121 + acn]
+    std::vector<double> nfcPages;                  // kMaxInputs * 150, packed per source (double)
     spatcore::rt::RtSnapshot<rt::EncoderRtParams> snapshot;
 
     spatcore::dsp::InputSpeedLimiter speedLimiter;
@@ -117,6 +118,7 @@ private:
 
     std::vector<char> rowDirty;                    // kMaxInputs (char: no vector<bool> bitref)
     std::vector<char> nfcDirty;                    // kMaxInputs
+    std::vector<char> wasMoving;                    // kMaxInputs: force one settle recompute
 
     double currentSampleRate = 48000.0;
     double referenceRadius   = defaults::kDefaultRigRadius;   // 2.0 m

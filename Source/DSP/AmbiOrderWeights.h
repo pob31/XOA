@@ -150,7 +150,10 @@ inline void spreadTaper (int order, double spreadDeg, double* perOrder) noexcept
             continue;
         }
         const double p = legendrePolynomial (l, x);
-        if (l > 0 && p <= 0.0)   // P_0(x) == 1 > 0 always, so order 0 survives
+        // P_0(x) == 1 > 0 always, so order 0 survives. The tiny epsilon catches
+        // sigma = 180 (cos(90 deg) is ~6e-17, not exactly 0, so P_1 would slip
+        // through a bare "<= 0" and leave an inaudible but nonzero order-1 term).
+        if (l > 0 && p <= 1.0e-12)
         {
             perOrder[l] = 0.0;
             cutoff = true;

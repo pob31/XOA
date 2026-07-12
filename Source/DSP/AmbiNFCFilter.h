@@ -22,15 +22,19 @@
 //
 // Two halves, matching the app's control/RT split:
 //   * designSourceSections()  - control side (message thread), double math:
-//     radii + sample rate -> 150 float section coefficients for one source,
+//     radii + sample rate -> 150 double section coefficients for one source,
 //     bilinear-transformed (no prewarp) with the numerical-safety clamps.
 //   * SourceNfcBank           - RT side: runs the per-order cascades on a mono
 //     stem to produce the 11 order-lanes (lane 0 = dry). Filter state persists
 //     across coefficient updates; reset() only on an enable rising-edge.
 //
-// The coefficient page is packed (150 floats/source): kSectionOffset[l] locates
-// order l's sections, kSectionCount[l] gives how many. Design math is double;
-// coefficients and audio are float (the RT-boundary rule).
+// The coefficient page is packed (150 doubles/source): kSectionOffset[l] locates
+// order l's sections, kSectionCount[l] gives how many. Coefficients AND section
+// state are DOUBLE: at 96 kHz / order 10 the near-field poles sit very close to
+// z = 1, so float coefficient storage loses ~0.16 dB of DC gain (PRD sec.9's
+// "NFC at order 10 is numerically delicate"). Double removes it for a cost that
+// is negligible here (the encoder is far from the CPU bottleneck). Audio I/O
+// stays float (the bus is float); only the filter internals are double.
 //==============================================================================
 
 namespace xoa::nfc
@@ -47,29 +51,31 @@ constexpr double kMinSourceRadius = 0.25;   // m - geometry floor on r_src
 constexpr double kMaxBoostDb      = 20.0;   // per-order DC-boost ceiling (r_ref/r_src)^l
 
 //==============================================================================
-/** Direct-Form-I section with externally supplied coefficients. b2 == a2 == 0
-    realizes a 1st-order section. Same difference equation as spatcore's
+/** Direct-Form-I section with externally supplied double coefficients. b2 ==
+    a2 == 0 realizes a 1st-order section. Same difference equation as spatcore's
     OutputEQBiquadFilter (y = b0 x + b1 x1 + b2 x2 - a1 y1 - a2 y2), but the
-    coefficients are injected (arbitrary bilinear-transformed poles/zeros)
-    rather than computed from a cookbook shape. */
+    coefficients are injected (arbitrary bilinear-transformed poles/zeros) rather
+    than computed from a cookbook shape, and everything is double (the near-DC
+    order-10 poles demand it). Input/output are float (the bus boundary). */
 struct NfcSection
 {
-    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
-    float x1 = 0.0f, x2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
+    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
 
-    void reset() noexcept { x1 = x2 = y1 = y2 = 0.0f; }
+    void reset() noexcept { x1 = x2 = y1 = y2 = 0.0; }
 
-    void setCoeffs (const float* c) noexcept   // 5 floats; does NOT touch state
+    void setCoeffs (const double* c) noexcept   // 5 doubles; does NOT touch state
     {
         b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4];
     }
 
     float process (float in) noexcept
     {
-        const float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-        x2 = x1; x1 = in;
+        const double x = (double) in;
+        const double out = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = x;
         y2 = y1; y1 = out;
-        return out;
+        return (float) out;
     }
 };
 
@@ -97,7 +103,7 @@ inline double clampedSourceRadius (double rSrc, double rRef, int order) noexcept
     the reference-curve test quantifies the midband warp against Daniel's
     analog curves. */
 inline void designSourceSections (double rSrc, double rRef, double sampleRate,
-                                  float* out) noexcept
+                                  double* out) noexcept
 {
     const double c = xoa::kSpeedOfSound;
     const double K = 2.0 * sampleRate;
@@ -111,7 +117,7 @@ inline void designSourceSections (double rSrc, double rRef, double sampleRate,
         for (int j = 0; j < count; ++j)
         {
             const tables::Root q = tables::kRoots[base + j];
-            float* coeff = out + (size_t) (base + j) * kCoeffsPerSection;
+            double* coeff = out + (size_t) (base + j) * kCoeffsPerSection;
 
             // zero z = q c/rEff, pole p = q c/rRef.
             const double zr = q.re * c / rEff, zi = q.im * c / rEff;
@@ -121,11 +127,11 @@ inline void designSourceSections (double rSrc, double rRef, double sampleRate,
             {
                 // 1st-order (s - zr)/(s - pr), both real (zr, pr < 0).
                 const double d = K - pr;
-                coeff[0] = (float) ((K - zr) / d);
-                coeff[1] = (float) (-(K + zr) / d);
-                coeff[2] = 0.0f;
-                coeff[3] = (float) (-(K + pr) / d);
-                coeff[4] = 0.0f;
+                coeff[0] = (K - zr) / d;
+                coeff[1] = -(K + zr) / d;
+                coeff[2] = 0.0;
+                coeff[3] = -(K + pr) / d;
+                coeff[4] = 0.0;
             }
             else
             {
@@ -138,11 +144,11 @@ inline void designSourceSections (double rSrc, double rRef, double sampleRate,
                 const double da0 = K * K - 2.0 * ap * K + mp;
                 const double da1 = 2.0 * (mp - K * K);
                 const double da2 = K * K + 2.0 * ap * K + mp;
-                coeff[0] = (float) (nb0 / da0);
-                coeff[1] = (float) (nb1 / da0);
-                coeff[2] = (float) (nb2 / da0);
-                coeff[3] = (float) (da1 / da0);
-                coeff[4] = (float) (da2 / da0);
+                coeff[0] = nb0 / da0;
+                coeff[1] = nb1 / da0;
+                coeff[2] = nb2 / da0;
+                coeff[3] = da1 / da0;
+                coeff[4] = da2 / da0;
             }
         }
     }
@@ -168,7 +174,7 @@ public:
         @param n       sample count.
         @param coeffs  this source's kCoeffsPerSource page. */
     void processLanes (const float* dry, float* const* lanes, int n,
-                       const float* coeffs) noexcept
+                       const double* coeffs) noexcept
     {
         for (int i = 0; i < n; ++i)
             lanes[0][i] = dry[i];
