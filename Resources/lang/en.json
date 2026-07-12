@@ -97,6 +97,17 @@
     "viewLayout": "Layout",
     "viewAnalysis": "Analysis"
   },
+  "monitoring": {
+    "inputs": "Input stems",
+    "outputs": "Outputs"
+  },
+  "map": {
+    "hint": "Drag sources and the listener cross in the plan view. Speakers are read-only; Z is edited on the Inputs tab.",
+    "plan": "Plan (top-down)",
+    "side": "Side (X-Z)",
+    "moveSource": "Move source",
+    "moveListener": "Move listener"
+  },
   "analysis": {
     "energy": "Energy (dB)",
     "rvMag": "‖rV‖",

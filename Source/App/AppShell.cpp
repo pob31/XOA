@@ -16,6 +16,8 @@
 #include "../GUI/Tabs/NetworkTab.h"
 #include "../GUI/Tabs/InputsTab.h"
 #include "../GUI/Tabs/SpeakersDecoderTab.h"
+#include "../GUI/Tabs/MonitoringTab.h"
+#include "../GUI/Tabs/MapTab.h"
 #include "DSP/AmbiDecoderDesigner.h"
 #include "DSP/DecoderMatrixBuilder.h"
 #include "Localization/LocalizationManager.h"
@@ -60,19 +62,13 @@ AppShell::AppShell (const juce::String& commandLine)
         tabs.addTab (LOC (nameKey), tabBg, page, true);
         tabPages.push_back (page);
     };
-    auto addPlaceholder = [this, tabBg] (const char* nameKey, Surface surface)
-    {
-        auto* page = new PlaceholderTab (context, surface, LOC (nameKey) + juce::String (" — WP10"));
-        tabs.addTab (LOC (nameKey), tabBg, page, true);
-        tabPages.push_back (page);
-    };
 
     addRealTab ("tabs.systemConfig", new SystemConfigTab (context));
     addRealTab ("tabs.network",      new NetworkTab (context));
     addRealTab ("tabs.inputs",          new InputsTab (context));
     addRealTab ("tabs.speakersDecoder", new SpeakersDecoderTab (context));
-    addPlaceholder ("tabs.monitoring",      Surface::monitoring);
-    addPlaceholder ("tabs.map",             Surface::map);
+    addRealTab ("tabs.monitoring",      new MonitoringTab (context));
+    addRealTab ("tabs.map",             new MapTab (context));
 
     ColorScheme::Manager::getInstance().addListener (this);
 

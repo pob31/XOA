@@ -120,6 +120,14 @@ public:
             return 0.0f;
         return outputPeak[(size_t) channel].load (std::memory_order_relaxed);
     }
+    /** Block-peak of a mono-encoder input stem (0 when the encoder is fed no
+        stems). Observation-only; measured at the stem gather. */
+    float  getInputPeakLevel (int channel) const noexcept
+    {
+        if (channel < 0 || channel >= xoa::kMaxInputs)
+            return 0.0f;
+        return inputPeak[(size_t) channel].load (std::memory_order_relaxed);
+    }
     double getMeasuredLatencyMs() const noexcept { return measuredLatencyMs.load (std::memory_order_relaxed); }
     double getCpuLoad() const { return deviceManager.getCpuUsage(); }
     double getSampleRate() const noexcept { return deviceSampleRate.load (std::memory_order_relaxed); }
@@ -213,6 +221,9 @@ private:
     // Post-comp output meters (what leaves the device), updated per block on the
     // audio thread. Distinct from AmbiBusAlgorithm's pre-comp meters.
     std::array<std::atomic<float>, xoa::kMaxSpeakers> outputPeak {};
+
+    // Per-input stem meters (WP10 C9), updated per block on the audio thread.
+    std::array<std::atomic<float>, xoa::kMaxInputs> inputPeak {};
 
     juce::AudioBuffer<float> inputScratch;   // [kMaxFileChannels x block]
     juce::AudioBuffer<float> stemScratch;    // [kMaxInputs x block] mono-encoder stems

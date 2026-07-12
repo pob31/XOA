@@ -4,6 +4,7 @@
 #include <juce_data_structures/juce_data_structures.h>   // juce::ValueTree
 #include <juce_osc/juce_osc.h>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -50,6 +51,12 @@ public:
 
     bool isReceiving() const noexcept;
     int  getUdpPort()  const noexcept;
+
+    /** Total accepted inbound packets since start (activity indicator; any thread). */
+    juce::uint64 getReceivedPacketCount() const noexcept
+    {
+        return packetsReceived.load (std::memory_order_relaxed);
+    }
 
     /** Outbound reply/feedback hook. start() installs a default that serialises
         and sends a UDP datagram to (ip, port); tests override to capture. */
@@ -113,6 +120,8 @@ private:
     juce::DatagramSocket txSocket { false };   // send-only (never bound to receive)
     SendFn sendFn;
     bool   started = false;
+
+    std::atomic<juce::uint64> packetsReceived { 0 };   // accepted inbound packets (activity)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OSCManager)
 };

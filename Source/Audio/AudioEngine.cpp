@@ -444,6 +444,11 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         stemsPtr = &stemScratch;
     }
 
+    // Per-input stem meters (observation-only): the gathered stem magnitudes.
+    for (int i = 0; i < xoa::kMaxInputs; ++i)
+        inputPeak[(size_t) i].store (i < numStems ? stemScratch.getMagnitude (i, 0, n) : 0.0f,
+                                     std::memory_order_relaxed);
+
     if (inputSource.load (std::memory_order_relaxed) == InputSource::testScene)
     {
         float* ptrs[xoa::kNumSHChannels];

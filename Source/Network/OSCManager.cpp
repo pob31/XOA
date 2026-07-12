@@ -177,6 +177,8 @@ void OSCManager::onDatagram (const juce::MemoryBlock& data, const juce::String& 
     if (! isAllowedHost (ip))
         return;
 
+    packetsReceived.fetch_add (1, std::memory_order_relaxed);
+
     const char* bytes = static_cast<const char*> (data.getData());
 
     try

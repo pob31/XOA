@@ -115,4 +115,18 @@ void runXoaUiDescriptorTests()
                           r.id.toString().toRawUTF8());
         CHECK (xoa::ui::findDescriptor (r.id) != nullptr);
     }
+
+    // WP10 C9 completeness: every NON-system descriptor is placed on at least one
+    // surface. This is the DEVPLAN's "every v1 parameter reachable from the GUI"
+    // exit criterion (system-kind params reach a dedicated surface — device
+    // selector, file dialog — so they are exempt).
+    for (const auto& d : xoa::ui::allDescriptors())
+    {
+        if (d.kind == xoa::ui::Kind::system)
+            continue;
+        if (! xoa::ui::isRegistered (d.id))
+            std::fprintf (stderr, "FAIL reachability: '%s' is not placed on any surface\n",
+                          d.id.toString().toRawUTF8());
+        CHECK (xoa::ui::isRegistered (d.id));
+    }
 }
