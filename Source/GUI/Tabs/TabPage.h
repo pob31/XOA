@@ -21,6 +21,7 @@
 #include "../Binding/ParamBindings.h"
 #include "../Binding/TabParameterRegistry.h"
 #include "../Binding/UiParameterDescriptors.h"
+#include "../Selection/InputSelectionModel.h"
 
 namespace xoa
 {
@@ -43,6 +44,7 @@ struct AppContext
     xoa::XoaFileManager& fileManager;
     xoa::AudioEngine&    engine;
     xoa::OSCManager&     oscManager;
+    InputSelectionModel& inputSelection;       // shared "current input" (Inputs rail <-> Map)
     RvReAnalysisService* analysis = nullptr;   // owned by the AppShell (FR-18)
 
     std::function<void (const juce::File&)> loadProject;   // load + rebuild + refresh all tabs

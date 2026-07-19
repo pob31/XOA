@@ -35,6 +35,10 @@ public:
     {
         list.setModel (this);
         list.setRowHeight (22);
+        // Keep keyboard focus on the owning tab: arrows nudge the current
+        // input/speaker position there instead of navigating rows here.
+        list.setWantsKeyboardFocus (false);
+        list.setMouseClickGrabsKeyboardFocus (false);
         addAndMakeVisible (list);
     }
 

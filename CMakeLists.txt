@@ -77,7 +77,8 @@ target_sources(XOA PRIVATE
     Source/GUI/Tabs/NetworkTab.cpp
     Source/GUI/Tabs/InputsTab.cpp
     Source/GUI/Tabs/SpeakersDecoderTab.cpp
-    Source/GUI/Layout/SpeakerLayoutPanel.cpp)
+    Source/GUI/Layout/SpeakerLayoutPanel.cpp
+    Source/GUI/Map3D/Map3DView.cpp)
 
 # GUI kit (WP10). Headers are picked up via the Source include dir; only
 # translation units need listing here. The macOS dark-title-bar helper is
@@ -106,6 +107,7 @@ target_link_libraries(XOA PRIVATE
     hidapi::hidapi
     juce::juce_audio_utils
     juce::juce_gui_extra
+    juce::juce_opengl
     juce::juce_osc)
 
 # Same optimization / floating-point flags the spatcore bit-exactness gates

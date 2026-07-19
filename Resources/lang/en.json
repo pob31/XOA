@@ -80,7 +80,8 @@
   "inputs": {
     "stems": "Stems",
     "stemsDevice": "Device inputs",
-    "stemsTest": "Test feed"
+    "stemsTest": "Test feed",
+    "nudge": "Nudge input"
   },
   "speakers": {
     "speaker": "Speaker",
@@ -102,11 +103,13 @@
     "outputs": "Outputs"
   },
   "map": {
-    "hint": "Drag sources and the listener cross in the plan view. Speakers are read-only; Z is edited on the Inputs tab.",
+    "hint": "Drag sources and the listener cross in the plan view. Speakers are read-only. Arrow keys move the selected source (front/back, left/right); PgUp/PgDn move its height. Shift = fine, Ctrl = coarse.",
     "plan": "Plan (top-down)",
     "side": "Side (X-Z)",
     "moveSource": "Move source",
-    "moveListener": "Move listener"
+    "moveListener": "Move listener",
+    "view3d": "3D",
+    "hint3d": "Drag to orbit, right-drag to pan, wheel to zoom, double-click to reframe. Click a source to select it; arrow keys move it, PgUp/PgDn its height."
   },
   "analysis": {
     "energy": "Energy (dB)",

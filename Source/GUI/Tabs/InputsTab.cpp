@@ -23,6 +23,9 @@ namespace xoa::ui
 
 InputsTab::InputsTab (AppContext& ctx) : TabPage (ctx, Surface::inputs)
 {
+    // Arrow-key / PageUp-PageDown nudging of the current input (InputNudger).
+    setWantsKeyboardFocus (true);
+
     // --- Rail ------------------------------------------------------------
     rail.getCount   = [this] { return context.store.getNumInputs(); };
     rail.getRowText = [this] (int row)
@@ -59,6 +62,7 @@ InputsTab::InputsTab (AppContext& ctx) : TabPage (ctx, Surface::inputs)
     inputCountLabel.setJustificationType (juce::Justification::centredRight);
     addAndMakeVisible (inputCountLabel);
     addAndMakeVisible (inputCountSlider);
+    inputCountSlider.setWantsKeyboardFocus (false);   // arrows must reach the nudger
     bindings.bindSlider (inputCountSlider, ids::inputCount);
 
     // --- Detail editor (per current input) -------------------------------
@@ -126,7 +130,32 @@ InputsTab::InputsTab (AppContext& ctx) : TabPage (ctx, Surface::inputs)
     bindings.bindToggle (nfcButton, ids::inputNfcEnabled, BindingSet::kCurrentChannel);
 
     selectInput (0);
+    context.inputSelection.addListener (this);
     verifyRegistryCoverage();
+}
+
+InputsTab::~InputsTab()
+{
+    context.inputSelection.removeListener (this);
+}
+
+void InputsTab::currentInputChanged (int newIndex)
+{
+    if (newIndex != currentInput)
+        selectInput (newIndex);
+}
+
+bool InputsTab::keyPressed (const juce::KeyPress& key)
+{
+    // A focused TextEditor keeps its caret/paging keys.
+    if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+        return false;
+    return nudger.handleKey (key, currentInput);
+}
+
+void InputsTab::mouseDown (const juce::MouseEvent&)
+{
+    grabKeyboardFocus();   // clicks on the tab background re-arm key nudging
 }
 
 juce::Label& InputsTab::addRow (juce::Component& /*control*/, const char* labelKey)
@@ -143,6 +172,7 @@ void InputsTab::selectInput (int index)
     currentInput = juce::jlimit (0, juce::jmax (0, context.store.getNumInputs() - 1), index);
     bindings.setChannel (currentInput);
     rail.selectRow (currentInput);
+    context.inputSelection.set (currentInput);
 }
 
 void InputsTab::refresh()

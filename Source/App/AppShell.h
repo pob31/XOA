@@ -66,8 +66,9 @@ private:
     xoa::AudioEngine    engine { store };
     xoa::OSCManager     oscManager { store, engine };
     RvReAnalysisService analysisService;
+    InputSelectionModel inputSelection;
 
-    AppContext context { store, fileManager, engine, oscManager, &analysisService, {}, {} };
+    AppContext context { store, fileManager, engine, oscManager, inputSelection, &analysisService, {}, {} };
 
     HeaderBar          header { context };
     XoaTabbedComponent tabs;

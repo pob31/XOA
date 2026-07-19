@@ -28,6 +28,14 @@
     "oscMode": "OSC",
     "ready": "Prêt"
   },
+  "inputs": {
+    "nudge": "Déplacer l'entrée"
+  },
+  "map": {
+    "hint": "Glissez les sources et la croix d'écoute dans la vue en plan. Les enceintes sont en lecture seule. Les flèches déplacent la source sélectionnée (avant/arrière, gauche/droite) ; PgUp/PgDn règlent sa hauteur. Maj = fin, Ctrl = grossier.",
+    "view3d": "3D",
+    "hint3d": "Glissez pour orbiter, clic droit pour déplacer, molette pour zoomer, double-clic pour recadrer. Cliquez une source pour la sélectionner ; les flèches la déplacent, PgUp/PgDn sa hauteur."
+  },
   "help": {
     "rotation": "Faire pivoter tout le champ sonore (lacet, tangage, roulis). Piloté par ces molettes, par OSC, ou par le quaternion d'un capteur de tête.",
     "masterGain": "Gain de sortie général appliqué après le décodage, avant les sorties du périphérique.",

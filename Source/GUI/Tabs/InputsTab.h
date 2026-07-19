@@ -19,6 +19,7 @@
 
 #include "TabPage.h"
 #include "../ChannelRail.h"
+#include "../Binding/InputNudger.h"
 #include "../Widgets/XoaBasicDial.h"
 #include "../Widgets/XoaStandardSlider.h"
 #include "../Widgets/XoaBidirectionalSlider.h"
@@ -26,15 +27,20 @@
 namespace xoa::ui
 {
 
-class InputsTab : public TabPage
+class InputsTab : public TabPage,
+                  private InputSelectionModel::Listener
 {
 public:
     explicit InputsTab (AppContext& ctx);
+    ~InputsTab() override;
 
     void resized() override;
     void refresh() override;
+    bool keyPressed (const juce::KeyPress& key) override;
+    void mouseDown (const juce::MouseEvent& e) override;
 
 private:
+    void currentInputChanged (int newIndex) override;
     void selectInput (int index);
     juce::Label& addRow (juce::Component& control, const char* labelKey);
 
@@ -61,6 +67,7 @@ private:
 
     juce::OwnedArray<juce::Label> rowLabels;
 
+    InputNudger nudger { context.store };
     int currentInput = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (InputsTab)

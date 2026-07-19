@@ -70,6 +70,16 @@ AppShell::AppShell (const juce::String& commandLine)
     addRealTab ("tabs.monitoring",      new MonitoringTab (context));
     addRealTab ("tabs.map",             new MapTab (context));
 
+    // Hand keyboard focus to the surfaces with arrow-key input nudging as soon
+    // as they open (isShowing guards the initial addTab, pre-desktop).
+    tabs.onTabChanged = [this] (int)
+    {
+        if (auto* t = visibleTab())
+            if (t->isShowing()
+                && (t->getSurface() == Surface::inputs || t->getSurface() == Surface::map))
+                t->grabKeyboardFocus();
+    };
+
     ColorScheme::Manager::getInstance().addListener (this);
 
     engine.openAudioDevice();
