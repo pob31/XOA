@@ -290,4 +290,18 @@ namespace ColorScheme
     // Convenience function for getting theme as int (for ComboBox)
     inline int getThemeIndex() { return static_cast<int>(Manager::getInstance().getCurrentTheme()); }
 
+    // Semantic accent colours for the kit widgets, matching the WFS-DIY
+    // parameter-family colour code (slider tracks, latching-button on-colours).
+    // Theme-invariant by design, as in WFS-DIY.
+    namespace accents
+    {
+        const juce::Colour level   { 0xFF4A90D9 };  // gains / levels (blue)
+        const juce::Colour time    { 0xFFD4A017 };  // delays / timing (yellow)
+        const juce::Colour spatial { 0xFF26A69A };  // positions / geometry (teal)
+        const juce::Colour motion  { 0xFF00ACC1 };  // speed / smoothing (cyan)
+        const juce::Colour freq    { 0xFF6A5BAF };  // frequencies / EQ (violet)
+        const juce::Colour solo    { 0xFFFFD700 };  // solo (yellow, black text)
+        const juce::Colour mute    { 0xFFFF5722 };  // mute (orange)
+    }
+
 } // namespace ColorScheme

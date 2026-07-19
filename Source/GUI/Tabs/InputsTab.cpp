@@ -66,28 +66,38 @@ InputsTab::InputsTab (AppContext& ctx) : TabPage (ctx, Surface::inputs)
     addRow (nameEditor, "param.inputName");
     bindings.bindText (nameEditor, ids::inputName, BindingSet::kCurrentChannel);
 
-    gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    gainSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
+    gainSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::level);
     addAndMakeVisible (gainSlider);
     addRow (gainSlider, "param.inputGain");
-    bindings.bindSlider (gainSlider, ids::inputGain, BindingSet::kCurrentChannel);
+    bindings.bindKitSlider (gainSlider, ids::inputGain, BindingSet::kCurrentChannel);
+    styleValueEditor (gainEditor);
+    addAndMakeVisible (gainEditor);
+    bindings.bindText (gainEditor, ids::inputGain, BindingSet::kCurrentChannel);
 
+    muteButton.setColour (juce::TextButton::buttonOnColourId, ColorScheme::accents::mute);
     addAndMakeVisible (muteButton);
     addRow (muteButton, "param.inputMute");
     bindings.bindToggle (muteButton, ids::inputMute, BindingSet::kCurrentChannel);
 
     for (auto* s : { &posXSlider, &posYSlider, &posZSlider })
     {
-        s->setSliderStyle (juce::Slider::LinearHorizontal);
-        s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
+        s->setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::spatial);
         addAndMakeVisible (*s);
+    }
+    for (auto* e : { &posXEditor, &posYEditor, &posZEditor })
+    {
+        styleValueEditor (*e);
+        addAndMakeVisible (*e);
     }
     addRow (posXSlider, "param.inputPositionX");
     addRow (posYSlider, "param.inputPositionY");
     addRow (posZSlider, "param.inputPositionZ");
-    bindings.bindSlider (posXSlider, ids::inputPositionX, BindingSet::kCurrentChannel);
-    bindings.bindSlider (posYSlider, ids::inputPositionY, BindingSet::kCurrentChannel);
-    bindings.bindSlider (posZSlider, ids::inputPositionZ, BindingSet::kCurrentChannel);
+    bindings.bindKitSlider (posXSlider, ids::inputPositionX, BindingSet::kCurrentChannel);
+    bindings.bindKitSlider (posYSlider, ids::inputPositionY, BindingSet::kCurrentChannel);
+    bindings.bindKitSlider (posZSlider, ids::inputPositionZ, BindingSet::kCurrentChannel);
+    bindings.bindText (posXEditor, ids::inputPositionX, BindingSet::kCurrentChannel);
+    bindings.bindText (posYEditor, ids::inputPositionY, BindingSet::kCurrentChannel);
+    bindings.bindText (posZEditor, ids::inputPositionZ, BindingSet::kCurrentChannel);
 
     addAndMakeVisible (coordModeCombo);
     addRow (coordModeCombo, "param.inputCoordinateMode");
@@ -96,21 +106,20 @@ InputsTab::InputsTab (AppContext& ctx) : TabPage (ctx, Surface::inputs)
     posReadout.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (posReadout);
 
-    maxSpeedSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    maxSpeedSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
-    addAndMakeVisible (maxSpeedSlider);
-    addRow (maxSpeedSlider, "param.inputMaxSpeed");
-    bindings.bindSlider (maxSpeedSlider, ids::inputMaxSpeed, BindingSet::kCurrentChannel);
-
-    trackingSmoothSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    trackingSmoothSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
-    addAndMakeVisible (trackingSmoothSlider);
-    addRow (trackingSmoothSlider, "param.inputTrackingSmooth");
-    bindings.bindSlider (trackingSmoothSlider, ids::inputTrackingSmooth, BindingSet::kCurrentChannel);
-
-    addAndMakeVisible (spreadDial);
-    addRow (spreadDial, "param.inputSpread");
-    bindings.bindDial (spreadDial, ids::inputSpread, BindingSet::kCurrentChannel);
+    // Conditioning dials (WFS uses dials for speed/smoothing/spread), each with
+    // a live value label underneath.
+    auto setupDial = [this] (XoaBasicDial& dial, juce::Label& valueLabel,
+                             const juce::Identifier& id, const char* labelKey)
+    {
+        addAndMakeVisible (dial);
+        addRow (dial, labelKey);
+        valueLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (valueLabel);
+        bindings.bindDial (dial, id, BindingSet::kCurrentChannel, &valueLabel);
+    };
+    setupDial (maxSpeedDial,       maxSpeedValue,       ids::inputMaxSpeed,       "param.inputMaxSpeed");
+    setupDial (trackingSmoothDial, trackingSmoothValue, ids::inputTrackingSmooth, "param.inputTrackingSmooth");
+    setupDial (spreadDial,         spreadValue,         ids::inputSpread,         "param.inputSpread");
 
     addAndMakeVisible (nfcButton);
     addRow (nfcButton, "param.inputNfcEnabled");
@@ -185,25 +194,58 @@ void InputsTab::resized()
         c.setBounds (r.reduced (0, px (2)));
         area.removeFromTop (px (4));
     };
+    // Latching buttons get a fixed width; full-row toggles read as bars.
+    auto buttonRow = [&] (juce::Component& c)
+    {
+        auto r = area.removeFromTop (rowH);
+        if (idx < rowLabels.size())
+            rowLabels[idx++]->setBounds (r.removeFromLeft (labelW));
+        r.removeFromLeft (px (6));
+        c.setBounds (r.removeFromLeft (px (100)).reduced (0, px (2)));
+        area.removeFromTop (px (4));
+    };
+    // Kit-slider row: reserve space on the right for the exact-value editor.
+    auto sliderRow = [&] (juce::Component& slider, juce::TextEditor& editor)
+    {
+        auto r = area.removeFromTop (rowH);
+        if (idx < rowLabels.size())
+            rowLabels[idx++]->setBounds (r.removeFromLeft (labelW));
+        r.removeFromLeft (px (6));
+        editor.setBounds (r.removeFromRight (px (64)).reduced (0, px (3)));
+        r.removeFromRight (px (4));
+        slider.setBounds (r.reduced (0, px (2)));
+        area.removeFromTop (px (4));
+    };
     row (nameEditor);
-    row (gainSlider);
-    row (muteButton);
-    row (posXSlider);
-    row (posYSlider);
-    row (posZSlider);
+    sliderRow (gainSlider, gainEditor);
+    buttonRow (muteButton);
+    sliderRow (posXSlider, posXEditor);
+    sliderRow (posYSlider, posYEditor);
+    sliderRow (posZSlider, posZEditor);
     row (coordModeCombo);
     posReadout.setBounds (area.removeFromTop (rowH));
     area.removeFromTop (px (4));
-    row (maxSpeedSlider);
-    row (trackingSmoothSlider);
+
+    // Conditioning dials: three columns of name / dial / value (WFS-style).
     {
-        auto r = area.removeFromTop (px (90));
-        if (idx < rowLabels.size())
-            rowLabels[idx++]->setBounds (r.removeFromLeft (labelW).removeFromTop (rowH));
-        spreadDial.setBounds (r.removeFromLeft (px (90)));
+        auto block = area.removeFromTop (px (110));
+        const int colW = juce::jmax (px (90), juce::jmin (px (130), block.getWidth() / 3));
+        XoaBasicDial* dials[3]  = { &maxSpeedDial, &trackingSmoothDial, &spreadDial };
+        juce::Label*  values[3] = { &maxSpeedValue, &trackingSmoothValue, &spreadValue };
+        for (int i = 0; i < 3; ++i)
+        {
+            auto cell = block.removeFromLeft (colW);
+            if (idx < rowLabels.size())
+            {
+                rowLabels[idx]->setJustificationType (juce::Justification::centred);
+                rowLabels[idx++]->setBounds (cell.removeFromTop (px (18)));
+            }
+            values[i]->setBounds (cell.removeFromBottom (px (18)));
+            dials[i]->setBounds (cell.reduced (juce::jmax (2, cell.getWidth() / 8), 0));
+        }
         area.removeFromTop (px (4));
     }
-    row (nfcButton);
+    buttonRow (nfcButton);
 }
 
 } // namespace xoa::ui

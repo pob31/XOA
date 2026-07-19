@@ -97,8 +97,8 @@ inline const std::vector<UiDescriptor>& allDescriptors()
         { i::inputPositionZ,   "param.inputPositionZ",   "units.meters", 0.01, Kind::slider, false, true,  Domain::inputs,   {} },
         { i::inputCoordinateMode, "param.inputCoordinateMode", "",       1.0,  Kind::combo,  false, true,  Domain::inputs,
             { "enum.coordMode.cartesian", "enum.coordMode.cylindrical", "enum.coordMode.spherical" } },
-        { i::inputMaxSpeed,    "param.inputMaxSpeed",    "units.mps",    0.1,  Kind::slider, false, true,  Domain::inputs,   {} },
-        { i::inputTrackingSmooth, "param.inputTrackingSmooth", "units.percent", 1.0, Kind::slider, false, true, Domain::inputs, {} },
+        { i::inputMaxSpeed,    "param.inputMaxSpeed",    "units.mps",    0.1,  Kind::dial,   false, true,  Domain::inputs,   {} },
+        { i::inputTrackingSmooth, "param.inputTrackingSmooth", "units.percent", 1.0, Kind::dial, false, true, Domain::inputs, {} },
         { i::inputSpread,      "param.inputSpread",      "units.degrees",1.0,  Kind::dial,   false, true,  Domain::inputs,   {} },
         { i::inputNfcEnabled,  "param.inputNfcEnabled",  "",             0.0,  Kind::toggle, false, true,  Domain::inputs,   {} },
 
@@ -120,9 +120,9 @@ inline const std::vector<UiDescriptor>& allDescriptors()
             { "enum.eqShape.off", "enum.eqShape.lowCut", "enum.eqShape.lowShelf", "enum.eqShape.peak",
               "enum.eqShape.bandPass", "enum.eqShape.highShelf", "enum.eqShape.highCut", "enum.eqShape.allPass" } },
         { i::eqFrequency,      "param.eqFrequency",      "units.hz",     1.0,  Kind::slider, true,  true,  Domain::speakers, {} },
-        { i::eqGain,           "param.eqGain",           "units.db",     0.1,  Kind::slider, false, true,  Domain::speakers, {} },
-        { i::eqQ,              "param.eqQ",              "",             0.01, Kind::slider, false, true,  Domain::speakers, {} },
-        { i::eqSlope,          "param.eqSlope",          "",             0.01, Kind::slider, false, true,  Domain::speakers, {} },
+        { i::eqGain,           "param.eqGain",           "units.db",     0.1,  Kind::dial,   false, true,  Domain::speakers, {} },
+        { i::eqQ,              "param.eqQ",              "",             0.01, Kind::dial,   false, true,  Domain::speakers, {} },
+        { i::eqSlope,          "param.eqSlope",          "",             0.01, Kind::dial,   false, true,  Domain::speakers, {} },
 
         // ---- Decoder --------------------------------------------------------
         { i::decoderType,      "param.decoderType",      "",             1.0,  Kind::combo,  false, false, Domain::decoder,

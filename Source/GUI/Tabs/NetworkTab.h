@@ -35,17 +35,18 @@ private:
 
     juce::GroupComponent receiveGroup, sendGroup, feedbackGroup;
 
-    juce::ToggleButton oscEnabledButton { "OSC receive" };
-    juce::TextEditor   receivePortEditor;
-    juce::ToggleButton tcpEnabledButton { "TCP receive" };
-    juce::TextEditor   tcpPortEditor;
-    juce::ToggleButton acceptAnyHostButton { "Accept any host" };
+    // Latching text buttons (WFS toggle style)
+    juce::TextButton oscEnabledButton { "OSC receive" };
+    juce::TextEditor receivePortEditor;
+    juce::TextButton tcpEnabledButton { "TCP receive" };
+    juce::TextEditor tcpPortEditor;
+    juce::TextButton acceptAnyHostButton { "Accept any host" };
 
-    juce::TextEditor   sendAddressEditor;
-    juce::TextEditor   sendPortEditor;
+    juce::TextEditor sendAddressEditor;
+    juce::TextEditor sendPortEditor;
 
-    juce::ToggleButton feedbackButton { "Parameter feedback" };
-    juce::ToggleButton meterButton { "Meter stream" };
+    juce::TextButton feedbackButton { "Parameter feedback" };
+    juce::TextButton meterButton { "Meter stream" };
 
     juce::Label rxStatusLabel;
 

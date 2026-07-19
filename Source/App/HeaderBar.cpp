@@ -58,11 +58,14 @@ HeaderBar::HeaderBar (AppContext& ctx)
     };
 
     fileLabel.setText (LOC ("header.noFile"), juce::dontSendNotification);
-    positionSlider.setRange (0.0, 1.0, 0.01);
-    positionSlider.onValueChange = [this]
+    positionSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::time);
+    positionSlider.onGestureStart = [this] { positionDragging = true; };
+    positionSlider.onGestureEnd   = [this] { positionDragging = false; };
+    positionSlider.onValueChanged = [this] (float v)
     {
-        if (positionSlider.isMouseButtonDown())
-            context.engine.getFilePlayer().seekSeconds (positionSlider.getValue());
+        // Only user gestures seek; refresh() drives the thumb the rest of the time.
+        if (positionDragging)
+            context.engine.getFilePlayer().seekSeconds ((double) v);
     };
 
     // --- Rotation dials (FR-10) ------------------------------------------
@@ -83,10 +86,12 @@ HeaderBar::HeaderBar (AppContext& ctx)
     masterLabel.setText (LOC ("param.masterGain"), juce::dontSendNotification);
     masterLabel.setJustificationType (juce::Justification::centredRight);
     addAndMakeVisible (masterLabel);
-    masterSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    masterSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
+    masterSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::level);
     addAndMakeVisible (masterSlider);
-    bindings.bindSlider (masterSlider, ids::masterGain);
+    bindings.bindKitSlider (masterSlider, ids::masterGain);
+    styleValueEditor (masterEditor);
+    addAndMakeVisible (masterEditor);
+    bindings.bindText (masterEditor, ids::masterGain);
 
     // --- Status ----------------------------------------------------------
     statusLabel.setJustificationType (juce::Justification::centredLeft);
@@ -123,7 +128,7 @@ void HeaderBar::openFileDialog()
                 text << "  ·  " << r.warnings.joinIntoString ("; ");
             fileLabel.setText (text, juce::dontSendNotification);
 
-            positionSlider.setRange (0.0, juce::jmax (0.001, context.engine.getFilePlayer().getLengthSeconds()), 0.01);
+            positionSlider.setRange (0.0f, (float) juce::jmax (0.001, context.engine.getFilePlayer().getLengthSeconds()));
             sourceCombo.setSelectedId (1, juce::dontSendNotification);
         }
         else
@@ -138,9 +143,8 @@ void HeaderBar::refresh()
     // Push the loop parameter (UI- or OSC-driven) to the player.
     context.engine.getFilePlayer().setLooping ((bool) context.store.getParameter (ids::playbackLoop));
 
-    if (! positionSlider.isMouseButtonDown())
-        positionSlider.setValue (context.engine.getFilePlayer().getPositionSeconds(),
-                                 juce::dontSendNotification);
+    if (! positionDragging)
+        positionSlider.setValue ((float) context.engine.getFilePlayer().getPositionSeconds());
 
     const double sr    = context.engine.getSampleRate();
     const int    block = context.engine.getBlockSize();
@@ -189,6 +193,9 @@ void HeaderBar::resized()
     auto masterArea = area.removeFromRight (px (300));
     masterLabel.setBounds (masterArea.removeFromLeft (px (72)));
     masterArea.removeFromLeft (px (4));
+    masterEditor.setBounds (masterArea.removeFromRight (px (64))
+                                      .withSizeKeepingCentre (px (64), px (20)));
+    masterArea.removeFromRight (px (4));
     masterSlider.setBounds (masterArea.withSizeKeepingCentre (masterArea.getWidth(), px (24)));
 
     const int dialW = juce::jmax (px (60), area.getWidth() / 3);

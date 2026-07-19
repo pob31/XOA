@@ -21,6 +21,7 @@
 
 #include "../GUI/Tabs/TabPage.h"          // AppContext
 #include "../GUI/Widgets/XoaBasicDial.h"
+#include "../GUI/Widgets/XoaStandardSlider.h"
 
 namespace xoa::ui
 {
@@ -43,21 +44,23 @@ private:
     BindingSet  bindings;
 
     // Transport
-    juce::TextButton   openButton  { "Open…" };
-    juce::TextButton   playButton  { "Play" };
-    juce::TextButton   stopButton  { "Stop" };
-    juce::ToggleButton loopButton  { "Loop" };
-    juce::ComboBox     sourceCombo;
-    juce::Label        fileLabel;
-    juce::Slider       positionSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
+    juce::TextButton  openButton  { "Open…" };
+    juce::TextButton  playButton  { "Play" };
+    juce::TextButton  stopButton  { "Stop" };
+    juce::TextButton  loopButton  { "Loop" };   // latching (WFS toggle style)
+    juce::ComboBox    sourceCombo;
+    juce::Label       fileLabel;
+    XoaStandardSlider positionSlider;
+    bool              positionDragging = false;
 
     // Rotation (FR-10)
     XoaBasicDial yawDial, pitchDial, rollDial;
     juce::Label  yawLabel, pitchLabel, rollLabel;
 
     // Master
-    juce::Slider masterSlider;
-    juce::Label  masterLabel;
+    XoaStandardSlider masterSlider;
+    juce::TextEditor  masterEditor;
+    juce::Label       masterLabel;
 
     // Live status
     juce::Label statusLabel;

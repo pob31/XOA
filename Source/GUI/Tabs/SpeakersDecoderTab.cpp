@@ -36,10 +36,10 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     testGroup.setText (LOC ("speakers.test"));
     layoutGroup.setText (LOC ("speakers.layout"));
 
-    auto linear = [] (juce::Slider& s)
+    auto valueEditor = [this] (juce::TextEditor& e)
     {
-        s.setSliderStyle (juce::Slider::LinearHorizontal);
-        s.setTextBoxStyle (juce::Slider::TextBoxRight, false, 56, 18);
+        styleValueEditor (e);
+        addAndMakeVisible (e);
     };
 
     // --- Rail ------------------------------------------------------------
@@ -65,24 +65,44 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     bindings.bindText (nameEditor, ids::speakerName, BindingSet::kCurrentChannel);
 
     addLabel ("param.speakerGain");
-    linear (gainSlider);  addAndMakeVisible (gainSlider);
-    bindings.bindSlider (gainSlider, ids::speakerGain, BindingSet::kCurrentChannel);
+    gainSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::level);
+    addAndMakeVisible (gainSlider);
+    bindings.bindKitSlider (gainSlider, ids::speakerGain, BindingSet::kCurrentChannel);
+    valueEditor (gainEditor);
+    bindings.bindText (gainEditor, ids::speakerGain, BindingSet::kCurrentChannel);
 
     addLabel ("param.speakerDelay");
-    linear (delaySlider); addAndMakeVisible (delaySlider);
-    bindings.bindSlider (delaySlider, ids::speakerDelay, BindingSet::kCurrentChannel);
+    delaySlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::time);
+    addAndMakeVisible (delaySlider);
+    bindings.bindKitSlider (delaySlider, ids::speakerDelay, BindingSet::kCurrentChannel);
+    valueEditor (delayEditor);
+    bindings.bindText (delayEditor, ids::speakerDelay, BindingSet::kCurrentChannel);
 
+    muteButton.setColour (juce::TextButton::buttonOnColourId, ColorScheme::accents::mute);
     addAndMakeVisible (muteButton);
     bindings.bindToggle (muteButton, ids::speakerMute, BindingSet::kCurrentChannel);
+    soloButton.setColour (juce::TextButton::buttonOnColourId, ColorScheme::accents::solo);
+    soloButton.setColour (juce::TextButton::textColourOnId, juce::Colours::black);
     addAndMakeVisible (soloButton);
     bindings.bindToggle (soloButton, ids::speakerSolo, BindingSet::kCurrentChannel);
 
-    addLabel ("param.speakerPositionX"); linear (posXSlider); addAndMakeVisible (posXSlider);
-    addLabel ("param.speakerPositionY"); linear (posYSlider); addAndMakeVisible (posYSlider);
-    addLabel ("param.speakerPositionZ"); linear (posZSlider); addAndMakeVisible (posZSlider);
-    bindings.bindSlider (posXSlider, ids::speakerPositionX, BindingSet::kCurrentChannel);
-    bindings.bindSlider (posYSlider, ids::speakerPositionY, BindingSet::kCurrentChannel);
-    bindings.bindSlider (posZSlider, ids::speakerPositionZ, BindingSet::kCurrentChannel);
+    addLabel ("param.speakerPositionX");
+    addLabel ("param.speakerPositionY");
+    addLabel ("param.speakerPositionZ");
+    for (auto* s : { &posXSlider, &posYSlider, &posZSlider })
+    {
+        s->setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::spatial);
+        addAndMakeVisible (*s);
+    }
+    bindings.bindKitSlider (posXSlider, ids::speakerPositionX, BindingSet::kCurrentChannel);
+    bindings.bindKitSlider (posYSlider, ids::speakerPositionY, BindingSet::kCurrentChannel);
+    bindings.bindKitSlider (posZSlider, ids::speakerPositionZ, BindingSet::kCurrentChannel);
+    valueEditor (posXEditor);
+    valueEditor (posYEditor);
+    valueEditor (posZEditor);
+    bindings.bindText (posXEditor, ids::speakerPositionX, BindingSet::kCurrentChannel);
+    bindings.bindText (posYEditor, ids::speakerPositionY, BindingSet::kCurrentChannel);
+    bindings.bindText (posZEditor, ids::speakerPositionZ, BindingSet::kCurrentChannel);
 
     addLabel ("param.speakerCoordinateMode");
     addAndMakeVisible (coordModeCombo);
@@ -95,18 +115,25 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     bindings.bindToggle (eqEnabledButton, ids::speakerEqEnabled, BindingSet::kCurrentChannel);
     for (int b = 0; b < xoa::kNumEqBands; ++b)
     {
-        addAndMakeVisible (eqShape[(size_t) b]);
-        bindings.bindEqBandCombo (eqShape[(size_t) b], ids::eqShape, b);
-        for (auto* s : { &eqFreq[(size_t) b], &eqGain[(size_t) b], &eqQ[(size_t) b], &eqSlope[(size_t) b] })
+        const auto i = (size_t) b;
+        addAndMakeVisible (eqShape[i]);
+        bindings.bindEqBandCombo (eqShape[i], ids::eqShape, b);
+
+        eqFreq[i].setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::freq);
+        addAndMakeVisible (eqFreq[i]);
+        for (auto* d : { &eqGain[i], &eqQ[i], &eqSlope[i] })
+            addAndMakeVisible (*d);
+        for (auto* v : { &eqFreqValue[i], &eqGainValue[i], &eqQValue[i], &eqSlopeValue[i] })
         {
-            s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-            s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 52, 14);
-            addAndMakeVisible (*s);
+            v->setJustificationType (juce::Justification::centred);
+            v->setFont (juce::FontOptions (10.0f * XoaLookAndFeel::uiScale));
+            addAndMakeVisible (*v);
         }
-        bindings.bindEqBand (eqFreq[(size_t) b],  ids::eqFrequency, b);
-        bindings.bindEqBand (eqGain[(size_t) b],  ids::eqGain,      b);
-        bindings.bindEqBand (eqQ[(size_t) b],     ids::eqQ,         b);
-        bindings.bindEqBand (eqSlope[(size_t) b], ids::eqSlope,     b);
+
+        bindings.bindKitEqBand  (eqFreq[i],  ids::eqFrequency, b, &eqFreqValue[i]);
+        bindings.bindEqBandDial (eqGain[i],  ids::eqGain,      b, &eqGainValue[i]);
+        bindings.bindEqBandDial (eqQ[i],     ids::eqQ,         b, &eqQValue[i]);
+        bindings.bindEqBandDial (eqSlope[i], ids::eqSlope,     b, &eqSlopeValue[i]);
     }
 
     // --- Decoder ---------------------------------------------------------
@@ -122,8 +149,11 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     addAndMakeVisible (dualBandButton);
     bindings.bindToggle (dualBandButton, ids::decoderDualBandEnabled);
     addLabel ("param.decoderCrossoverFrequency");
-    linear (crossoverSlider); addAndMakeVisible (crossoverSlider);
-    bindings.bindSlider (crossoverSlider, ids::decoderCrossoverFrequency);
+    crossoverSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::freq);
+    addAndMakeVisible (crossoverSlider);
+    bindings.bindKitSlider (crossoverSlider, ids::decoderCrossoverFrequency);
+    valueEditor (crossoverEditor);
+    bindings.bindText (crossoverEditor, ids::decoderCrossoverFrequency);
     suggestionLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (suggestionLabel);
     rebuildButton.setButtonText (LOC ("speakers.rebuild"));
@@ -136,12 +166,23 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     addLabel ("param.distanceCompMode");
     addAndMakeVisible (distanceModeCombo);
     bindings.bindCombo (distanceModeCombo, ids::distanceCompMode);
-    addLabel ("param.listenerX"); linear (listenerXSlider); addAndMakeVisible (listenerXSlider);
-    addLabel ("param.listenerY"); linear (listenerYSlider); addAndMakeVisible (listenerYSlider);
-    addLabel ("param.listenerZ"); linear (listenerZSlider); addAndMakeVisible (listenerZSlider);
-    bindings.bindSlider (listenerXSlider, ids::listenerX);
-    bindings.bindSlider (listenerYSlider, ids::listenerY);
-    bindings.bindSlider (listenerZSlider, ids::listenerZ);
+    addLabel ("param.listenerX");
+    addLabel ("param.listenerY");
+    addLabel ("param.listenerZ");
+    for (auto* s : { &listenerXSlider, &listenerYSlider, &listenerZSlider })
+    {
+        s->setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::spatial);
+        addAndMakeVisible (*s);
+    }
+    bindings.bindKitSlider (listenerXSlider, ids::listenerX);
+    bindings.bindKitSlider (listenerYSlider, ids::listenerY);
+    bindings.bindKitSlider (listenerZSlider, ids::listenerZ);
+    valueEditor (listenerXEditor);
+    valueEditor (listenerYEditor);
+    valueEditor (listenerZEditor);
+    bindings.bindText (listenerXEditor, ids::listenerX);
+    bindings.bindText (listenerYEditor, ids::listenerY);
+    bindings.bindText (listenerZEditor, ids::listenerZ);
 
     // --- Test signal (engine-backed) -------------------------------------
     addLabel ("speakers.testType");
@@ -158,23 +199,23 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
                              (xoa::TestSignalGenerator::SignalType) v); });
 
     addLabel ("speakers.testLevel");
-    testLevelSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    testLevelSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 56, 18);
-    testLevelSlider.setRange (-92.0, 0.0, 0.1);
-    testLevelSlider.setTextValueSuffix (" dB");
+    testLevelSlider.setRange (-92.0f, 0.0f);
+    testLevelSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::level);
     addAndMakeVisible (testLevelSlider);
-    bindings.bindEngineValue (testLevelSlider,
+    testLevelValue.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (testLevelValue);
+    bindings.bindEngineKitValue (testLevelSlider,
         [this] { return (double) context.engine.getTestSignalGenerator().getLevelDb(); },
         [this] (double v) { context.engine.getTestSignalGenerator().setLevel ((float) v); });
 
     addLabel ("speakers.testFreq");
-    testFreqSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    testFreqSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18);
-    testFreqSlider.setRange (20.0, 20000.0, 1.0);
-    testFreqSlider.setSkewFactorFromMidPoint (1000.0);
-    testFreqSlider.setTextValueSuffix (" Hz");
+    testFreqSlider.setRange (20.0f, 20000.0f);
+    testFreqSlider.setSkewMidPoint (1000.0f);
+    testFreqSlider.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::freq);
     addAndMakeVisible (testFreqSlider);
-    bindings.bindEngineValue (testFreqSlider,
+    testFreqValue.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (testFreqValue);
+    bindings.bindEngineKitValue (testFreqSlider,
         [this] { return (double) context.engine.getTestSignalGenerator().getFrequency(); },
         [this] (double v) { context.engine.getTestSignalGenerator().setFrequency ((float) v); });
 
@@ -292,6 +333,8 @@ void SpeakersDecoderTab::refresh()
 
     // Test-signal feedback.
     auto& gen = context.engine.getTestSignalGenerator();
+    testLevelValue.setText (juce::String (gen.getLevelDb(), 1) + " dB", juce::dontSendNotification);
+    testFreqValue.setText (juce::String (juce::roundToInt (gen.getFrequency())) + " Hz", juce::dontSendNotification);
     if (gen.getSignalType() == xoa::TestSignalGenerator::SignalType::SpeakerId)
     {
         const int spk = gen.getCurrentSpeakerIndex();
@@ -342,6 +385,17 @@ void SpeakersDecoderTab::resized()
         c.setBounds ((cw > 0 ? r.removeFromLeft (cw) : r).reduced (0, px (2)));
         colr.removeFromTop (px (3));
     };
+    // Kit-slider row: label | track | value (editor or readout) on the right.
+    auto labelledSlider = [&] (juce::Rectangle<int>& colr, juce::Component& slider, juce::Component& value)
+    {
+        auto r = colr.removeFromTop (rowH);
+        if (li < labels.size()) labels[li++]->setBounds (r.removeFromLeft (labelW));
+        r.removeFromLeft (px (4));
+        value.setBounds (r.removeFromRight (px (56)).reduced (0, px (3)));
+        r.removeFromRight (px (4));
+        slider.setBounds (r.reduced (0, px (2)));
+        colr.removeFromTop (px (3));
+    };
 
     // Left column
     {
@@ -350,15 +404,15 @@ void SpeakersDecoderTab::resized()
         auto in = g.reduced (px (10), px (18));
         labelled (in, speakerCountSlider, px (110));
         labelled (in, nameEditor, px (200));
-        labelled (in, gainSlider);
-        labelled (in, delaySlider);
+        labelledSlider (in, gainSlider, gainEditor);
+        labelledSlider (in, delaySlider, delayEditor);
         auto ms = in.removeFromTop (rowH);
         muteButton.setBounds (ms.removeFromLeft (px (60)));
         soloButton.setBounds (ms.removeFromLeft (px (60)));
         in.removeFromTop (px (3));
-        labelled (in, posXSlider);
-        labelled (in, posYSlider);
-        labelled (in, posZSlider);
+        labelledSlider (in, posXSlider, posXEditor);
+        labelledSlider (in, posYSlider, posYEditor);
+        labelledSlider (in, posZSlider, posZEditor);
         labelled (in, coordModeCombo, px (140));
         posReadout.setBounds (in.removeFromTop (rowH));
     }
@@ -370,16 +424,24 @@ void SpeakersDecoderTab::resized()
         eqEnabledButton.setBounds (in.removeFromTop (rowH).removeFromLeft (px (80)));
         in.removeFromTop (px (4));
         const int bandW = juce::jmax (px (48), in.getWidth() / xoa::kNumEqBands);
+        const int valueH = px (13);
         for (int b = 0; b < xoa::kNumEqBands; ++b)
         {
+            const auto i = (size_t) b;
             auto col = in.removeFromLeft (bandW).reduced (px (2), 0);
-            eqShape[(size_t) b].setBounds (col.removeFromTop (rowH));
+            eqShape[i].setBounds (col.removeFromTop (rowH));
             col.removeFromTop (px (2));
             const int cellH = juce::jmax (px (40), col.getHeight() / 4);
-            eqFreq[(size_t) b] .setBounds (col.removeFromTop (cellH));
-            eqGain[(size_t) b] .setBounds (col.removeFromTop (cellH));
-            eqQ[(size_t) b]    .setBounds (col.removeFromTop (cellH));
-            eqSlope[(size_t) b].setBounds (col.removeFromTop (cellH));
+            auto cell = [&] (juce::Component& w, juce::Label& v)
+            {
+                auto c = col.removeFromTop (cellH);
+                v.setBounds (c.removeFromBottom (valueH));
+                w.setBounds (c);
+            };
+            cell (eqFreq[i],  eqFreqValue[i]);
+            cell (eqGain[i],  eqGainValue[i]);
+            cell (eqQ[i],     eqQValue[i]);
+            cell (eqSlope[i], eqSlopeValue[i]);
         }
     }
 
@@ -395,7 +457,7 @@ void SpeakersDecoderTab::resized()
         dualBandButton.setBounds (db.removeFromLeft (px (100)));
         rebuildButton.setBounds (db.removeFromRight (px (100)));
         in.removeFromTop (px (3));
-        labelled (in, crossoverSlider);
+        labelledSlider (in, crossoverSlider, crossoverEditor);
         suggestionLabel.setBounds (in.removeFromTop (rowH));
         decoderStatusLabel.setBounds (in.removeFromTop (rowH));
     }
@@ -405,9 +467,9 @@ void SpeakersDecoderTab::resized()
         compGroup.setBounds (g);
         auto in = g.reduced (px (10), px (18));
         labelled (in, distanceModeCombo, px (150));
-        labelled (in, listenerXSlider);
-        labelled (in, listenerYSlider);
-        labelled (in, listenerZSlider);
+        labelledSlider (in, listenerXSlider, listenerXEditor);
+        labelledSlider (in, listenerYSlider, listenerYEditor);
+        labelledSlider (in, listenerZSlider, listenerZEditor);
     }
     right.removeFromTop (px (6));
     {
@@ -415,8 +477,8 @@ void SpeakersDecoderTab::resized()
         testGroup.setBounds (g);
         auto in = g.reduced (px (10), px (18));
         labelled (in, testTypeCombo, px (140));
-        labelled (in, testLevelSlider);
-        labelled (in, testFreqSlider);
+        labelledSlider (in, testLevelSlider, testLevelValue);
+        labelledSlider (in, testFreqSlider, testFreqValue);
         labelled (in, testChannelSlider, px (110));
         testInfoLabel.setBounds (in.removeFromTop (rowH));
     }

@@ -98,9 +98,10 @@ void NetworkTab::resized()
         editor.setBounds (r.removeFromLeft (fieldW).reduced (0, px (2)));
         col.removeFromTop (px (4));
     };
+    // Latching buttons get a fixed width; full-row toggles read as bars.
     auto plainRow = [&] (juce::Rectangle<int>& col, juce::Component& c)
     {
-        c.setBounds (col.removeFromTop (rowH).reduced (0, px (2)));
+        c.setBounds (col.removeFromTop (rowH).removeFromLeft (px (180)).reduced (0, px (2)));
         col.removeFromTop (px (4));
     };
 

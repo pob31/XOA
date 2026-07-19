@@ -19,6 +19,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <cmath>
 #include <limits>
 #include "../ColorScheme.h"
 #include "../../Accessibility/TTSManager.h"
@@ -76,6 +77,25 @@ public:
     }
 
     float getValue() const noexcept { return value; }
+
+    void setRange(float newMin, float newMax)
+    {
+        minValue = newMin;
+        maxValue = newMax;
+        value = juce::jlimit(minValue, maxValue, value);
+        repaint();
+    }
+
+    /** JUCE-style log skew: the given value maps to the track's midpoint.
+        Requires a positive range (min > 0). */
+    void setSkewMidPoint(float mid)
+    {
+        if (mid > minValue && mid < maxValue && !juce::approximatelyEqual(maxValue, minValue))
+            skewExponent = std::log(0.5f) / std::log((mid - minValue) / (maxValue - minValue));
+        else
+            skewExponent = 1.0f;
+        repaint();
+    }
 
     void setTrackThickness(float newThickness) noexcept { trackThickness = newThickness; }
     void setThumbRadius(float newRadius) noexcept { thumbRadius = newRadius; }
@@ -200,6 +220,8 @@ protected:
     virtual float valueFromNormalized(float normalizedPos) const
     {
         normalizedPos = juce::jlimit(0.0f, 1.0f, normalizedPos);
+        if (!juce::approximatelyEqual(skewExponent, 1.0f) && normalizedPos > 0.0f)
+            normalizedPos = std::pow(normalizedPos, 1.0f / skewExponent);
         return minValue + (maxValue - minValue) * normalizedPos;
     }
 
@@ -209,7 +231,10 @@ protected:
             return 0.0f;
 
         currentValue = juce::jlimit(minValue, maxValue, currentValue);
-        return (currentValue - minValue) / (maxValue - minValue);
+        auto normalized = (currentValue - minValue) / (maxValue - minValue);
+        if (!juce::approximatelyEqual(skewExponent, 1.0f) && normalized > 0.0f)
+            normalized = std::pow(normalized, skewExponent);
+        return normalized;
     }
 
     void drawThumbIndicator(juce::Graphics& g,
@@ -255,6 +280,7 @@ protected:
 
     float minValue = 0.0f;
     float maxValue = 1.0f;
+    float skewExponent = 1.0f;   // 1 == linear; see setSkewMidPoint()
 
     // TTS accessibility
     juce::String ttsParameterName;

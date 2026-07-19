@@ -22,6 +22,7 @@
 
 #include "../../Parameters/XoaValueTreeState.h"
 #include "../Widgets/RigProjection.h"
+#include "../Widgets/XoaStandardSlider.h"
 #include "SpeakerLayoutGenerators.h"
 
 namespace xoa::ui
@@ -49,11 +50,11 @@ private:
     juce::Label    presetLabel;
     juce::ComboBox presetCombo;
 
-    juce::Label  countLabel, radiusLabel, heightLabel, ringsLabel, spacingLabel;
+    juce::Label  countLabel, ringsLabel;
     juce::Slider countSlider  { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
-    juce::Slider radiusSlider, heightSlider;
     juce::Slider ringsSlider  { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
-    juce::Slider spacingSlider;
+    // Kit sliders in inline mode: label | track | value in one row.
+    XoaStandardSlider radiusSlider, heightSlider, spacingSlider;
 
     juce::TextButton applyButton;
 

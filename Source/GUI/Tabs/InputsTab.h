@@ -20,6 +20,8 @@
 #include "TabPage.h"
 #include "../ChannelRail.h"
 #include "../Widgets/XoaBasicDial.h"
+#include "../Widgets/XoaStandardSlider.h"
+#include "../Widgets/XoaBidirectionalSlider.h"
 
 namespace xoa::ui
 {
@@ -39,21 +41,23 @@ private:
     ChannelRail rail;
 
     // Top strip
-    juce::ToggleButton monoInputsButton;
-    juce::Label        stemFeedLabel, inputCountLabel;
-    juce::ComboBox     stemFeedCombo;
-    juce::Slider       inputCountSlider { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
+    juce::TextButton monoInputsButton;   // latching (WFS toggle style)
+    juce::Label      stemFeedLabel, inputCountLabel;
+    juce::ComboBox   stemFeedCombo;
+    juce::Slider     inputCountSlider { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
 
     // Detail editor
     juce::TextEditor nameEditor;
-    juce::Slider     gainSlider;
-    juce::ToggleButton muteButton { "Mute" };
-    juce::Slider     posXSlider, posYSlider, posZSlider;
+    XoaStandardSlider gainSlider;
+    juce::TextEditor  gainEditor;
+    juce::TextButton  muteButton { "Mute" };
+    XoaBidirectionalSlider posXSlider, posYSlider, posZSlider;
+    juce::TextEditor  posXEditor, posYEditor, posZEditor;
     juce::ComboBox   coordModeCombo;
     juce::Label      posReadout;
-    juce::Slider     maxSpeedSlider, trackingSmoothSlider;
-    XoaBasicDial     spreadDial;
-    juce::ToggleButton nfcButton { "NFC" };
+    XoaBasicDial     maxSpeedDial, trackingSmoothDial, spreadDial;
+    juce::Label      maxSpeedValue, trackingSmoothValue, spreadValue;
+    juce::TextButton nfcButton { "NFC" };
 
     juce::OwnedArray<juce::Label> rowLabels;
 

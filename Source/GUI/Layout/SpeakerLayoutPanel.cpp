@@ -45,20 +45,27 @@ SpeakerLayoutPanel::SpeakerLayoutPanel (XoaValueTreeState& storeToApply) : store
         addAndMakeVisible (lab);
         sl.setRange (lo, hi, step);
         sl.setValue (val, juce::dontSendNotification);
-        if (sl.getSliderStyle() != juce::Slider::IncDecButtons)
-            sl.setSliderStyle (juce::Slider::LinearHorizontal);
-        sl.setTextBoxStyle (sl.getSliderStyle() == juce::Slider::IncDecButtons
-                                ? juce::Slider::TextBoxLeft : juce::Slider::TextBoxRight,
-                            false, 64, 20);
+        sl.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 64, 20);
         sl.onValueChange = [this] { repaint(); };
         addAndMakeVisible (sl);
     };
+    auto setupKitField = [this] (XoaStandardSlider& sl, const char* key,
+                                 float lo, float hi, float val)
+    {
+        sl.setRange (lo, hi);
+        sl.setValue (val);
+        sl.setLabel (LOC (key));
+        sl.setInlineMode (true);
+        sl.setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::spatial);
+        sl.onValueChanged = [this] (float) { repaint(); };
+        addAndMakeVisible (sl);
+    };
 
-    setupField (countLabel,   countSlider,   "layout.count",   1.0, (double) xoa::kMaxSpeakers, 1.0, 24.0);
-    setupField (radiusLabel,  radiusSlider,  "layout.radius",  0.5, 50.0, 0.1, xoa::defaults::kDefaultRigRadius);
-    setupField (heightLabel,  heightSlider,  "layout.height", -10.0, 10.0, 0.1, 0.0);
-    setupField (ringsLabel,   ringsSlider,   "layout.rings",   1.0, 12.0, 1.0, 3.0);
-    setupField (spacingLabel, spacingSlider, "layout.spacing", 0.2, 10.0, 0.1, 1.0);
+    setupField (countLabel, countSlider, "layout.count", 1.0, (double) xoa::kMaxSpeakers, 1.0, 24.0);
+    setupField (ringsLabel, ringsSlider, "layout.rings", 1.0, 12.0, 1.0, 3.0);
+    setupKitField (radiusSlider,  "layout.radius",  0.5f, 50.0f, (float) xoa::defaults::kDefaultRigRadius);
+    setupKitField (heightSlider,  "layout.height", -10.0f, 10.0f, 0.0f);
+    setupKitField (spacingSlider, "layout.spacing", 0.2f, 10.0f, 1.0f);
 
     applyButton.setButtonText (LOC ("common.apply"));
     applyButton.onClick = [this] { apply(); };
@@ -75,10 +82,10 @@ void SpeakerLayoutPanel::updateFieldVisibility()
     const bool isDome = preset == Preset::dome;
     const bool isGrid = preset == Preset::grid;
 
-    radiusLabel.setVisible (isRing || isDome);   radiusSlider.setVisible (isRing || isDome);
-    heightLabel.setVisible (isRing || isLine || isGrid); heightSlider.setVisible (isRing || isLine || isGrid);
+    radiusSlider.setVisible (isRing || isDome);
+    heightSlider.setVisible (isRing || isLine || isGrid);
     ringsLabel.setVisible (isDome);              ringsSlider.setVisible (isDome);
-    spacingLabel.setVisible (isGrid || isLine);  spacingSlider.setVisible (isGrid || isLine);
+    spacingSlider.setVisible (isGrid || isLine);
     countLabel.setVisible (! isGrid);            countSlider.setVisible (! isGrid);
     resized();
 }
@@ -184,12 +191,19 @@ void SpeakerLayoutPanel::resized()
         c.setBounds (r.reduced (0, px (2)));
         controls.removeFromTop (px (4));
     };
+    // Inline kit sliders carry their own label/value — full row width.
+    auto kitRow = [&] (juce::Component& c)
+    {
+        if (! c.isVisible()) return;
+        c.setBounds (controls.removeFromTop (rowH).reduced (0, px (2)));
+        controls.removeFromTop (px (4));
+    };
     row (presetLabel, presetCombo);
     row (countLabel, countSlider);
-    row (radiusLabel, radiusSlider);
-    row (heightLabel, heightSlider);
+    kitRow (radiusSlider);
+    kitRow (heightSlider);
     row (ringsLabel, ringsSlider);
-    row (spacingLabel, spacingSlider);
+    kitRow (spacingSlider);
     controls.removeFromTop (px (4));
     applyButton.setBounds (controls.removeFromTop (rowH).removeFromLeft (px (120)));
 }

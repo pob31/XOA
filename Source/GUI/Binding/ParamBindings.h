@@ -35,6 +35,7 @@
 #include "Parameters/XoaValueTreeState.h"
 #include "Parameters/XoaConstraints.h"
 #include "Localization/LocalizationManager.h"
+#include "GUI/Widgets/XoaSliderBase.h"
 #include "UiParameterDescriptors.h"
 
 namespace xoa::ui
@@ -64,6 +65,17 @@ struct ScopedParamGesture
     }
     XoaValueTreeState::ScopedDomain domain;
 };
+
+/** Style a companion exact-value editor (borderless, transparent — the WFS
+    "kit slider + TextEditor" pattern for typing exact values). */
+inline void styleValueEditor (juce::TextEditor& e)
+{
+    e.setColour (juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
+    e.setColour (juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    e.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    e.setJustification (juce::Justification::centredRight);
+    e.setSelectAllWhenFocused (true);
+}
 
 //==============================================================================
 class BindingSet
@@ -132,8 +144,47 @@ public:
         attach (id, channel, std::move (seed));
     }
 
+    /** Kit slider (any XoaSliderBase-derived widget). Range/skew from constraints
+        + descriptor, writes step-quantized, optional value label kept in sync. */
+    void bindKitSlider (XoaSliderBase& s, const juce::Identifier& id, int channel = -1,
+                        juce::Label* valueLabel = nullptr)
+    {
+        const auto* d = findDescriptor (id);
+        applyKitRangeAndSkew (s, id, d);
+        if (d != nullptr)
+            s.setTTSInfo (LOC (d->labelKey), unitText (d));
+
+        auto applying = std::make_shared<bool>(false);
+        const auto dom = d ? toStoreDomain (d->domain) : XoaValueTreeState::configDomain;
+        const juce::String txName = d ? LOC (d->labelKey) : id.toString();
+        const double step = (d != nullptr) ? d->step : 0.0;
+
+        s.onGestureStart = [this, dom, txName] { openGesture (dom, txName); };
+        s.onValueChanged = [this, id, channel, dom, step, d, valueLabel, applying] (float v)
+        {
+            if (*applying) return;
+            double val = (double) v;
+            if (step > 0.0)
+                val = std::round (val / step) * step;
+            writeNumber (dom, id, val, effChannel (channel));
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, val), juce::dontSendNotification);
+        };
+
+        auto seed = [this, &s, id, channel, d, valueLabel, applying]
+        {
+            const juce::ScopedValueSetter<bool> guard (*applying, true);
+            const double val = store.getFloatParameter (id, effChannel (channel));
+            s.setValue ((float) val);
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, val), juce::dontSendNotification);
+        };
+        attach (id, channel, std::move (seed));
+    }
+
     template <typename KitDial>
-    void bindDial (KitDial& dial, const juce::Identifier& id, int channel = -1)
+    void bindDial (KitDial& dial, const juce::Identifier& id, int channel = -1,
+                   juce::Label* valueLabel = nullptr)
     {
         const auto* d = findDescriptor (id);
         if (const auto* b = xoa::constraints::findBounds (id))
@@ -146,16 +197,21 @@ public:
         const juce::String txName = d ? LOC (d->labelKey) : id.toString();
 
         dial.onGestureStart = [this, dom, txName] { openGesture (dom, txName); };
-        dial.onValueChanged = [this, id, channel, dom, applying] (float v)
+        dial.onValueChanged = [this, id, channel, dom, d, valueLabel, applying] (float v)
         {
             if (*applying) return;
             writeNumber (dom, id, (double) v, effChannel (channel));
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, (double) v), juce::dontSendNotification);
         };
 
-        auto seed = [this, &dial, id, channel, applying]
+        auto seed = [this, &dial, id, channel, d, valueLabel, applying]
         {
             const juce::ScopedValueSetter<bool> guard (*applying, true);
-            dial.setValue (store.getFloatParameter (id, effChannel (channel)));
+            const double val = store.getFloatParameter (id, effChannel (channel));
+            dial.setValue ((float) val);
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, val), juce::dontSendNotification);
         };
         attach (id, channel, std::move (seed));
     }
@@ -284,6 +340,76 @@ public:
         attach (eqId, kCurrentChannel, std::move (seed));
     }
 
+    /** Kit slider on a speaker-EQ band (always current channel). */
+    void bindKitEqBand (XoaSliderBase& s, const juce::Identifier& eqId, int band,
+                        juce::Label* valueLabel = nullptr)
+    {
+        const auto* d = findDescriptor (eqId);
+        applyKitRangeAndSkew (s, eqId, d);
+        if (d != nullptr)
+            s.setTTSInfo (LOC (d->labelKey), unitText (d));
+
+        auto applying = std::make_shared<bool>(false);
+        const juce::String txName = d ? LOC (d->labelKey) : eqId.toString();
+        const double step = (d != nullptr) ? d->step : 0.0;
+
+        s.onGestureStart = [this, txName] { openGesture (XoaValueTreeState::speakersDomain, txName); };
+        s.onValueChanged = [this, eqId, band, step, d, valueLabel, applying] (float v)
+        {
+            if (*applying) return;
+            double val = (double) v;
+            if (step > 0.0)
+                val = std::round (val / step) * step;
+            writeEqScoped (band, eqId, val);
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, val), juce::dontSendNotification);
+        };
+
+        auto seed = [this, &s, eqId, band, d, valueLabel, applying]
+        {
+            const juce::ScopedValueSetter<bool> guard (*applying, true);
+            const double val = (double) store.getEqBandParameter (currentChannel, band, eqId);
+            s.setValue ((float) val);
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, val), juce::dontSendNotification);
+        };
+        attach (eqId, kCurrentChannel, std::move (seed));
+    }
+
+    /** Kit dial (XoaBasicDial) on a speaker-EQ band — the WFS EQ gain/Q pattern. */
+    template <typename KitDial>
+    void bindEqBandDial (KitDial& dial, const juce::Identifier& eqId, int band,
+                         juce::Label* valueLabel = nullptr)
+    {
+        const auto* d = findDescriptor (eqId);
+        if (const auto* b = xoa::constraints::findBounds (eqId))
+            dial.setRange ((float) b->min, (float) b->max);
+        if (d != nullptr)
+            dial.setTTSInfo (LOC (d->labelKey), unitText (d));
+
+        auto applying = std::make_shared<bool>(false);
+        const juce::String txName = d ? LOC (d->labelKey) : eqId.toString();
+
+        dial.onGestureStart = [this, txName] { openGesture (XoaValueTreeState::speakersDomain, txName); };
+        dial.onValueChanged = [this, eqId, band, d, valueLabel, applying] (float v)
+        {
+            if (*applying) return;
+            writeEqScoped (band, eqId, (double) v);
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, (double) v), juce::dontSendNotification);
+        };
+
+        auto seed = [this, &dial, eqId, band, d, valueLabel, applying]
+        {
+            const juce::ScopedValueSetter<bool> guard (*applying, true);
+            const double val = (double) store.getEqBandParameter (currentChannel, band, eqId);
+            dial.setValue ((float) val);
+            if (valueLabel != nullptr)
+                valueLabel->setText (formatValue (d, val), juce::dontSendNotification);
+        };
+        attach (eqId, kCurrentChannel, std::move (seed));
+    }
+
     //==========================================================================
     // Engine-backed attachments (not in the store; polled on the tab tick,
     // skipped while a gesture is live so a drag isn't fought by the poll).
@@ -297,6 +423,31 @@ public:
         {
             if (! slider.isMouseButtonDown())
                 slider.setValue (get(), juce::dontSendNotification);
+        });
+    }
+
+    /** Engine-backed kit slider: poll-refresh via refreshEngineBindings(), skipped
+        while a drag gesture is live. Caller sets range/skew explicitly (no store
+        bounds for engine values). */
+    void bindEngineKitValue (XoaSliderBase& s,
+                             std::function<double()> get, std::function<void(double)> set)
+    {
+        auto dragging = std::make_shared<bool>(false);
+        auto applying = std::make_shared<bool>(false);
+        s.onGestureStart = [dragging] { *dragging = true; };
+        s.onGestureEnd   = [dragging] { *dragging = false; };
+        s.onValueChanged = [set, applying] (float v)
+        {
+            if (! *applying)
+                set ((double) v);
+        };
+        engineRefreshers.push_back ([&s, get, dragging, applying]
+        {
+            if (! *dragging)
+            {
+                const juce::ScopedValueSetter<bool> guard (*applying, true);
+                s.setValue ((float) get());
+            }
         });
     }
 
@@ -411,6 +562,25 @@ private:
         if (d != nullptr)
             for (int i = 0; i < (int) d->enumKeys.size(); ++i)
                 combo.addItem (LOC (d->enumKeys[(size_t) i]), i + 1);
+    }
+
+    void applyKitRangeAndSkew (XoaSliderBase& s, const juce::Identifier& id, const UiDescriptor* d)
+    {
+        if (const auto* b = xoa::constraints::findBounds (id))
+        {
+            s.setRange ((float) b->min, (float) b->max);
+            if (d != nullptr && d->logSkew && b->min > 0.0)
+                s.setSkewMidPoint ((float) std::sqrt (b->min * b->max));
+        }
+    }
+
+    /** Value text for the kit widgets' companion labels: decimals derived from
+        the descriptor step, plus the localized unit suffix. */
+    static juce::String formatValue (const UiDescriptor* d, double v)
+    {
+        const double step = (d != nullptr) ? d->step : 0.0;
+        const int decimals = step >= 1.0 ? 0 : (step >= 0.1 ? 1 : 2);
+        return juce::String (v, decimals) + unitSuffix (d);
     }
 
     static juce::String unitText (const UiDescriptor* d)

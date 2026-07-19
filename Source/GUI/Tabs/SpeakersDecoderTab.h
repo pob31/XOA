@@ -24,6 +24,8 @@
 #include "TabPage.h"
 #include "../ChannelRail.h"
 #include "../Widgets/XoaBasicDial.h"
+#include "../Widgets/XoaStandardSlider.h"
+#include "../Widgets/XoaBidirectionalSlider.h"
 #include "../Layout/SpeakerLayoutPanel.h"
 #include "../Analysis/RvReMapComponent.h"
 #include "../../XoaConstants.h"
@@ -51,31 +53,40 @@ private:
     // Speaker detail
     juce::Slider     speakerCountSlider { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
     juce::TextEditor nameEditor;
-    juce::Slider     gainSlider, delaySlider;
-    juce::ToggleButton muteButton { "M" }, soloButton { "S" };
-    juce::Slider     posXSlider, posYSlider, posZSlider;
+    XoaStandardSlider gainSlider, delaySlider;
+    juce::TextEditor  gainEditor, delayEditor;
+    juce::TextButton  muteButton { "M" }, soloButton { "S" };   // latching (WFS style)
+    XoaBidirectionalSlider posXSlider, posYSlider, posZSlider;
+    juce::TextEditor  posXEditor, posYEditor, posZEditor;
     juce::ComboBox   coordModeCombo;
     juce::Label      posReadout;
 
-    // EQ (6 bands)
-    juce::ToggleButton eqEnabledButton { "EQ" };
+    // EQ (6 bands): freq kit slider + gain/Q/slope dials, each with a value
+    // readout (the WFS OutputsTab band-column pattern).
+    juce::TextButton eqEnabledButton { "EQ" };   // latching
     std::array<juce::ComboBox, xoa::kNumEqBands> eqShape;
-    std::array<juce::Slider,   xoa::kNumEqBands> eqFreq, eqGain, eqQ, eqSlope;
+    std::array<XoaStandardSlider, xoa::kNumEqBands> eqFreq;
+    std::array<XoaBasicDial, xoa::kNumEqBands> eqGain, eqQ, eqSlope;
+    std::array<juce::Label, xoa::kNumEqBands> eqFreqValue, eqGainValue, eqQValue, eqSlopeValue;
 
     // Decoder
     juce::ComboBox   decoderTypeCombo, weightingCombo, normalizationCombo;
-    juce::ToggleButton dualBandButton { "Dual-band" };
-    juce::Slider     crossoverSlider;
+    juce::TextButton dualBandButton { "Dual-band" };   // latching
+    XoaStandardSlider crossoverSlider;
+    juce::TextEditor  crossoverEditor;
     juce::Label      suggestionLabel, decoderStatusLabel;
     juce::TextButton rebuildButton;
 
     // Compensation + listener (D18)
     juce::ComboBox distanceModeCombo;
-    juce::Slider   listenerXSlider, listenerYSlider, listenerZSlider;
+    XoaBidirectionalSlider listenerXSlider, listenerYSlider, listenerZSlider;
+    juce::TextEditor listenerXEditor, listenerYEditor, listenerZEditor;
 
     // Test signal (engine-backed)
     juce::ComboBox testTypeCombo;
-    juce::Slider   testLevelSlider, testFreqSlider, testChannelSlider;
+    XoaStandardSlider testLevelSlider, testFreqSlider;
+    juce::Slider   testChannelSlider;
+    juce::Label    testLevelValue, testFreqValue;
     juce::Label    testInfoLabel;
 
     // Bottom-right area: layout preset panel / rV-rE analysis, switched by a toggle.
