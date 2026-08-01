@@ -61,8 +61,12 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
+      # --parallel with an explicit job count: bare `--parallel` hands gmake an
+      # UNBOUNDED -j, and JUCE 9's Debug TU set (gui_basics split five ways,
+      # harfbuzz, lunasvg — compiled once for the app and once for xoa-tests)
+      # OOM-killed the runner that way (run 30706142305).
       - name: Build (Debug)
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel "$(nproc)"
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
