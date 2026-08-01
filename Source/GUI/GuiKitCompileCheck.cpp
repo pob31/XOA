@@ -14,8 +14,12 @@
   ==============================================================================
 */
 
+#include "spatcore/ui/EQBandToggle.h"
+#include "spatcore/ui/EQDisplayComponent.h"
+
 #include "ColorScheme.h"
 #include "ColorUtilities.h"
+#include "EqDisplayStyle.h"
 #include "XoaLookAndFeel.h"
 #include "ColumnFocusTraverser.h"
 #include "StatusBar.h"
@@ -38,7 +42,6 @@
 #include "Widgets/XoaEndlessDial.h"
 #include "Widgets/CountdownTextButton.h"
 #include "Widgets/WrappingTextButton.h"
-#include "Widgets/EQBandToggle.h"
 #include "Widgets/LongPressButton.h"
 #include "Widgets/XoaLevelMeterBar.h"
 #include "Widgets/XoaThreadPerformanceBar.h"
