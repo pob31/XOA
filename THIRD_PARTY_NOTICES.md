@@ -12,8 +12,8 @@ licenses and copyright notices are reproduced or referenced below.
 - **Copyright**: Raw Material Software Limited
 
 The JUCE Framework modules are dual-licensed under the AGPLv3
-(https://www.gnu.org/licenses/agpl-3.0.en.html) and the commercial JUCE 8
-End User Licence Agreement (https://juce.com/legal/juce-8-licence/).
+(https://www.gnu.org/licenses/agpl-3.0.en.html) and the commercial JUCE 9
+End User Licence Agreement (https://juce.com/legal/juce-9-licence/).
 
 XOA uses JUCE under the AGPLv3, which is compatible with GPLv3.
 

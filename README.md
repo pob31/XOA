@@ -50,8 +50,8 @@ cd XOA
 ./tools/setup.sh   # idempotent; fixes a clone made without --recurse-submodules
 ```
 
-Submodules: `ThirdParty/JUCE` (JUCE 8), `ThirdParty/hidapi` (HID controller
-support) and `spatcore` (the shared engine, pinned to a released tag).
+Submodules: `ThirdParty/JUCE` (JUCE 9), `ThirdParty/hidapi` (HID controller
+support) and `spatcore` (the shared engine, pinned; see CLAUDE.md).
 `juce_simpleweb` and `roli_blocks_basics` are vendored under `ThirdParty/`.
 
 ### Configure and build

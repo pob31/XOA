@@ -24,7 +24,8 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
   spatcore's `cmake/SpatcoreConsumer.cmake` helper (see CMakeLists.txt).
   Dependency direction is strictly app → spatcore; never modify spatcore from
   here — changes go to the spatcore repo and arrive via a pin bump.
-- `ThirdParty/JUCE` — submodule (JUCE 8, same pin as WFS-DIY).
+- `ThirdParty/JUCE` — submodule (JUCE 9.0.0, tag `9.0.0`; ahead of WFS-DIY's
+  JUCE 8 pin).
 - `ThirdParty/hidapi` — submodule (headers for spatcore-controllers; static
   lib linked into the app via hidapi's own CMake).
 - `ThirdParty/juce_simpleweb`, `ThirdParty/roli_blocks_basics` — vendored JUCE

@@ -77,7 +77,7 @@ every experiment.
 
 ## 4. Roadmap
 
-- **P0 — Bootstrap (this repo state).** Submodules (JUCE 8.0.14 @2cdfca8f,
+- **P0 — Bootstrap (this repo state).** Submodules (JUCE 9.0.0 @f8f88641,
   spatcore @d1e6f66 post-v0.1.1, hidapi @0.15.0), vendored juce_simpleweb +
   roli_blocks_basics, CMake build (via spatcore's SpatcoreConsumer.cmake helper)
   of a minimal JUCE app linking spatcore-audio/-control/-controllers, GPLv3,
