@@ -18,7 +18,8 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to **v0.1.1**. rt/dsp/wfs/reverb/gpu +
+- `spatcore/` — **submodule**, pinned to **d1e6f66** (post-v0.1.1: GPU
+  node-parallel SDN, Max-port FR diffusion). rt/dsp/wfs/reverb/gpu +
   control (osc/state/mcp) + controllers. The CMake wiring comes from
   spatcore's `cmake/SpatcoreConsumer.cmake` helper (see CMakeLists.txt).
   Dependency direction is strictly app → spatcore; never modify spatcore from

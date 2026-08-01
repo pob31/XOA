@@ -37,7 +37,8 @@ M2 "the shoebox works" evidence is below in §WP7; the remaining check —
 listening validation on a real irregular rig (PRD §9) — is a developer step.
 
 **Milestone M1 reached** (WP0–WP6 done). The repo is a CMake-native spatcore
-v0.1.1 consumer with the full CPU Ambisonics chain: the parameter store +
+consumer (current pin: see CLAUDE.md) with the full CPU Ambisonics chain: the
+parameter store +
 XML project I/O (WP2), the SH math core (WP3), SO(3) rotation + mirror (WP4),
 the SAD/mode-matching decoder designer + rV/rE (WP5), and the RT bus engine —
 gather (convention + FR-7 order adaptation) → click-free SO(3) rotation →
