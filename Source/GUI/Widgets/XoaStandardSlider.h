@@ -65,8 +65,9 @@ protected:
             auto valueArea = bounds.removeFromRight (valueW);
             // bounds is now the track zone
 
-            // Draw label
-            g.setColour (juce::Colours::white.withAlpha (alpha));
+            // Draw label (palette text colour — a hardcoded white is invisible
+            // on the Light theme)
+            g.setColour (ColorScheme::get().textPrimary.withAlpha (alpha));
             g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * XoaLookAndFeel::uiScale)));
             g.drawText (labelText, labelArea.toNearestInt(), juce::Justification::centredLeft, false);
 

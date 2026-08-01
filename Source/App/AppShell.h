@@ -8,7 +8,9 @@
     drives a single 25 Hz refresh timer and the single decoder-rebuild callback
     (fanned out to the header status and the analysis/decoder surfaces). Preserves
     the WP9 headless entry points: `--osc` (control-replay) and a project path on
-    the command line; adds `--gui-smoke` (the xvfb CI GUI gate).
+    the command line; adds `--gui-smoke` (the xvfb CI GUI gate) plus
+    `--theme=<dark|oled|light>` and `--tab=<index>` (start in a given colour
+    scheme / on a given tab, for scripted visual checks).
 
     This file is part of XOA, released under the GNU General Public License
     v3.0. See LICENSE for details.

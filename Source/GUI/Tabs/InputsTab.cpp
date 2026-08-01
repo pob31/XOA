@@ -200,19 +200,22 @@ void InputsTab::resized()
     auto area = getLocalBounds().reduced (px (10));
 
     // Top strip
-    auto top = area.removeFromTop (px (28));
-    monoInputsButton.setBounds (top.removeFromLeft (px (130))); top.removeFromLeft (px (10));
+    auto top = area.removeFromTop (px (32));
+    monoInputsButton.setBounds (top.removeFromLeft (px (140))); top.removeFromLeft (px (10));
     stemFeedLabel.setBounds (top.removeFromLeft (px (48)));    top.removeFromLeft (px (4));
     stemFeedCombo.setBounds (top.removeFromLeft (px (130)));   top.removeFromLeft (px (16));
     inputCountLabel.setBounds (top.removeFromLeft (px (60)));  top.removeFromLeft (px (4));
-    inputCountSlider.setBounds (top.removeFromLeft (px (110)));
+    // Scale the text box so the +/- buttons keep a usable width (the default
+    // 80px box swallowed the row and left the buttons as slivers).
+    inputCountSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, px (56), px (26));
+    inputCountSlider.setBounds (top.removeFromLeft (px (150)));
     area.removeFromTop (px (8));
 
     // Rail (left) + detail (right)
     rail.setBounds (area.removeFromLeft (px (200)));
     area.removeFromLeft (px (12));
 
-    const int rowH = px (26);
+    const int rowH = px (30);
     const int labelW = px (120);
     int idx = 0;
     auto row = [&] (juce::Component& c)

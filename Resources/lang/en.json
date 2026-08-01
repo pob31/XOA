@@ -41,6 +41,7 @@
     "network": "Network",
     "inputs": "Inputs",
     "speakersDecoder": "Speakers & Decoder",
+    "eq": "EQ",
     "monitoring": "Monitoring",
     "map": "Map"
   },
@@ -82,6 +83,13 @@
     "stemsDevice": "Device inputs",
     "stemsTest": "Test feed",
     "nudge": "Nudge input"
+  },
+  "eq": {
+    "band": "Band",
+    "flatten": "Flatten",
+    "status": {
+      "off": "EQ OFF"
+    }
   },
   "speakers": {
     "speaker": "Speaker",

@@ -64,6 +64,15 @@ public:
 
     Surface getSurface() const noexcept { return surface; }
 
+    /** Themed main-panel fill shared by every tab surface — without it a tab
+        is transparent and shows the TabbedComponent's per-tab colour, which
+        does not follow theme switches. Tabs that already paint their whole
+        area (Map, Monitoring) override this and do their own fillAll. */
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (ColorScheme::get().background);
+    }
+
     /** Debug-only: every non-system parameter the registry places on this surface
         must be bound by a widget here. Runs in the xvfb smoke lane (Debug). */
     void verifyRegistryCoverage() const

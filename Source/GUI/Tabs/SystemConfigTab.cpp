@@ -90,6 +90,9 @@ SystemConfigTab::SystemConfigTab (AppContext& ctx) : TabPage (ctx, Surface::syst
 
     for (const auto& loc : LocalizationManager::getInstance().getAvailableLanguages())
         languageCombo.addItem (loc, languageCombo.getNumItems() + 1);
+    // Seed with the loaded locale — an empty combo reads as "no language set".
+    languageCombo.setText (LocalizationManager::getInstance().getCurrentLocale(),
+                           juce::dontSendNotification);
     languageCombo.onChange = [this]
     {
         LocalizationManager::getInstance().loadLanguage (languageCombo.getText());
@@ -172,7 +175,7 @@ void SystemConfigTab::resized()
         deviceSelector->setBounds (right.reduced (px (10), px (22)));
 
     auto& col = area;
-    const int rowH = px (26);
+    const int rowH = px (32);
     const int labelW = px (110);
 
     auto labelled = [&] (juce::Rectangle<int>& c, juce::Label& lab, juce::Component& ed, int edW)
@@ -185,32 +188,32 @@ void SystemConfigTab::resized()
     };
 
     {
-        auto g = col.removeFromTop (px (130));
+        auto g = col.removeFromTop (px (140));
         showGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (20));
-        labelled (inner, showNameLabel, showNameEditor, px (220));
+        auto inner = g.reduced (px (12), px (22));
+        labelled (inner, showNameLabel, showNameEditor, px (240));
         auto btns = inner.removeFromTop (rowH);
-        loadButton.setBounds (btns.removeFromLeft (px (100))); btns.removeFromLeft (px (6));
-        saveButton.setBounds (btns.removeFromLeft (px (100))); btns.removeFromLeft (px (6));
-        importButton.setBounds (btns.removeFromLeft (px (130)));
+        loadButton.setBounds (btns.removeFromLeft (px (120))); btns.removeFromLeft (px (8));
+        saveButton.setBounds (btns.removeFromLeft (px (120))); btns.removeFromLeft (px (8));
+        importButton.setBounds (btns.removeFromLeft (px (150)));
     }
     col.removeFromTop (px (8));
 
     {
-        auto g = col.removeFromTop (px (100));
+        auto g = col.removeFromTop (px (120));
         playbackGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (20));
-        labelled (inner, contentOrderLabel, contentOrderCombo, px (140));
-        labelled (inner, conventionLabel, conventionCombo, px (140));
+        auto inner = g.reduced (px (12), px (22));
+        labelled (inner, contentOrderLabel, contentOrderCombo, px (160));
+        labelled (inner, conventionLabel, conventionCombo, px (160));
     }
     col.removeFromTop (px (8));
 
     {
-        auto g = col.removeFromTop (px (100));
+        auto g = col.removeFromTop (px (120));
         appearanceGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (20));
-        labelled (inner, themeLabel, themeCombo, px (140));
-        labelled (inner, languageLabel, languageCombo, px (140));
+        auto inner = g.reduced (px (12), px (22));
+        labelled (inner, themeLabel, themeCombo, px (160));
+        labelled (inner, languageLabel, languageCombo, px (160));
     }
 }
 

@@ -16,6 +16,7 @@
 #include "../GUI/Tabs/NetworkTab.h"
 #include "../GUI/Tabs/InputsTab.h"
 #include "../GUI/Tabs/SpeakersDecoderTab.h"
+#include "../GUI/Tabs/EqTab.h"
 #include "../GUI/Tabs/MonitoringTab.h"
 #include "../GUI/Tabs/MapTab.h"
 #include "DSP/AmbiDecoderDesigner.h"
@@ -55,7 +56,8 @@ AppShell::AppShell (const juce::String& commandLine)
     addAndMakeVisible (tabs);
     addAndMakeVisible (statusBar);
 
-    const auto tabBg = ColorScheme::get().chromeBackground;
+    // Content-area fill behind each page; retinted in colorSchemeChanged().
+    const auto tabBg = ColorScheme::get().background;
 
     auto addRealTab = [this, tabBg] (const char* nameKey, TabPage* page)
     {
@@ -67,6 +69,7 @@ AppShell::AppShell (const juce::String& commandLine)
     addRealTab ("tabs.network",      new NetworkTab (context));
     addRealTab ("tabs.inputs",          new InputsTab (context));
     addRealTab ("tabs.speakersDecoder", new SpeakersDecoderTab (context));
+    addRealTab ("tabs.eq",              new EqTab (context));
     addRealTab ("tabs.monitoring",      new MonitoringTab (context));
     addRealTab ("tabs.map",             new MapTab (context));
 
@@ -124,8 +127,10 @@ void AppShell::refreshAllTabs()
 }
 
 // commandLine may carry a project path and/or the tokens "--osc" (force the OSC
-// receiver up, for the control-replay harness) and "--gui-smoke" (cycle the tabs
-// and quit, for the xvfb CI GUI gate). Anything else is ignored.
+// receiver up, for the control-replay harness), "--gui-smoke" (cycle the tabs
+// and quit, for the xvfb CI GUI gate), "--theme=<dark|oled|light>" and
+// "--tab=<index>" (start in a given colour scheme / on a given tab, so scripted
+// visual checks need no synthetic input). Anything else is ignored.
 void AppShell::applyStartupCommandLine (const juce::String& commandLine)
 {
     juce::StringArray tokens = juce::StringArray::fromTokens (commandLine, true);
@@ -137,6 +142,23 @@ void AppShell::applyStartupCommandLine (const juce::String& commandLine)
         const juce::String tok = raw.unquoted();
         if (tok == "--osc")             { forceOsc = true;  continue; }
         if (tok == "--gui-smoke")       { guiSmoke = true;  continue; }
+        if (tok.startsWith ("--theme="))
+        {
+            const auto t = tok.fromFirstOccurrenceOf ("=", false, false).trim().toLowerCase();
+            using ColorScheme::Theme;
+            ColorScheme::Manager::getInstance().setTheme (
+                t == "oled"  ? Theme::OLEDBlack
+              : t == "light" ? Theme::Light
+              :                Theme::Default);
+            continue;
+        }
+        if (tok.startsWith ("--tab="))
+        {
+            const int idx = tok.fromFirstOccurrenceOf ("=", false, false).trim().getIntValue();
+            if (idx >= 0 && idx < tabs.getNumTabs())
+                tabs.setCurrentTabIndex (idx);
+            continue;
+        }
         const juce::File f (tok);
         if (f.exists())
             applyLoadedProject (f);
@@ -172,7 +194,29 @@ void AppShell::timerCallback()
 
 void AppShell::colorSchemeChanged()
 {
-    repaint();
+    // Listener order is unspecified: re-apply the palette to the LookAndFeel
+    // first, so nothing below can re-read colours from the old theme.
+    if (auto* lnf = dynamic_cast<XoaLookAndFeel*> (&getLookAndFeel()))
+        lnf->updateFromColorScheme();
+
+    // The TabbedComponent fills the content area with the colour captured at
+    // addTab() time; retint every tab for the new palette.
+    const auto bg = ColorScheme::get().background;
+    for (int i = 0; i < tabs.getNumTabs(); ++i)
+        tabs.setTabBackgroundColour (i, bg);
+
+    // Recursive lookAndFeelChanged + repaint across the whole window.
+    sendLookAndFeelChange();
+
+    // ...then re-colour text already sitting in TextEditors, which
+    // sendLookAndFeelChange() does NOT restyle (see refreshEditorTextColours).
+    // The tab pages are walked INDIVIDUALLY: a TabbedComponent keeps only the
+    // visible page in the component tree, so walking `*this` alone would leave
+    // every background tab's editors holding the previous theme's text colour.
+    XoaLookAndFeel::refreshEditorTextColours (*this);
+    for (auto* t : tabPages)
+        if (t != nullptr)
+            XoaLookAndFeel::refreshEditorTextColours (*t);
 }
 
 //==============================================================================

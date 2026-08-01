@@ -77,6 +77,7 @@ target_sources(XOA PRIVATE
     Source/GUI/Tabs/NetworkTab.cpp
     Source/GUI/Tabs/InputsTab.cpp
     Source/GUI/Tabs/SpeakersDecoderTab.cpp
+    Source/GUI/Tabs/EqTab.cpp
     Source/GUI/Layout/SpeakerLayoutPanel.cpp
     Source/GUI/Map3D/Map3DView.cpp)
 

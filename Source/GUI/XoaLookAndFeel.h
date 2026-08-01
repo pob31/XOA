@@ -17,6 +17,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
+
 #include "ColorScheme.h"
 
 /**
@@ -451,9 +453,18 @@ public:
         g.drawText(button.getButtonText(), area, juce::Justification::centred, true);
     }
 
-    int getTabButtonBestWidth(juce::TabBarButton& /*button*/, int /*tabDepth*/) override
+    int getTabButtonBestWidth(juce::TabBarButton& button, int /*tabDepth*/) override
     {
-        // Return fixed width so all tabs are equal size.
+        // Equal-width tabs that FILL the bar: a fixed width leaves a dead
+        // stub after the last tab (or overflows into the "…" popup once the
+        // tab count grows), so divide the available bar width instead.
+        if (auto* bar = button.findParentComponentOfClass<juce::TabbedButtonBar>())
+        {
+            const int n = juce::jmax(1, bar->getNumTabs());
+            const int w = bar->getWidth() / n;
+            if (w > 0)
+                return w;
+        }
         return juce::jmax(140, static_cast<int>(220.0f * uiScale));
     }
 
@@ -474,6 +485,31 @@ public:
                 te->applyFontToAllText(font, true);
                 te->setJustification(juce::Justification::centredLeft);
             }
+    }
+
+    /** Re-colour existing TextEditor text throughout a component tree.
+     *
+     *  A TextEditor bakes the CURRENT text colour into each section as the text
+     *  is inserted, so neither a LookAndFeel colour change nor
+     *  sendLookAndFeelChange() restyles text that is already there. Without this,
+     *  switching to the Light theme leaves every populated editor rendering
+     *  near-white text on a white background (i.e. looking empty).
+     *  Called from AppShell::colorSchemeChanged() for the whole window.
+     */
+    static void refreshEditorTextColours(juce::Component& root)
+    {
+        const auto textColour = ColorScheme::get().textPrimary;
+
+        std::function<void (juce::Component&)> walk = [&] (juce::Component& c)
+        {
+            if (auto* te = dynamic_cast<juce::TextEditor*>(&c))
+                te->applyColourToAllText(textColour, true);
+
+            for (int i = 0; i < c.getNumChildComponents(); ++i)
+                if (auto* child = c.getChildComponent(i))
+                    walk(*child);
+        };
+        walk(root);
     }
 
 private:

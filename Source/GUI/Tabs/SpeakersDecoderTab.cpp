@@ -27,10 +27,9 @@ namespace xoa::ui
 
 SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface::speakersDecoder)
 {
-    for (auto* grp : { &speakerGroup, &eqGroup, &decoderGroup, &compGroup, &testGroup, &layoutGroup })
+    for (auto* grp : { &speakerGroup, &decoderGroup, &compGroup, &testGroup, &layoutGroup })
         addAndMakeVisible (*grp);
     speakerGroup.setText (LOC ("speakers.speaker"));
-    eqGroup.setText (LOC ("speakers.eq"));
     decoderGroup.setText (LOC ("speakers.decoder"));
     compGroup.setText (LOC ("speakers.comp"));
     testGroup.setText (LOC ("speakers.test"));
@@ -110,31 +109,7 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
     posReadout.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (posReadout);
 
-    // --- EQ (6 bands) ----------------------------------------------------
-    addAndMakeVisible (eqEnabledButton);
-    bindings.bindToggle (eqEnabledButton, ids::speakerEqEnabled, BindingSet::kCurrentChannel);
-    for (int b = 0; b < xoa::kNumEqBands; ++b)
-    {
-        const auto i = (size_t) b;
-        addAndMakeVisible (eqShape[i]);
-        bindings.bindEqBandCombo (eqShape[i], ids::eqShape, b);
-
-        eqFreq[i].setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::freq);
-        addAndMakeVisible (eqFreq[i]);
-        for (auto* d : { &eqGain[i], &eqQ[i], &eqSlope[i] })
-            addAndMakeVisible (*d);
-        for (auto* v : { &eqFreqValue[i], &eqGainValue[i], &eqQValue[i], &eqSlopeValue[i] })
-        {
-            v->setJustificationType (juce::Justification::centred);
-            v->setFont (juce::FontOptions (10.0f * XoaLookAndFeel::uiScale));
-            addAndMakeVisible (*v);
-        }
-
-        bindings.bindKitEqBand  (eqFreq[i],  ids::eqFrequency, b, &eqFreqValue[i]);
-        bindings.bindEqBandDial (eqGain[i],  ids::eqGain,      b, &eqGainValue[i]);
-        bindings.bindEqBandDial (eqQ[i],     ids::eqQ,         b, &eqQValue[i]);
-        bindings.bindEqBandDial (eqSlope[i], ids::eqSlope,     b, &eqSlopeValue[i]);
-    }
+    // (Per-speaker EQ moved to its own tab — see EqTab.)
 
     // --- Decoder ---------------------------------------------------------
     addLabel ("param.decoderType");
@@ -221,7 +196,6 @@ SpeakersDecoderTab::SpeakersDecoderTab (AppContext& ctx) : TabPage (ctx, Surface
 
     addLabel ("speakers.testChannel");
     testChannelSlider.setSliderStyle (juce::Slider::IncDecButtons);
-    testChannelSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 44, 18);
     testChannelSlider.setRange (0.0, (double) (xoa::kMaxSpeakers - 1), 1.0);
     addAndMakeVisible (testChannelSlider);
     bindings.bindEngineValue (testChannelSlider,
@@ -374,7 +348,7 @@ void SpeakersDecoderTab::resized()
     area.removeFromLeft (px (8));
     auto right = area;
 
-    const int rowH = px (24);
+    const int rowH = px (28);
     const int labelW = px (110);
     int li = 0;
     auto labelled = [&] (juce::Rectangle<int>& colr, juce::Component& c, int cw = 0)
@@ -397,18 +371,21 @@ void SpeakersDecoderTab::resized()
         colr.removeFromTop (px (3));
     };
 
-    // Left column
+    // Left column — the speaker group has the column to itself now that the
+    // EQ lives on its own tab.
     {
-        auto g = left.removeFromTop (px (330));
+        auto g = left;
         speakerGroup.setBounds (g);
-        auto in = g.reduced (px (10), px (18));
-        labelled (in, speakerCountSlider, px (110));
+        auto in = g.reduced (px (10), px (20));
+        speakerCountSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, px (56), px (24));
+        labelled (in, speakerCountSlider, px (150));
         labelled (in, nameEditor, px (200));
         labelledSlider (in, gainSlider, gainEditor);
         labelledSlider (in, delaySlider, delayEditor);
         auto ms = in.removeFromTop (rowH);
-        muteButton.setBounds (ms.removeFromLeft (px (60)));
-        soloButton.setBounds (ms.removeFromLeft (px (60)));
+        muteButton.setBounds (ms.removeFromLeft (px (70)));
+        ms.removeFromLeft (px (6));
+        soloButton.setBounds (ms.removeFromLeft (px (70)));
         in.removeFromTop (px (3));
         labelledSlider (in, posXSlider, posXEditor);
         labelledSlider (in, posYSlider, posYEditor);
@@ -416,38 +393,10 @@ void SpeakersDecoderTab::resized()
         labelled (in, coordModeCombo, px (140));
         posReadout.setBounds (in.removeFromTop (rowH));
     }
-    left.removeFromTop (px (6));
-    {
-        auto g = left;
-        eqGroup.setBounds (g);
-        auto in = g.reduced (px (10), px (18));
-        eqEnabledButton.setBounds (in.removeFromTop (rowH).removeFromLeft (px (80)));
-        in.removeFromTop (px (4));
-        const int bandW = juce::jmax (px (48), in.getWidth() / xoa::kNumEqBands);
-        const int valueH = px (13);
-        for (int b = 0; b < xoa::kNumEqBands; ++b)
-        {
-            const auto i = (size_t) b;
-            auto col = in.removeFromLeft (bandW).reduced (px (2), 0);
-            eqShape[i].setBounds (col.removeFromTop (rowH));
-            col.removeFromTop (px (2));
-            const int cellH = juce::jmax (px (40), col.getHeight() / 4);
-            auto cell = [&] (juce::Component& w, juce::Label& v)
-            {
-                auto c = col.removeFromTop (cellH);
-                v.setBounds (c.removeFromBottom (valueH));
-                w.setBounds (c);
-            };
-            cell (eqFreq[i],  eqFreqValue[i]);
-            cell (eqGain[i],  eqGainValue[i]);
-            cell (eqQ[i],     eqQValue[i]);
-            cell (eqSlope[i], eqSlopeValue[i]);
-        }
-    }
 
     // Right column
     {
-        auto g = right.removeFromTop (px (200));
+        auto g = right.removeFromTop (px (245));
         decoderGroup.setBounds (g);
         auto in = g.reduced (px (10), px (18));
         labelled (in, decoderTypeCombo, px (150));
@@ -463,7 +412,7 @@ void SpeakersDecoderTab::resized()
     }
     right.removeFromTop (px (6));
     {
-        auto g = right.removeFromTop (px (150));
+        auto g = right.removeFromTop (px (160));
         compGroup.setBounds (g);
         auto in = g.reduced (px (10), px (18));
         labelled (in, distanceModeCombo, px (150));
@@ -473,13 +422,14 @@ void SpeakersDecoderTab::resized()
     }
     right.removeFromTop (px (6));
     {
-        auto g = right.removeFromTop (px (150));
+        auto g = right.removeFromTop (px (190));
         testGroup.setBounds (g);
         auto in = g.reduced (px (10), px (18));
         labelled (in, testTypeCombo, px (140));
         labelledSlider (in, testLevelSlider, testLevelValue);
         labelledSlider (in, testFreqSlider, testFreqValue);
-        labelled (in, testChannelSlider, px (110));
+        testChannelSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, px (56), px (24));
+        labelled (in, testChannelSlider, px (150));
         testInfoLabel.setBounds (in.removeFromTop (rowH));
     }
     right.removeFromTop (px (6));

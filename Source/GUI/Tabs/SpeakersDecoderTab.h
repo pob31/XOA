@@ -61,13 +61,8 @@ private:
     juce::ComboBox   coordModeCombo;
     juce::Label      posReadout;
 
-    // EQ (6 bands): freq kit slider + gain/Q/slope dials, each with a value
-    // readout (the WFS OutputsTab band-column pattern).
-    juce::TextButton eqEnabledButton { "EQ" };   // latching
-    std::array<juce::ComboBox, xoa::kNumEqBands> eqShape;
-    std::array<XoaStandardSlider, xoa::kNumEqBands> eqFreq;
-    std::array<XoaBasicDial, xoa::kNumEqBands> eqGain, eqQ, eqSlope;
-    std::array<juce::Label, xoa::kNumEqBands> eqFreqValue, eqGainValue, eqQValue, eqSlopeValue;
+    // Per-speaker EQ lives on its own tab (EqTab) since the WFS-DIY-style
+    // EQ-graph surface landed there.
 
     // Decoder
     juce::ComboBox   decoderTypeCombo, weightingCombo, normalizationCombo;
@@ -96,7 +91,7 @@ private:
     void setBottomView (bool showAnalysis);
     std::uint64_t lastAnalysisGen = 0;
 
-    juce::GroupComponent speakerGroup, eqGroup, decoderGroup, compGroup, testGroup, layoutGroup;
+    juce::GroupComponent speakerGroup, decoderGroup, compGroup, testGroup, layoutGroup;
     juce::OwnedArray<juce::Label> labels;
 
     int currentSpeaker = 0;

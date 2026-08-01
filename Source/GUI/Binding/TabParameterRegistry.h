@@ -34,6 +34,7 @@ enum class Surface
     network,
     inputs,
     speakersDecoder,
+    eq,              // per-speaker EQ (WFS-DIY-style graph + band columns)
     monitoring,
     map
 };
@@ -101,12 +102,6 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::speakersDecoder, i::speakerPositionY },
         { Surface::speakersDecoder, i::speakerPositionZ },
         { Surface::speakersDecoder, i::speakerCoordinateMode },
-        { Surface::speakersDecoder, i::speakerEqEnabled },
-        { Surface::speakersDecoder, i::eqShape },
-        { Surface::speakersDecoder, i::eqFrequency },
-        { Surface::speakersDecoder, i::eqGain },
-        { Surface::speakersDecoder, i::eqQ },
-        { Surface::speakersDecoder, i::eqSlope },
         { Surface::speakersDecoder, i::decoderType },
         { Surface::speakersDecoder, i::decoderWeighting },
         { Surface::speakersDecoder, i::decoderNormalization },
@@ -116,6 +111,15 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::speakersDecoder, i::listenerX },
         { Surface::speakersDecoder, i::listenerY },
         { Surface::speakersDecoder, i::listenerZ },
+
+        // EQ tab: the per-speaker EQ moved off the Speakers surface when it
+        // gained the WFS-DIY-style graph + band-column layout.
+        { Surface::eq, i::speakerEqEnabled },
+        { Surface::eq, i::eqShape },
+        { Surface::eq, i::eqFrequency },
+        { Surface::eq, i::eqGain },
+        { Surface::eq, i::eqQ },
+        { Surface::eq, i::eqSlope },
     };
     return rows;
 }

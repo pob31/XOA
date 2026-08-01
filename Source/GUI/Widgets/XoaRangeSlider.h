@@ -143,7 +143,7 @@ protected:
         // Draw value labels
         if (showValues)
         {
-            g.setColour (juce::Colours::white.withAlpha (alpha));
+            g.setColour (ColorScheme::get().textPrimary.withAlpha (alpha));   // not hardcoded white: Light theme
             g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * XoaLookAndFeel::uiScale)));
 
             auto formatValue = [this] (float v) {

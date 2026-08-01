@@ -84,59 +84,68 @@ void NetworkTab::resized()
     auto px = [sc] (int v) { return juce::roundToInt ((float) v * sc); };
     auto area = getLocalBounds().reduced (px (12));
 
-    const int rowH = px (26);
-    const int labelW = px (120);
-    const int fieldW = px (200);
+    const int rowH = px (32);
+    const int rowGap = px (6);
+    const int labelW = px (130);
+    const int fieldW = px (220);
+    const int buttonW = px (220);
     int fieldLabelIdx = 0;
+
+    // Group frame sized FROM its row count — a fixed frame smaller than its
+    // content is how the old layout crushed its last rows into slivers.
+    const int groupPadTop = px (22), groupPadBottom = px (12), groupPadX = px (12);
+    auto groupHeight = [&] (int rows)
+    {
+        return groupPadTop + groupPadBottom + rows * rowH + (rows - 1) * rowGap;
+    };
 
     auto labelledRow = [&] (juce::Rectangle<int>& col, juce::Component& editor)
     {
         auto r = col.removeFromTop (rowH);
         if (fieldLabelIdx < fieldLabels.size())
             fieldLabels[fieldLabelIdx++]->setBounds (r.removeFromLeft (labelW));
-        r.removeFromLeft (px (4));
+        r.removeFromLeft (px (6));
         editor.setBounds (r.removeFromLeft (fieldW).reduced (0, px (2)));
-        col.removeFromTop (px (4));
+        col.removeFromTop (rowGap);
     };
-    // Latching buttons get a fixed width; full-row toggles read as bars.
     auto plainRow = [&] (juce::Rectangle<int>& col, juce::Component& c)
     {
-        c.setBounds (col.removeFromTop (rowH).removeFromLeft (px (180)).reduced (0, px (2)));
-        col.removeFromTop (px (4));
+        c.setBounds (col.removeFromTop (rowH).removeFromLeft (buttonW).reduced (0, px (2)));
+        col.removeFromTop (rowGap);
     };
 
-    // Receive group
+    // Receive group — 5 rows
     {
-        auto g = area.removeFromTop (px (170));
+        auto g = area.removeFromTop (groupHeight (5));
         receiveGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (20));
+        auto inner = g.reduced (groupPadX, 0).withTrimmedTop (groupPadTop).withTrimmedBottom (groupPadBottom);
         plainRow (inner, oscEnabledButton);
         labelledRow (inner, receivePortEditor);
         plainRow (inner, tcpEnabledButton);
         labelledRow (inner, tcpPortEditor);
         plainRow (inner, acceptAnyHostButton);
     }
-    area.removeFromTop (px (8));
+    area.removeFromTop (px (10));
 
-    // Send group
+    // Send group — 2 rows
     {
-        auto g = area.removeFromTop (px (86));
+        auto g = area.removeFromTop (groupHeight (2));
         sendGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (20));
+        auto inner = g.reduced (groupPadX, 0).withTrimmedTop (groupPadTop).withTrimmedBottom (groupPadBottom);
         labelledRow (inner, sendAddressEditor);
         labelledRow (inner, sendPortEditor);
     }
-    area.removeFromTop (px (8));
+    area.removeFromTop (px (10));
 
-    // Feedback group
+    // Feedback group — 2 rows
     {
-        auto g = area.removeFromTop (px (86));
+        auto g = area.removeFromTop (groupHeight (2));
         feedbackGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (20));
+        auto inner = g.reduced (groupPadX, 0).withTrimmedTop (groupPadTop).withTrimmedBottom (groupPadBottom);
         plainRow (inner, feedbackButton);
         plainRow (inner, meterButton);
     }
-    area.removeFromTop (px (8));
+    area.removeFromTop (px (10));
 
     rxStatusLabel.setBounds (area.removeFromTop (rowH));
 }

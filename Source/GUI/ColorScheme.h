@@ -89,8 +89,11 @@ namespace ColorScheme
         juce::Colour(0xFF252525),  // backgroundAlt
         juce::Colour(0xFF2A2A2A),  // surfaceCard
 
-        // Chrome
-        juce::Colours::darkgrey,   // chromeBackground
+        // Chrome — one step lighter than `background`, matching how the OLED
+        // and Light palettes separate chrome from the panels. (Was
+        // juce::Colours::darkgrey #555555: far lighter than everything else in
+        // this palette, which is what made the "dark" theme read as grey.)
+        juce::Colour(0xFF2A2A2A),  // chromeBackground
         juce::Colour(0xFF252525),  // chromeSurface
         juce::Colour(0xFF404040),  // chromeDivider
 
@@ -121,7 +124,7 @@ namespace ColorScheme
         juce::Colour(0xFF404040),  // listSelection
 
         // Tab bar
-        juce::Colours::darkgrey,   // tabBackground
+        juce::Colour(0xFF2A2A2A),  // tabBackground (see chromeBackground above)
         juce::Colour(0xFF4A90D9),  // tabSelected
         juce::Colour(0xFF3A3A3A),  // tabButtonNormal - darker, unselected
         juce::Colour(0xFF505050),  // tabButtonSelected - lighter, selected
