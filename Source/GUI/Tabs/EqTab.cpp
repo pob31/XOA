@@ -52,13 +52,14 @@ EqTab::EqTab (AppContext& ctx) : TabPage (ctx, Surface::eq)
     for (int b = 0; b < xoa::kNumEqBands; ++b)
     {
         const auto i = (size_t) b;
-        const auto colour = EQDisplayComponent::getBandColour (b);
+        const auto colour = spatcore::ui::EQDisplayComponent::getBandColour (b);
 
         bandLabel[i].setText (LOC ("eq.band") + " " + juce::String (b + 1), juce::dontSendNotification);
         bandLabel[i].setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (bandLabel[i]);   // colour applied by applyLabelColours()
 
         bandToggle[i].setBandColour (colour);
+        bandToggle[i].colourProvider = [] { return xoa::speakerEqToggleColours(); };
         bandToggle[i].onClick = [this, b]
         {
             if (bandToggle[(size_t) b].getToggleState())
@@ -140,7 +141,7 @@ void EqTab::applyLabelColours()
     {
         const auto i = (size_t) b;
         bandLabel[i].setColour (juce::Label::textColourId,
-                                EQDisplayComponent::getBandColour (b));   // band rainbow: theme-invariant
+                                spatcore::ui::EQDisplayComponent::getBandColour (b));   // band rainbow: theme-invariant
         for (auto* l : { &gainHdr[i], &qHdr[i], &slopeHdr[i] })
             l->setColour (juce::Label::textColourId, secondary);
     }
@@ -165,8 +166,12 @@ void EqTab::rebuildDisplay()
     if (! eqTree.isValid())
         return;
 
-    display = std::make_unique<EQDisplayComponent> (eqTree, xoa::kNumEqBands,
-                                                    EQDisplayConfig::forSpeakerEQ());
+    display = std::make_unique<spatcore::ui::EQDisplayComponent> (eqTree, xoa::kNumEqBands,
+                                                                  xoa::makeSpeakerEQConfig());
+    // XOA persists every edit itself, through the store's scoped-undo / band
+    // seam in writeBand(). Without this the shared component would ALSO write
+    // the tree directly (its default), double-writing and bypassing that seam.
+    display->ownerPersistsValue = true;
     display->onParameterChanged = [this] (int band, const juce::Identifier& id, const juce::var& v)
     {
         writeBand (band, id, v);

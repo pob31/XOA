@@ -105,6 +105,7 @@ target_link_libraries(XOA PRIVATE
     spatcore-audio
     spatcore-control
     spatcore-controllers
+    spatcore-ui
     hidapi::hidapi
     juce::juce_audio_utils
     juce::juce_gui_extra

@@ -2,12 +2,11 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
-#include <array>
 #include <cstdint>
 #include <vector>
 
 #include "spatcore/dsp/DelayTargetSmoother.h"
-#include "spatcore/dsp/OutputEQBiquadFilter.h"
+#include "spatcore/dsp/MultiChannelEQBank.h"
 #include "spatcore/rt/RtSnapshot.h"
 
 #include "XoaConstants.h"
@@ -25,12 +24,14 @@
 //              mute-move-unmute envelope). Target arrives in MILLISECONDS via
 //              the RtSnapshot and is converted to samples here, so a device
 //              restart at a new rate needs no message-side recompose.
-//   EQ         6x OutputEQBiquadFilter in series (Audio EQ Cookbook), ported
-//              from WFS-DIY's OutputEQProcessor. Coefficients are pushed from
-//              the message thread via setEqParameters() under benign-staleness
-//              (the biquad short-circuits no-change), the production-proven WFS
-//              pattern: at worst a torn coefficient read causes a one-tick
-//              transient, never a fault.
+//   EQ         one spatcore::dsp::MultiChannelEQBank<kNumEqBands> - the shared
+//              per-channel bank of 6 cookbook biquads in series that WFS-DIY's
+//              OutputEQProcessor and this stage both used to hand-roll.
+//              Coefficients are pushed from the message thread via
+//              setEqParameters() under benign-staleness (the biquad
+//              short-circuits no-change), the production-proven WFS pattern: at
+//              worst a torn coefficient read causes a one-tick transient, never
+//              a fault.
 //   Gain       one juce::SmoothedValue per output ramps trim x distance-atten x
 //              mute/solo (already folded control-side into a single linear gain)
 //              across the block - click-free mute/solo.
@@ -75,16 +76,13 @@ public:
 
         delayLines.assign ((size_t) numChannels, DelayLine {});
         smoothers.assign ((size_t) numChannels, spatcore::dsp::DelayTargetSmoother {});
-        eqBanks.assign ((size_t) numChannels, EqBank {});
-        eqEnabled.assign ((size_t) numChannels, (juce::uint8) 0);
+        eqBank.prepare (sampleRate, numChannels);
         gainSmoothers.assign ((size_t) numChannels, juce::SmoothedValue<float> {});
 
         for (int c = 0; c < numChannels; ++c)
         {
             delayLines[(size_t) c].prepare (delayCapacity);
             smoothers[(size_t) c].prepare (windowSamples);
-            for (auto& f : eqBanks[(size_t) c])
-                f.prepare (sampleRate);
             auto& g = gainSmoothers[(size_t) c];
             g.reset (sampleRate, 0.020);            // 20 ms gain ramp
             g.setCurrentAndTargetValue (1.0f);       // start settled -> neutral
@@ -95,8 +93,7 @@ public:
     {
         delayLines.clear();
         smoothers.clear();
-        eqBanks.clear();
-        eqEnabled.clear();
+        eqBank.prepare (sampleRate, 0);   // the bank's equivalent of .clear()
         gainSmoothers.clear();
         numChannels = 0;
         snapshot = nullptr;
@@ -106,8 +103,7 @@ public:
     {
         for (auto& dl : delayLines) dl.reset();
         for (auto& sm : smoothers)  sm.reset();
-        for (auto& bank : eqBanks)
-            for (auto& f : bank) f.reset();
+        eqBank.reset();
         samplePos = 0;
     }
 
@@ -120,14 +116,14 @@ public:
         const int n = juce::jmin (eq.numSpeakers, numChannels);
         for (int c = 0; c < n; ++c)
         {
-            eqEnabled[(size_t) c] = eq.enabled[c] ? (juce::uint8) 1 : (juce::uint8) 0;
-            auto& bank = eqBanks[(size_t) c];
+            // Enable flag FIRST: the bank forces shape 0 (OFF) on every band of a
+            // disabled channel itself, so pushing the bands first would latch the
+            // previous enable state for one tick (the bank's ordering contract).
+            eqBank.setChannelEnabled (c, eq.enabled[c]);
             for (int b = 0; b < xoa::kNumEqBands; ++b)
             {
                 const auto& bp = eq.bands[c][b];
-                // Disabled channel -> every band forced to OFF (shape 0).
-                const int shape = eq.enabled[c] ? bp.shape : 0;
-                bank[(size_t) b].setParameters (shape, bp.freq, bp.gainDb, bp.q, bp.slope);
+                eqBank.pushBandParameters (c, b, bp.shape, bp.freq, bp.gainDb, bp.q, bp.slope);
             }
         }
     }
@@ -167,10 +163,9 @@ public:
                 dl.advance();
             }
 
-            // 6-band EQ in series (each biquad no-ops when shape 0).
-            if (eqEnabled[(size_t) c] != 0)
-                for (auto& f : eqBanks[(size_t) c])
-                    f.processBlock (data, numSamples);
+            // 6-band EQ in series (no-op on a disabled channel, and each biquad
+            // additionally no-ops when shape 0).
+            eqBank.processChannel (c, data, numSamples);
 
             // Gain ramp: trim x distance atten x mute/solo.
             auto& g = gainSmoothers[(size_t) c];
@@ -243,8 +238,6 @@ private:
         int writePos = 0;
     };
 
-    using EqBank = std::array<spatcore::dsp::OutputEQBiquadFilter, xoa::kNumEqBands>;
-
     double sampleRate = 48000.0;
     int    numChannels = 0;
     int    delayCapacity = 0;
@@ -255,8 +248,7 @@ private:
 
     std::vector<DelayLine> delayLines;
     std::vector<spatcore::dsp::DelayTargetSmoother> smoothers;
-    std::vector<EqBank> eqBanks;
-    std::vector<juce::uint8> eqEnabled;   // uint8 avoids vector<bool> proxy
+    spatcore::dsp::MultiChannelEQBank<xoa::kNumEqBands> eqBank;
     std::vector<juce::SmoothedValue<float>> gainSmoothers;
 };
 

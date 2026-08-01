@@ -4,8 +4,9 @@
     XOA — tenth-order Ambisonics spatial audio processor.
     EqTab — dedicated per-speaker EQ surface, mirroring WFS-DIY's Output-EQ
     screen: speaker rail, EQ enable + flatten row, the interactive response
-    graph (EQDisplayComponent), and one colour-coded column per band with
-    toggle / shape / reset, frequency slider and gain-Q-slope dials.
+    graph (the shared spatcore::ui::EQDisplayComponent), and one colour-coded
+    column per band with toggle / shape / reset, frequency slider and
+    gain-Q-slope dials.
 
     This file is part of XOA, released under the GNU General Public License
     v3.0. See LICENSE for details.
@@ -18,10 +19,12 @@
 #include <array>
 #include <memory>
 
+#include "spatcore/ui/EQBandToggle.h"
+#include "spatcore/ui/EQDisplayComponent.h"
+
 #include "TabPage.h"
 #include "../ChannelRail.h"
-#include "../EQDisplayComponent.h"
-#include "../Widgets/EQBandToggle.h"
+#include "../EqDisplayStyle.h"
 #include "../Widgets/LongPressButton.h"
 #include "../Widgets/XoaBasicDial.h"
 #include "../Widgets/XoaStandardSlider.h"
@@ -58,10 +61,10 @@ private:
     juce::TextButton eqEnabledButton { "EQ" };            // latching (speakerEqEnabled)
     LongPressButton  flattenButton;                       // long-press: reset every band
 
-    std::unique_ptr<EQDisplayComponent> display;
+    std::unique_ptr<spatcore::ui::EQDisplayComponent> display;
 
     std::array<juce::Label,        xoa::kNumEqBands> bandLabel;
-    std::array<EQBandToggle,       xoa::kNumEqBands> bandToggle;
+    std::array<spatcore::ui::EQBandToggle, xoa::kNumEqBands> bandToggle;
     std::array<LongPressButton,    xoa::kNumEqBands> bandReset;
     std::array<juce::ComboBox,     xoa::kNumEqBands> eqShape;
     std::array<XoaStandardSlider,  xoa::kNumEqBands> eqFreq;
