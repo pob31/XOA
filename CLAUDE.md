@@ -18,11 +18,12 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to **8296f28** (post-v0.1.1: GPU
+- `spatcore/` — **submodule**, pinned to **00ea5d8** (post-v0.1.1: GPU
   node-parallel SDN, Max-port FR diffusion, MCP protocol negotiation, the
-  shared EQ). rt/dsp/wfs/reverb/gpu +
-  control (osc/state/mcp) + controllers + ui. The audio device layer (`io/`,
-  target `spatcore-io`) landed later, at `8e0d7e6`, and is **not** in this pin —
+  shared EQ, the `spatcore::io` device layer (`io/`, target `spatcore-io`),
+  and the shared patch matrix (`ui/patch/`)). rt/dsp/wfs/reverb/gpu +
+  control (osc/state/mcp) + controllers + ui + io. Adopting the io layer and
+  patch window in XOA:
   see `Documentation/XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md`. The CMake wiring comes from
   spatcore's `cmake/SpatcoreConsumer.cmake` helper (see CMakeLists.txt).
   Dependency direction is strictly app → spatcore; never modify spatcore from
