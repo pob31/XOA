@@ -195,6 +195,36 @@ Recorded here so no work package has to re-litigate them.
   listener position (the directional correction) and listener position via
   PSN/RTTrP tracker profiles (D3).
 
+**Device-layer adoption (D35–D40)** — stage 1 of
+`XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md` (spatcore::io), post-WP, off the v1
+critical path.
+
+- **D35 — `AudioEngine` implements `juce::AudioSource` directly** (no adapter
+  object). WFS-DIY kept `AudioAppComponent` only to inherit its
+  `deviceManager`; XOA has no such constraint, and the old callback body was
+  already `getNextAudioBlock`-shaped.
+- **D36 — Indexing: handoff §5.3 option A now, option B when stage 2 lands.**
+  Meters and `prepare` counts stay speaker-ordinal-indexed, valid only while
+  the channel masks are contiguous from bit 0 — which `DeviceHost`'s
+  enable-all policy guarantees. Asserted
+  (`jassert (map.isIdentityMapping())` in `prepareToPlay`) so a
+  non-contiguous mask fails loudly instead of misrouting. The stage-2 patch
+  window re-indexes meters by hardware channel (option B) when it arrives.
+- **D37 — The addressing ceiling is `xoa::kMaxHardwareChannels = 512` in
+  `XoaConstants.h`** — the one home for the number handed to `DeviceHost` and
+  `DeviceIoCallback`. A ceiling, not an allocation; distinct from
+  `kMaxSpeakers` (decoder clamp) and `kMaxInputs` (stem count), which keep
+  their meanings.
+- **D38 — `SpeakerId` is owned by spatcore** (spatcore PR #8): ported verbatim
+  into `spatcore::io::TestSignalGenerator`, enum member appended last so
+  consumer ordinals hold. XOA's forked generator becomes a `using` alias once
+  the PR merges and the pin moves past it.
+- **D39 (open) — `DeviceHost` sample-rate/buffer-size/reset setters**: wanted
+  before XOA's stage-2 device panel exists so mask-safety is enforced rather
+  than assumed (WFS-DIY still has three direct `setAudioDeviceSetup` sites).
+  Small spatcore change; take it with stage 2.
+- **D40 — spatcore pins stay bare SHAs**; no v0.2.0 tag gate for the io layer.
+
 ---
 
 ## 5. Work packages

@@ -31,6 +31,13 @@ static_assert (kNumSHChannels == 121, "10th-order Ambisonics carries 121 SH chan
 
 constexpr int kMaxInputs       = 64;
 constexpr int kMaxSpeakers     = 256;
+
+/** Hardware-channel addressing ceiling handed to spatcore::io (DeviceHost's
+    mask policy and DeviceIoCallback's buffer span). A ceiling, not an
+    allocation — masks are built from the device's real channel counts and only
+    clamped to it (D37). Distinct from kMaxSpeakers: the ceiling bounds what
+    the device may open, the clamp bounds how many speakers the decoder feeds. */
+constexpr int kMaxHardwareChannels = 512;
 constexpr int kDefaultInputs   = 8;
 constexpr int kDefaultSpeakers = 24;   // the M1 24-ring validation fixture
 

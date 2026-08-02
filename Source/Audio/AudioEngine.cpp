@@ -104,11 +104,14 @@ void AudioEngine::openAudioDevice()
     std::unique_ptr<juce::XmlElement> savedXml =
         saved.isNotEmpty() ? juce::parseXML (saved) : nullptr;
 
-    // WP8: open device INPUTS too (identity-mapped to encoder stems). Hardware
-    // with fewer inputs opens what it has; numInputChannels reflects the actual.
-    deviceManager.initialise (xoa::kMaxInputs, xoa::kMaxSpeakers, savedXml.get(), true);
+    // Restore through DeviceHost so every mutation writes explicit channel
+    // masks with JUCE's useDefault*Channels flags cleared — without that,
+    // setAudioDeviceSetup silently substitutes range(0, count) and the state
+    // XML can never round-trip a channel selection (handoff §2.2). The policy
+    // opens EVERY channel the device has, up to kMaxHardwareChannels.
+    lastDeviceError = deviceHost.restoreFromXml (savedXml.get(), true);
     deviceManager.addChangeListener (this);
-    deviceManager.addAudioCallback (this);
+    deviceManager.addAudioCallback (&ioCallback);   // once — the manager re-arms it across device changes
     callbackRegistered = true;
 
     // Bring the encoder engine to the device's sample rate / rig radius and keep
@@ -122,7 +125,9 @@ void AudioEngine::closeAudioDevice()
     if (callbackRegistered)
     {
         calcEngine.stopTicking();
-        deviceManager.removeAudioCallback (this);
+        // Blocks until the audio thread has left the callback — must stay
+        // ahead of destroying anything getNextAudioBlock touches.
+        deviceManager.removeAudioCallback (&ioCallback);
         deviceManager.removeChangeListener (this);
         callbackRegistered = false;
 
@@ -334,6 +339,13 @@ void AudioEngine::syncCalcEngineToDevice()
 //==============================================================================
 void AudioEngine::changeListenerCallback (juce::ChangeBroadcaster*)
 {
+    // Re-assert the enable-all mask policy after any device change — e.g. one
+    // made through the stock selector in SystemConfigTab, which knows nothing
+    // of DeviceHost. No-ops when the setup already matches, so the change
+    // broadcast this can itself trigger terminates immediately.
+    if (auto err = deviceHost.enableAllChannels(); err.isNotEmpty())
+        lastDeviceError = err;
+
     if (auto xml = deviceManager.createStateXml())
         store.setParameterWithoutUndo (ids::audioDeviceState, xml->toString());
 
@@ -343,11 +355,17 @@ void AudioEngine::changeListenerCallback (juce::ChangeBroadcaster*)
 }
 
 //==============================================================================
-void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
+void AudioEngine::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
-    const double sr = device->getCurrentSampleRate();
-    const int block = device->getCurrentBufferSizeSamples();
-    const int outLatency = device->getOutputLatencyInSamples();
+    const double sr = sampleRate;
+    const int block = samplesPerBlockExpected;
+
+    // The AudioSource signature carries only rate and block size; everything
+    // else comes off the device / DeviceHost — and NEVER off the io buffer,
+    // whose width is the hardware span, not the speaker count (§5.2).
+    int outLatency = 0;
+    if (auto* device = deviceManager.getCurrentAudioDevice())
+        outLatency = device->getOutputLatencyInSamples();
 
     deviceSampleRate.store (sr, std::memory_order_relaxed);
     deviceBlockSize.store (block, std::memory_order_relaxed);
@@ -356,11 +374,25 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     measuredLatencyMs.store (sr > 0.0 ? (double) (outLatency + block) / sr * 1000.0 : 0.0,
                              std::memory_order_relaxed);
 
+    // Stage-1 indexing contract (D36, option A): the masks are contiguous from
+    // bit 0 — DeviceHost's enable-all policy writes range(0, N) — so buffer
+    // row == stem index == speaker ordinal throughout. Assert it so a
+    // non-contiguous mask (possible once the stage-2 patch window can deselect
+    // channels) fails loudly here instead of silently misrouting audio.
+    jassert (ioCallback.getChannelMap().isIdentityMapping());
+
+    // Counts are counts, not index bounds — the two agree only under the
+    // contiguity asserted above (§5.3). Outputs clamp to the decoder ceiling;
+    // hardware channels past it stay open but are fed silence.
+    const int numIn  = juce::jmin (deviceHost.getNumActiveInputs(), xoa::kMaxInputs);
+    const int numOut = juce::jmin (deviceHost.getNumActiveOutputs(), xoa::kMaxSpeakers);
+    numActiveInputs.store (numIn, std::memory_order_relaxed);
+    numActiveOutputs.store (numOut, std::memory_order_relaxed);
+
     inputScratch.setSize (xoa::kMaxFileChannels, block, false, false, true);
     stemScratch.setSize (xoa::kMaxInputs, block, false, false, true);
     filePlayer.prepareToPlay (sr, block);
 
-    const int numOut = device->getActiveOutputChannels().countNumberOfSetBits();
     algorithm.prepare (xoa::kNumSHChannels, numOut, sr, block,
                        &decoderBuilder, &rotationSnapshot, &busParamsSnapshot, true,
                        calcEngine.encodeMatrix(), calcEngine.nfcCoeffs(), &calcEngine.encoderSource());
@@ -374,48 +406,56 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     testSignal.prepare (sr, block);
 }
 
-void AudioEngine::audioDeviceStopped()
+void AudioEngine::releaseResources()
 {
     algorithm.releaseResources();
     speakerComp.releaseResources();
     filePlayer.releaseResources();
     deviceSampleRate.store (0.0, std::memory_order_relaxed);
     deviceBlockSize.store (0, std::memory_order_relaxed);
+    numActiveInputs.store (0, std::memory_order_relaxed);
+    numActiveOutputs.store (0, std::memory_order_relaxed);
 }
 
-void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
-                                                    int numInputChannels,
-                                                    float* const* outputChannelData,
-                                                    int numOutputChannels,
-                                                    int numSamples,
-                                                    const juce::AudioIODeviceCallbackContext& context)
+void AudioEngine::getNextAudioBlock (const juce::AudioSourceChannelInfo& info)
 {
-    juce::ignoreUnused (context);
-
     juce::ScopedNoDenormals noDenormals;
 
-    juce::AudioBuffer<float> outBuf (outputChannelData, numOutputChannels, numSamples);
+    // The io buffer is HARDWARE-indexed: row h is hardware channel h, spanning
+    // max(highest in, highest out)+1 channels — NOT the speaker count (§5.2).
+    // DeviceIoCallback always fills from sample 0.
+    juce::AudioBuffer<float>& ioBuf = *info.buffer;
+    jassert (info.startSample == 0);
+
+    const int numIn  = numActiveInputs.load (std::memory_order_relaxed);
+    // Clamp to the buffer width so a non-identity mapping (asserted against in
+    // prepareToPlay) degrades to short output rather than reading rows that do
+    // not exist.
+    const int numOut = juce::jmin (numActiveOutputs.load (std::memory_order_relaxed),
+                                   ioBuf.getNumChannels());
 
     // The input source writes into inputScratch, allocated to the block size
-    // reported at audioDeviceAboutToStart. JUCE's contract only varies the
-    // callback block downward (or restarts the device, which re-sizes the
-    // scratch), but AmbiBusAlgorithm defends against an over-size block, so the
-    // upstream scratch write must too: clamp the render to the scratch length
-    // and silence any tail we could not fill (defense-in-depth, no allocation).
-    const int n = juce::jmin (numSamples, inputScratch.getNumSamples());
-    if (n < numSamples)
-        outBuf.clear();
-
-    juce::AudioSourceChannelInfo info (&outBuf, 0, n);
+    // reported at prepareToPlay. DeviceIoCallback already clamps an over-size
+    // device block, but AmbiBusAlgorithm defends against one anyway, so the
+    // upstream scratch write keeps the same defense: clamp the render to the
+    // scratch length (defense-in-depth, no allocation).
+    const int n = juce::jmin (info.numSamples, inputScratch.getNumSamples());
 
     // Mono-encoder stems (WP8): device inputs (identity-mapped) or the internal
     // test feed. Filled whenever a source could exist, so the encoder's one-block
     // ramp-out on deactivation still has audio to fade. The RT stage gates on the
     // published numSources, so filling here when disabled is harmless.
+    //
+    // ORDER IS LOAD-BEARING (§5.1): a buffer row that is an active output
+    // aliases the device's own output storage, with the matching input copied
+    // into that same row before this call. Every input must therefore be read
+    // BEFORE anything writes an output — moving this gather below the decode
+    // would feed the encoder its own decoder output on every channel where a
+    // speaker and a microphone share a hardware index.
     const bool testStems = stemFeed.load (std::memory_order_relaxed) == StemFeed::test;
     const juce::AudioBuffer<float>* stemsPtr = nullptr;
     int numStems = 0;
-    if (testStems || numInputChannels > 0)
+    if (testStems || numIn > 0)
     {
         numStems = juce::jmin (xoa::kMaxInputs, stemScratch.getNumChannels());
         if (testStems)
@@ -435,8 +475,8 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
             for (int i = 0; i < numStems; ++i)
             {
                 float* d = stemScratch.getWritePointer (i);
-                if (i < numInputChannels && inputChannelData[i] != nullptr)
-                    juce::FloatVectorOperations::copy (d, inputChannelData[i], n);
+                if (i < numIn && i < ioBuf.getNumChannels())
+                    juce::FloatVectorOperations::copy (d, ioBuf.getReadPointer (i), n);
                 else
                     juce::FloatVectorOperations::clear (d, n);
             }
@@ -449,6 +489,16 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         inputPeak[(size_t) i].store (i < numStems ? stemScratch.getMagnitude (i, 0, n) : 0.0f,
                                      std::memory_order_relaxed);
 
+    // Everything downstream sees a speaker-width view of the io buffer (rows
+    // 0..numOut-1, valid under the identity mapping asserted in prepareToPlay)
+    // so the decode, comp, test signal and meters address speakers exactly as
+    // they always have — input-only rows above numOut are never touched.
+    juce::AudioBuffer<float> outBuf (ioBuf.getArrayOfWritePointers(), numOut, info.numSamples);
+    if (n < info.numSamples)
+        outBuf.clear();   // silence the whole block rather than emit a partial tail
+
+    juce::AudioSourceChannelInfo outInfo (&outBuf, 0, n);
+
     if (inputSource.load (std::memory_order_relaxed) == InputSource::testScene)
     {
         float* ptrs[xoa::kNumSHChannels];
@@ -456,19 +506,19 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
             ptrs[c] = inputScratch.getWritePointer (c);
         scene::renderScene (xoa::kAmbisonicOrder, sceneCounter, n,
                             deviceSampleRate.load (std::memory_order_relaxed), ptrs);
-        algorithm.processBlock (info, inputScratch, xoa::kNumSHChannels, numOutputChannels,
+        algorithm.processBlock (outInfo, inputScratch, xoa::kNumSHChannels, numOut,
                                 stemsPtr, numStems);
     }
     else
     {
         filePlayer.renderNextBlock (inputScratch, n);
-        algorithm.processBlock (info, inputScratch,
-                                fileNumChannels.load (std::memory_order_relaxed), numOutputChannels,
+        algorithm.processBlock (outInfo, inputScratch,
+                                fileNumChannels.load (std::memory_order_relaxed), numOut,
                                 stemsPtr, numStems);
     }
 
     // Per-speaker compensation (delay/EQ/gain) on the decoded output, in place.
-    speakerComp.processBlock (outBuf, numOutputChannels, n);
+    speakerComp.processBlock (outBuf, numOut, n);
 
     // Output test signal (FR-21), injected post-comp with replace-semantics on
     // its target channel(s) so it lands exactly where the meters read it.
@@ -476,9 +526,9 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
         testSignal.renderNextBlock (outBuf, 0, n);
 
     // Post-comp / post-test-signal block-peak meters (what leaves the device).
-    for (int s = 0; s < numOutputChannels && s < xoa::kMaxSpeakers; ++s)
+    for (int s = 0; s < numOut && s < xoa::kMaxSpeakers; ++s)
         outputPeak[(size_t) s].store (outBuf.getMagnitude (s, 0, n), std::memory_order_relaxed);
-    for (int s = juce::jmax (0, numOutputChannels); s < xoa::kMaxSpeakers; ++s)
+    for (int s = juce::jmax (0, numOut); s < xoa::kMaxSpeakers; ++s)
         outputPeak[(size_t) s].store (0.0f, std::memory_order_relaxed);
 
     sceneCounter += n;

@@ -6,6 +6,8 @@
 #include <atomic>
 #include <functional>
 
+#include "spatcore/io/DeviceHost.h"
+#include "spatcore/io/DeviceIoCallback.h"
 #include "spatcore/rt/RtSnapshot.h"
 
 #include "XoaConstants.h"
@@ -22,9 +24,14 @@
 #include "Parameters/XoaValueTreeState.h"
 
 //==============================================================================
-// XOA - the audio engine (WP6). Owns the device layer (spatcore deliberately
-// does not) and hosts the RT bus chain, wiring the store to it through three
-// message-thread controllers:
+// XOA - the audio engine (WP6). Owns the juce::AudioDeviceManager and hosts
+// the RT bus chain. Device open/restore policy and the device callback come
+// from spatcore::io: DeviceHost enforces explicit channel masks (JUCE's
+// useDefault*Channels flags would otherwise silently discard them and cap the
+// rig - handoff doc §2.2), and DeviceIoCallback drives this class as a
+// juce::AudioSource through a HARDWARE-INDEXED buffer (row h == hardware
+// channel h, inputs and outputs alike). The store is wired to the chain
+// through three message-thread controllers:
 //
 //   RotationPublisher     rotation params -> RtSnapshot<RotationRtState>
 //   BusParamsPublisher    master gain / playback params + input-source ->
@@ -42,7 +49,7 @@
 namespace xoa
 {
 
-class AudioEngine : private juce::AudioIODeviceCallback,
+class AudioEngine : private juce::AudioSource,
                     private juce::ChangeListener,
                     private juce::ValueTree::Listener,
                     private juce::Timer,
@@ -66,6 +73,7 @@ public:
     void closeAudioDevice();    // stop the callback, persist state
 
     juce::AudioDeviceManager& getDeviceManager() noexcept { return deviceManager; }
+    spatcore::io::DeviceHost& getDeviceHost()    noexcept { return deviceHost; }
     FilePlayer&               getFilePlayer()    noexcept { return filePlayer; }
     DecoderMatrixBuilder&     getDecoderBuilder() noexcept { return decoderBuilder; }
     TestSignalGenerator&      getTestSignalGenerator() noexcept { return testSignal; }
@@ -133,6 +141,11 @@ public:
     double getSampleRate() const noexcept { return deviceSampleRate.load (std::memory_order_relaxed); }
     int    getBlockSize()  const noexcept { return deviceBlockSize.load (std::memory_order_relaxed); }
 
+    /** Error string from the last device open / policy application (message
+        thread). Empty means the last operation succeeded — DeviceHost
+        guarantees a real failure reports a non-empty reason (handoff §5.5). */
+    const juce::String& getLastDeviceError() const noexcept { return lastDeviceError; }
+
     /** Invoked (message thread) after each decoder rebuild, for UI status. */
     std::function<void (const decoder::DesignResult&)> onDecoderRebuilt;
 
@@ -149,13 +162,13 @@ public:
 
 private:
     //==========================================================================
-    // juce::AudioIODeviceCallback
-    void audioDeviceIOCallbackWithContext (const float* const* inputChannelData, int numInputChannels,
-                                           float* const* outputChannelData, int numOutputChannels,
-                                           int numSamples,
-                                           const juce::AudioIODeviceCallbackContext& context) override;
-    void audioDeviceAboutToStart (juce::AudioIODevice* device) override;
-    void audioDeviceStopped() override;
+    // juce::AudioSource, driven by spatcore::io::DeviceIoCallback. The buffer
+    // handed to getNextAudioBlock is HARDWARE-indexed: row h is hardware
+    // channel h, and a row that is an active output aliases the device's own
+    // output storage with the matching input pre-copied into it (§5.1).
+    void getNextAudioBlock (const juce::AudioSourceChannelInfo& info) override;
+    void prepareToPlay (int samplesPerBlockExpected, double sampleRate) override;
+    void releaseResources() override;
 
     // juce::ChangeListener (device state persistence)
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
@@ -199,6 +212,15 @@ private:
     juce::ValueTree decoderSection;
 
     juce::AudioDeviceManager deviceManager;
+
+    // Open/restore policy and the device callback (spatcore::io). deviceHost
+    // holds only a reference to deviceManager; ioCallback drives this engine
+    // as the AudioSource. Both are bounded by the addressing ceiling, not the
+    // decoder clamp (kMaxSpeakers) — the ceiling is what the hardware masks
+    // may span, the clamp is how many speakers the decoder will feed.
+    spatcore::io::DeviceHost       deviceHost { deviceManager, xoa::kMaxHardwareChannels };
+    spatcore::io::DeviceIoCallback ioCallback { *this, xoa::kMaxHardwareChannels };
+
     FilePlayer               filePlayer;
     DecoderMatrixBuilder     decoderBuilder;
     AmbiCalculationEngine    calcEngine;   // control-side encoder (owns the live matrices)
@@ -241,6 +263,15 @@ private:
     std::atomic<double> measuredLatencyMs { 0.0 };
     std::atomic<double> deviceSampleRate { 0.0 };
     std::atomic<int>    deviceBlockSize { 0 };
+
+    // Active channel counts, written in prepareToPlay from the device masks
+    // and read in getNextAudioBlock. NEVER derived from the buffer width: the
+    // io buffer spans max(highest in, highest out)+1 hardware channels, so on
+    // a 64-in/6-out rig it is 64 wide while the speaker count is 6 (§5.2).
+    std::atomic<int> numActiveInputs { 0 };
+    std::atomic<int> numActiveOutputs { 0 };
+
+    juce::String lastDeviceError;   // message thread only
 
     juce::int64 sceneCounter = 0;   // audio-thread-owned scene sample position
     bool listenersRegistered = false;
