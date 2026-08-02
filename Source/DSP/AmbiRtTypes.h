@@ -128,6 +128,25 @@ static_assert (std::is_trivially_copyable_v<EncoderRtParams>,
                "EncoderRtParams must be a POD for RtSnapshot");
 static_assert (xoa::kMaxInputs <= 64, "EncoderRtParams::nfcMask is a 64-bit mask");
 
+/** All-mono encoder params: input i occupies stem row i, the pre-stage-2
+    contract. Use this rather than aggregate initialisation — brace-init
+    leaves stemOffset all-zero, which points every input at stem row 0. */
+inline EncoderRtParams makeMonoEncoderParams (int numSources, juce::uint64 nfcMask,
+                                              float referenceRadius, juce::uint32 epoch) noexcept
+{
+    EncoderRtParams p;
+    p.numSources      = numSources;
+    p.nfcMask         = nfcMask;
+    p.referenceRadius = referenceRadius;
+    p.epoch           = epoch;
+    for (int i = 0; i < xoa::kMaxInputs; ++i)
+    {
+        p.stemOffset[i] = i;
+        p.stemOrder[i]  = 0;
+    }
+    return p;
+}
+
 //==============================================================================
 // Composers (message thread; also compiled by the harness and tests).
 //==============================================================================

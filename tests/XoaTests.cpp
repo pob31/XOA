@@ -62,6 +62,7 @@ void runXoaLocalizationTests();
 void runXoaUiDescriptorTests();
 void runXoaLayoutGeneratorTests();
 void runXoaRvReViewTests();
+void runXoaPatchTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -134,6 +135,7 @@ int main()
         runXoaUiDescriptorTests();
         runXoaLayoutGeneratorTests();
         runXoaRvReViewTests();
+        runXoaPatchTests();
     }
     catch (const std::exception& e)
     {

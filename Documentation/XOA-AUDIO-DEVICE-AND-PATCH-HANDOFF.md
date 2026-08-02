@@ -16,10 +16,16 @@ device layer is additive.
 
 | Piece | Where | State |
 |---|---|---|
-| `spatcore::io` device layer | `spatcore/io/` on spatcore `main` | **AVAILABLE** — merged as `8e0d7e6` (PR #5), CI green on Windows/macOS/Linux |
+| `spatcore::io` device layer | `spatcore/io/` on spatcore `main` | **ADOPTED** by XOA (stage 1 complete, hardware acceptance pending) |
 | WFS-DIY consuming it | `feat/patch-diagnostics-512ch` in `d:/dev/WFS_DIY_v1` | **DONE, not yet merged** — the reference wiring to copy |
-| **Patch matrix** in `spatcore/ui/patch/` | `spatcore` branch `feat/shared-patch-matrix` | **AVAILABLE** — the scrollable grid, fully app-agnostic |
-| Patch tabs + Audio Interface window | app-side in WFS-DIY only | **DELIBERATELY NOT SHARED** — XOA builds its own shell. See §7 |
+| **Patch matrix** in `spatcore/ui/patch/` | spatcore `main` (pin `7d293e4`) | **ADOPTED** by XOA via `Source/GUI/Patch/XoaPatchMatrixShim.{h,cpp}` |
+| Patch tabs + Audio Interface window | app-side in WFS-DIY only | **NOT SHARED** — XOA built its own: `Source/GUI/Patch/AudioInterfaceWindow.{h,cpp}` |
+
+> **Status (2026-08-02).** Both stages are implemented on branch
+> `feat/spatcore-io-stage1`; decisions are recorded as D35–D47 in
+> `XOA-DEVPLAN.md`. Stage 2 additionally introduced per-input stem formats
+> (mono or an AmbiX group, D44) — not in the original scope below. What
+> remains is the §6 hardware acceptance pass.
 
 So this is a **two-stage** migration, and stage 1 does not depend on stage 2:
 

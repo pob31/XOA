@@ -225,6 +225,46 @@ critical path.
   Small spatcore change; take it with stage 2.
 - **D40 — spatcore pins stay bare SHAs**; no v0.2.0 tag gate for the io layer.
 
+**Patch window and multi-format stems (D41–D47)** — stage 2 of the same
+handoff: XOA adopts the shared `spatcore::ui::patch` matrix and builds its own
+shell, and an input stem stops being implicitly mono.
+
+- **D41 — Patching is transport-gated.** XOA has no processing on/off state
+  (the engine decodes whenever the device is open), so the file transport is
+  the gate: while it plays, the Audio Interface window stops its tones, drops
+  to Scrolling and disables its tabs behind a banner. Patching a live rig is
+  how speakers get destroyed; this is the closest equivalent to WFS-DIY's
+  processing gate that XOA's architecture affords.
+- **D42 — Both matrices ship.** Device Settings / Input Patch / Output Patch.
+  Stems stop being identity-mapped from device inputs, which is what makes an
+  interface whose mic lines do not start at channel 1 usable.
+- **D43 — The input matrix rows are FLATTENED stem channels**, one per channel
+  of every input's span, not one per input. The shared matrix is then used
+  untouched (its 1:1 constraint still means one hardware channel per row), and
+  an Ambisonic group may legitimately sit on non-contiguous hardware channels.
+  Rows are labelled `"<name> · ACN <k>"` and share their input's colour, so a
+  group reads as one block.
+- **D44 — `inputFormat` is Mono | HOA order 1–10**, AmbiX (ACN/SN3D) assumed —
+  no per-input convention in v1, matching the project-wide convention. A group
+  merges into the order-10 bus through `weights::orderAdaptGains` (zero-padded
+  upmix) times the input gain, composed into the SAME `liveMatrix` row the mono
+  path uses, so the RT contract (one 121-float row per input) is unchanged.
+  Position, spread, NFC and the conditioning dials are inert for groups and are
+  greyed in the Inputs tab.
+- **D45 — `kMaxStemChannels = 128`** bounds the sum of all input spans (one
+  order-10 group is 121). Over the ceiling, formats step down last-HOA-first.
+- **D46 — The test signal moved to the HARDWARE domain**, injected after the
+  output scatter, so the matrix's Testing mode can reach any open device output
+  including ones no speaker is patched to. Decode and per-speaker comp now run
+  on a speaker-domain scratch sized by the STORE's speaker count, decoupled
+  from the device output count.
+- **D47 — Clusters (linking several stems) are deferred.** Format is per-input
+  and nothing keys on a group's hardware channels being contiguous, so clusters
+  can layer on top without reopening D43/D44.
+
+D24 ("PatchMatrixComponent not ported; v1 keeps identity channel mapping") is
+superseded by D41–D46; the identity mapping survives only as the default patch.
+
 ---
 
 ## 5. Work packages
@@ -861,6 +901,8 @@ xvfb GUI-smoke gate green; all M1/M2/M3 offline baselines unchanged):
 
 **Decisions (D24–D34).**
 - **D24** — PatchMatrixComponent not ported; v1 keeps identity channel mapping.
+  **Superseded by D41–D46** (stage 2 adopts the shared matrix; identity
+  survives as the default patch).
 - **D25** — Network tab exposes the single OSC send-target only; multi-target → WP12.
 - **D26** — Localization ships EN + FR (minimal tier), proving the overlay scaffold.
 - **D27** — A persistent HeaderBar hosts transport/rotation/master/status; StatusBar
