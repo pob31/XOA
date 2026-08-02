@@ -62,12 +62,20 @@ SystemConfigTab::SystemConfigTab (AppContext& ctx) : TabPage (ctx, Surface::syst
     bindings.bindCombo (contentOrderCombo, ids::playbackContentOrder);
     bindings.bindCombo (conventionCombo, ids::playbackConvention);
 
-    // Audio device (audioDeviceState is persisted by the engine's device manager)
-    deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent> (
-        context.engine.getDeviceManager(),
-        0, xoa::kMaxInputs, 0, xoa::kMaxSpeakers,
-        false, false, false, false);
-    addAndMakeVisible (*deviceSelector);
+    // Audio device + patching live in the Audio Interface window (stage 2):
+    // every device mutation there routes through DeviceHost, which the stock
+    // selector could not do. audioDeviceState is still persisted by the
+    // engine's device manager.
+    audioInterfaceButton.setButtonText (LOC ("systemConfig.audioInterface"));
+    audioInterfaceButton.onClick = [this] { openAudioInterfaceWindow(); };
+    addAndMakeVisible (audioInterfaceButton);
+
+    deviceSummaryLabel.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (deviceSummaryLabel);
+
+    deviceErrorLabel.setJustificationType (juce::Justification::centredLeft);
+    deviceErrorLabel.setColour (juce::Label::textColourId, ColorScheme::accents::mute);
+    addAndMakeVisible (deviceErrorLabel);
 
     // Appearance: theme + language
     themeLabel.setText (LOC ("systemConfig.theme"), juce::dontSendNotification);
@@ -113,6 +121,34 @@ void SystemConfigTab::colorSchemeChanged()
 {
     themeCombo.setSelectedId (ColorScheme::getThemeIndex() + 1, juce::dontSendNotification);
     repaint();
+}
+
+void SystemConfigTab::openAudioInterfaceWindow()
+{
+    if (audioInterfaceWindow == nullptr)
+        audioInterfaceWindow = std::make_unique<AudioInterfaceWindow> (context);
+
+    audioInterfaceWindow->setVisible (true);
+    audioInterfaceWindow->toFront (true);
+}
+
+void SystemConfigTab::refresh()
+{
+    TabPage::refresh();
+
+    auto& engine = context.engine;
+    juce::String summary;
+    if (auto* device = engine.getDeviceManager().getCurrentAudioDevice())
+        summary << device->getName()
+                << "  ·  " << juce::String (device->getCurrentSampleRate() / 1000.0, 1) << " kHz"
+                << "  ·  " << device->getCurrentBufferSizeSamples() << " smp"
+                << "  ·  " << engine.getDeviceHost().getNumActiveInputs() << " in / "
+                << engine.getDeviceHost().getNumActiveOutputs() << " out";
+    else
+        summary = LOC ("audioPatch.info.noDevice");
+
+    deviceSummaryLabel.setText (summary, juce::dontSendNotification);
+    deviceErrorLabel.setText (engine.getLastDeviceError(), juce::dontSendNotification);
 }
 
 void SystemConfigTab::loadProjectDialog()
@@ -171,8 +207,14 @@ void SystemConfigTab::resized()
     auto right = area.removeFromRight (juce::jmax (px (280), area.getWidth() / 2));
     right.removeFromLeft (px (8));
     deviceGroup.setBounds (right);
-    if (deviceSelector != nullptr)
-        deviceSelector->setBounds (right.reduced (px (10), px (22)));
+    {
+        auto deviceArea = right.reduced (px (10), px (22));
+        audioInterfaceButton.setBounds (deviceArea.removeFromTop (px (34))
+                                            .removeFromLeft (px (220)));
+        deviceArea.removeFromTop (px (10));
+        deviceSummaryLabel.setBounds (deviceArea.removeFromTop (px (26)));
+        deviceErrorLabel.setBounds (deviceArea.removeFromTop (px (26)));
+    }
 
     auto& col = area;
     const int rowH = px (32);

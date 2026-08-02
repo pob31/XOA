@@ -126,6 +126,13 @@ void AudioEngine::openAudioDevice()
     deviceManager.addAudioCallback (&ioCallback);   // once — the manager re-arms it across device changes
     callbackRegistered = true;
 
+    // Seed the patch trees' active-channel counts from the device we just
+    // opened. The ChangeListener only fires on LATER changes, and a count of
+    // 0 disables the matrices' overflow gating entirely — so without this the
+    // patch window would offer channels the device never opened.
+    store.updateHardwareChannelCount (deviceHost.getNumActiveInputs(),
+                                      deviceHost.getNumActiveOutputs());
+
     // Bring the encoder engine to the device's sample rate / rig radius and keep
     // its live matrices fresh at 50 Hz while the device is open.
     syncCalcEngineToDevice();

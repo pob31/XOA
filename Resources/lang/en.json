@@ -61,6 +61,7 @@
     "show": "Show",
     "playback": "Playback",
     "device": "Audio device",
+    "audioInterface": "Audio Interface…",
     "appearance": "Appearance",
     "loadProject": "Load project…",
     "saveProject": "Save project…",
@@ -208,6 +209,28 @@
     "decoderDualBandEnabled": "Dual-band",
     "decoderCrossoverFrequency": "Crossover",
     "decoderNormalization": "Normalization"
+  },
+  "audioPatch": {
+    "window": { "title": "Audio Interface" },
+    "openButton": "Audio Interface…",
+    "tabs": { "device": "Device Settings", "inputPatch": "Input Patch", "outputPatch": "Output Patch" },
+    "device": {
+      "type": "Driver type", "device": "Device", "sampleRate": "Sample rate",
+      "bufferSize": "Buffer size", "controlPanel": "Control Panel…", "reset": "Reset Device"
+    },
+    "info": { "channels": "Active in/out:", "noDevice": "No audio device open" },
+    "mode": { "scrolling": "Scroll", "patching": "Patch", "testing": "Test" },
+    "unpatchAll": "Unpatch All (hold)",
+    "test": { "hold": "Hold" },
+    "transportLocked": "Patching is disabled while the transport is playing — stop playback to edit.",
+    "labels": {
+      "interfaceInput": "Interface input", "interfaceOutput": "Interface output",
+      "processorInputs": "Stem channels", "processorOutputs": "Speakers"
+    },
+    "messages": {
+      "channelNotAvailable": "Channel not available — the device did not open it",
+      "chooseTestSignal": "Choose a test signal first"
+    }
   },
   "enum": {
     "contentOrder": { "auto": "Auto" },
