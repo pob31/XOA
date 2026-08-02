@@ -368,22 +368,35 @@ public:
 
 private:
     //==========================================================================
-    // WP8 encoder stage: sum the mono stems into busA. Each active stem is
-    // filtered into its 11 order-lanes by its NFC bank (or aliased to dry when
-    // NFC is off), then accumulated per bus channel at its live encode
-    // coefficient with a one-block per-coefficient linear ramp from the last
-    // applied value (click-free, FR-5). Sources going inactive ramp their
-    // contribution out over one block using their still-present audio. The whole
-    // stage is skipped (busA untouched -> bit-identical) when the seams are null.
-    void applyEncoder (int n, const juce::AudioBuffer<float>* stems, int numStems) noexcept
+    // WP8 encoder stage: sum the stems into busA. The stem buffer is FLATTENED
+    // (D44): input i's audio occupies rows [stemOffset[i], +stemSpan(i)).
+    //
+    //  - A MONO input (stemOrder 0) is the original point-source path: its one
+    //    dry row is filtered into 11 order-lanes by its NFC bank (or aliased
+    //    to dry when NFC is off) and broadcast into all 121 bus channels at
+    //    its live SH encode coefficients.
+    //  - An HOA-group input (stemOrder 1..10) contributes its OWN channel c to
+    //    bus channel c, scaled by its liveMatrix row (order-adapt x gain, zero
+    //    above the group's order). No NFC, no lanes.
+    //
+    // Every applied coefficient moves with a one-block linear ramp from its
+    // last applied value (click-free, FR-5); sources going inactive ramp out
+    // over one block using their still-present audio. A format change may
+    // leave a previously-applied coefficient with no source lane under the new
+    // span (e.g. mono -> FOA drops lanes above channel 3); those are dropped
+    // hard - format switching is configuration, not a performance move. The
+    // whole stage is skipped (busA untouched -> bit-identical) when the seams
+    // are null.
+    void applyEncoder (int n, const juce::AudioBuffer<float>* stems, int numStemChannels) noexcept
     {
         if (encoderSource == nullptr || encodeMatrixPtr == nullptr)
             return;
 
         const auto enc = encoderSource->acquire();
-        const int stemCh = stems != nullptr ? stems->getNumChannels() : 0;
-        const int S = juce::jmin (juce::jmin (enc.numSources, numStems),
-                                  juce::jmin (stemCh, xoa::kMaxInputs));
+        const int stemCh = stems != nullptr
+                             ? juce::jmin (numStemChannels, stems->getNumChannels())
+                             : 0;
+        const int S = juce::jmin (enc.numSources, xoa::kMaxInputs);
         const int loopN = juce::jmax (S, lastActiveSources);
         if (loopN <= 0)
         {
@@ -398,8 +411,10 @@ private:
 
         for (int i = 0; i < loopN; ++i)
         {
+            const int offset = enc.stemOffset[i];   // loopN <= kMaxInputs by construction
+            const int span   = enc.stemSpan (i);
             const bool active   = i < S;
-            const bool hasAudio = stems != nullptr && i < stemCh;
+            const bool hasAudio = stems != nullptr && offset >= 0 && offset + span <= stemCh;
             float* appliedRow = appliedCoeff.data() + (size_t) i * xoa::kNumSHChannels;
 
             if (! hasAudio)
@@ -409,7 +424,27 @@ private:
                 continue;
             }
 
-            const float* dry = stems->getReadPointer (i, 0);
+            const float* srcCoeff = encodeMatrixPtr + (size_t) i * xoa::kNumSHChannels;
+
+            if (enc.stemOrder[i] > 0)
+            {
+                // HOA group: bus channel c accumulates the group's channel c.
+                for (int c = 0; c < xoa::kNumSHChannels; ++c)
+                {
+                    const bool haveLane = c < span;
+                    const float target = active && haveLane ? srcCoeff[c] : 0.0f;
+                    const float from   = appliedRow[c];
+                    if (from == 0.0f && target == 0.0f)
+                        continue;
+                    if (haveLane)
+                        busA.addFromWithRamp (c, 0, stems->getReadPointer (offset + c), n, from, target);
+                    // else: no lane under the new span - dropped hard (see above).
+                    appliedRow[c] = target;
+                }
+                continue;
+            }
+
+            const float* dry = stems->getReadPointer (offset, 0);
             const bool nfcOn = active && enc.nfcEnabled (i) && nfcCoeffsPtr != nullptr;
 
             if (nfcOn)
@@ -421,7 +456,6 @@ private:
                     nfcCoeffsPtr + (size_t) i * nfc::kCoeffsPerSource);
             }
 
-            const float* srcCoeff = encodeMatrixPtr + (size_t) i * xoa::kNumSHChannels;
             for (int c = 0; c < xoa::kNumSHChannels; ++c)
             {
                 const float target = active ? srcCoeff[c] : 0.0f;

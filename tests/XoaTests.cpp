@@ -24,7 +24,7 @@
                              WFS import completion (XoaDecoderTests.cpp)
       7. WP6 suite           file-I/O spike: 121/128-ch WAV + 8-ch FLAC
                              round-trips, garbage rejection
-                             (XoaFilePlayerTests.cpp); RT snapshot composers
+                             (XoaFileFormatTests.cpp); RT snapshot composers
                              (rotation state, gather table) (XoaBusTests.cpp);
                              synthetic test-scene generator: determinism,
                              block-partition independence, encoding
@@ -46,7 +46,7 @@ void runXoaParameterTests();
 void runXoaShTests();
 void runXoaRotationTests();
 void runXoaDecoderTests();
-void runXoaFilePlayerTests();
+void runXoaFileFormatTests();
 void runXoaBusTests();
 void runXoaSceneTests();
 void runXoaEngineTests();
@@ -62,6 +62,7 @@ void runXoaLocalizationTests();
 void runXoaUiDescriptorTests();
 void runXoaLayoutGeneratorTests();
 void runXoaRvReViewTests();
+void runXoaPatchTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -118,7 +119,7 @@ int main()
         runXoaShTests();
         runXoaRotationTests();
         runXoaDecoderTests();
-        runXoaFilePlayerTests();
+        runXoaFileFormatTests();
         runXoaBusTests();
         runXoaSceneTests();
         runXoaEngineTests();
@@ -134,6 +135,7 @@ int main()
         runXoaUiDescriptorTests();
         runXoaLayoutGeneratorTests();
         runXoaRvReViewTests();
+        runXoaPatchTests();
     }
     catch (const std::exception& e)
     {

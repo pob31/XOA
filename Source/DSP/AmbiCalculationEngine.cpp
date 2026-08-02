@@ -3,10 +3,29 @@
 #include <cmath>
 
 #include "DSP/AmbiNFCFilter.h"
+#include "DSP/AmbiOrderWeights.h"
 #include "Parameters/XoaParameterIDs.h"
 
 namespace xoa
 {
+
+namespace
+{
+    // The liveMatrix row of an AmbiX group input (D44): not SH coefficients
+    // but the per-bus-channel factor applied to the group's own channel c —
+    // order-adapt gain (zero-pad above the group's order on upmix) x the
+    // input's linear gain, all-zero when muted. Position/spread/NFC do not
+    // apply to groups.
+    void composeHoaRow (int order, float gainDb, bool mute, float* row121)
+    {
+        double adapt[xoa::kNumSHChannels];
+        weights::orderAdaptGains (order, xoa::kAmbisonicOrder, adapt);
+
+        const float linear = mute ? 0.0f : juce::Decibels::decibelsToGain (gainDb);
+        for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            row121[c] = (float) adapt[c] * linear;
+    }
+} // namespace
 
 AmbiCalculationEngine::AmbiCalculationEngine (XoaValueTreeState& s)
     : store (s)
@@ -165,8 +184,15 @@ void AmbiCalculationEngine::tick()
     {
         if (rowDirty[(size_t) i])
         {
-            enc::composeRow (readSource (i), referenceRadius,
-                             liveMatrix.data() + (size_t) i * xoa::kNumSHChannels);
+            float* row = liveMatrix.data() + (size_t) i * xoa::kNumSHChannels;
+            const int format = store.getInputFormat (i);
+            if (format <= 0)
+                enc::composeRow (readSource (i), referenceRadius, row);
+            else
+                composeHoaRow (format,
+                               (float) store.getFloatParameter (ids::inputGain, i),
+                               static_cast<bool> (store.getParameter (ids::inputMute, i)),
+                               row);
             rowDirty[(size_t) i] = 0;
         }
         if (nfcDirty[(size_t) i])
@@ -191,25 +217,45 @@ void AmbiCalculationEngine::publishParams()
     const bool enabled = static_cast<bool> (store.getParameter (ids::monoInputsEnabled));
     const int numSources = enabled ? numInputs : 0;
 
+    // Formats and the flattened spans they imply (D44). NFC never applies to
+    // an AmbiX group, so its mask bit is forced off for those.
+    std::array<juce::uint8, xoa::kMaxInputs> orders {};
+    std::array<int, xoa::kMaxInputs> offsets {};
     juce::uint64 mask = 0;
+    int offset = 0;
     for (int i = 0; i < numInputs; ++i)
-        if (static_cast<bool> (store.getParameter (ids::inputNfcEnabled, i)))
+    {
+        const int format = store.getInputFormat (i);
+        orders[(size_t) i]  = (juce::uint8) format;
+        offsets[(size_t) i] = offset;
+        offset += XoaValueTreeState::channelCountForFormat (format);
+
+        if (format <= 0 && static_cast<bool> (store.getParameter (ids::inputNfcEnabled, i)))
             mask |= (juce::uint64) 1 << i;
+    }
 
     const float rRef = (float) referenceRadius;
-    if (numSources == lastNumSources && mask == lastNfcMask && rRef == lastReferenceRadius)
+    if (numSources == lastNumSources && mask == lastNfcMask && rRef == lastReferenceRadius
+        && orders == lastStemOrders && offsets == lastStemOffsets)
         return;
 
     rt::EncoderRtParams p;
     p.numSources      = numSources;
     p.nfcMask         = mask;
     p.referenceRadius = rRef;
+    for (int i = 0; i < xoa::kMaxInputs; ++i)
+    {
+        p.stemOffset[i] = offsets[(size_t) i];
+        p.stemOrder[i]  = orders[(size_t) i];
+    }
     p.epoch           = ++epoch;
     snapshot.publish (p);
 
     lastNumSources      = numSources;
     lastNfcMask         = mask;
     lastReferenceRadius = rRef;
+    lastStemOrders      = orders;
+    lastStemOffsets     = offsets;
 }
 
 //==============================================================================

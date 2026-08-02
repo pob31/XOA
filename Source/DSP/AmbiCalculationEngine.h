@@ -2,6 +2,7 @@
 
 #include <juce_events/juce_events.h>
 
+#include <array>
 #include <vector>
 
 #include "spatcore/dsp/InputSpeedLimiter.h"
@@ -129,6 +130,8 @@ private:
     int lastNumSources = -1;
     juce::uint64 lastNfcMask = 0;
     float lastReferenceRadius = -1.0f;
+    std::array<juce::uint8, xoa::kMaxInputs> lastStemOrders {};
+    std::array<int, xoa::kMaxInputs> lastStemOffsets {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmbiCalculationEngine)
 };

@@ -83,6 +83,12 @@ InputsTab::InputsTab (AppContext& ctx) : TabPage (ctx, Surface::inputs)
     addRow (muteButton, "param.inputMute");
     bindings.bindToggle (muteButton, ids::inputMute, BindingSet::kCurrentChannel);
 
+    // Stem format (D44). Position/spread/NFC do not apply to HOA groups —
+    // selectInput() greys them accordingly.
+    addAndMakeVisible (formatCombo);
+    addRow (formatCombo, "param.inputFormat");
+    bindings.bindCombo (formatCombo, ids::inputFormat, BindingSet::kCurrentChannel);
+
     for (auto* s : { &posXSlider, &posYSlider, &posZSlider })
     {
         s->setTrackColours (ColorScheme::get().sliderTrackBg, ColorScheme::accents::spatial);
@@ -191,6 +197,24 @@ void InputsTab::refresh()
         context.store.getFloatParameter (ids::inputPositionZ, currentInput) };
     const auto mode = (xoa::coords::Mode) context.store.getIntParameter (ids::inputCoordinateMode, currentInput);
     posReadout.setText (xoa::coords::formatForDisplay (c, mode), juce::dontSendNotification);
+
+    // Point-source controls are inert for HOA group stems (D44): the group is
+    // merged into the bus as-is, so position/conditioning/spread/NFC have no
+    // effect on it. Greyed rather than hidden so the layout holds.
+    const bool isPointSource = context.store.getInputFormat (currentInput) == 0;
+    for (juce::Component* comp : { static_cast<juce::Component*> (&posXSlider),
+                                   static_cast<juce::Component*> (&posYSlider),
+                                   static_cast<juce::Component*> (&posZSlider),
+                                   static_cast<juce::Component*> (&posXEditor),
+                                   static_cast<juce::Component*> (&posYEditor),
+                                   static_cast<juce::Component*> (&posZEditor),
+                                   static_cast<juce::Component*> (&coordModeCombo),
+                                   static_cast<juce::Component*> (&posReadout),
+                                   static_cast<juce::Component*> (&maxSpeedDial),
+                                   static_cast<juce::Component*> (&trackingSmoothDial),
+                                   static_cast<juce::Component*> (&spreadDial),
+                                   static_cast<juce::Component*> (&nfcButton) })
+        comp->setEnabled (isPointSource);
 }
 
 void InputsTab::resized()
@@ -252,6 +276,7 @@ void InputsTab::resized()
     row (nameEditor);
     sliderRow (gainSlider, gainEditor);
     buttonRow (muteButton);
+    row (formatCombo);
     sliderRow (posXSlider, posXEditor);
     sliderRow (posYSlider, posYEditor);
     sliderRow (posZSlider, posZEditor);

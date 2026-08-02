@@ -87,7 +87,7 @@ void testEncoderNullDecode()
     // one source on the ring radius (distance gain 1), front, NFC off.
     xoa::enc::SourceParams sp; sp.x = 2.0;
     xoa::enc::composeRow (sp, 2.0, h.encMatrix.data());   // row for source 0
-    h.encSnap.publish ({ 1, 0, 2.0f, 1u });
+    h.encSnap.publish (xoa::rt::makeMonoEncoderParams (1, 0, 2.0f, 1u));
 
     xoa::AmbiBusAlgorithm algo;
     algo.prepare (xoa::kMaxInputs, Harness::numOut, 48000.0, n, &h.builder, &h.rotSnap, &h.busSnap,
@@ -153,7 +153,7 @@ void testEncoderNeutrality()
     // Test: encoder seams present but numSources == 0, with a NONZERO stems buffer.
     std::vector<float> encMatrix ((size_t) xoa::kMaxInputs * xoa::kNumSHChannels, 0.5f);
     std::vector<double> nfcPages ((size_t) xoa::kMaxInputs * xoa::nfc::kCoeffsPerSource, 0.0);
-    spatcore::rt::RtSnapshot<xoa::rt::EncoderRtParams> encSnap; encSnap.publish ({ 0, 0, 2.0f, 1u });
+    spatcore::rt::RtSnapshot<xoa::rt::EncoderRtParams> encSnap; encSnap.publish (xoa::rt::makeMonoEncoderParams (0, 0, 2.0f, 1u));
 
     juce::AudioBuffer<float> testOut (numOut, n);
     {
@@ -180,7 +180,7 @@ void testEncoderRampInOut()
     const int n = 256;
     xoa::enc::SourceParams sp; sp.x = 2.0;
     xoa::enc::composeRow (sp, 2.0, h.encMatrix.data());
-    h.encSnap.publish ({ 1, 0, 2.0f, 1u });
+    h.encSnap.publish (xoa::rt::makeMonoEncoderParams (1, 0, 2.0f, 1u));
 
     xoa::AmbiBusAlgorithm algo;
     algo.prepare (xoa::kMaxInputs, Harness::numOut, 48000.0, n, &h.builder, &h.rotSnap, &h.busSnap,
@@ -217,7 +217,7 @@ void testEncoderRampInOut()
     // Deactivate: numSources 0, keep the stem. The block ramps the contribution
     // OUT using the still-present audio (starts ~steady, ends near 0 - JUCE's
     // linear ramp reaches ~steady/n at the last sample, not exactly 0).
-    h.encSnap.publish ({ 0, 0, 2.0f, 2u });
+    h.encSnap.publish (xoa::rt::makeMonoEncoderParams (0, 0, 2.0f, 2u));
     runBlock();
     double outStart = 0.0, outEnd = 0.0;
     for (int s = 0; s < Harness::numOut; ++s)
@@ -248,7 +248,7 @@ void testEncoderNfcDcGain()
     xoa::enc::SourceParams sp; sp.x = 1.0;
     xoa::enc::composeRow (sp, 2.0, h.encMatrix.data());
     xoa::nfc::designSourceSections (1.0, 2.0, 48000.0, h.nfcPages.data());
-    h.encSnap.publish ({ 1, (juce::uint64) 1, 2.0f, 1u });   // nfcMask bit 0 set
+    h.encSnap.publish (xoa::rt::makeMonoEncoderParams (1, (juce::uint64) 1, 2.0f, 1u));   // nfcMask bit 0 set
 
     xoa::AmbiBusAlgorithm algo;
     algo.prepare (xoa::kMaxInputs, Harness::numOut, 48000.0, n, &h.builder, &h.rotSnap, &h.busSnap,
@@ -287,7 +287,7 @@ void testStemsFewerThanSources()
         xoa::enc::SourceParams sp; sp.x = 2.0; sp.y = 0.3 * i;
         xoa::enc::composeRow (sp, 2.0, h.encMatrix.data() + (size_t) i * xoa::kNumSHChannels);
     }
-    h.encSnap.publish ({ 4, 0, 2.0f, 1u });   // 4 sources requested
+    h.encSnap.publish (xoa::rt::makeMonoEncoderParams (4, 0, 2.0f, 1u));   // 4 sources requested
 
     xoa::AmbiBusAlgorithm algo;
     algo.prepare (xoa::kMaxInputs, Harness::numOut, 48000.0, n, &h.builder, &h.rotSnap, &h.busSnap,

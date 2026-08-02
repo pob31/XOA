@@ -14,11 +14,11 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <juce_audio_utils/juce_audio_utils.h>   // AudioDeviceSelectorComponent
 
 #include <memory>
 
 #include "TabPage.h"
+#include "../Patch/AudioInterfaceWindow.h"
 
 namespace xoa::ui
 {
@@ -32,25 +32,31 @@ public:
 
     void resized() override;
 
+    void refresh() override;
+
 private:
     void colorSchemeChanged() override;
     void loadProjectDialog();
     void saveProjectDialog();
     void importWfsDialog();
+    void openAudioInterfaceWindow();
 
-    juce::GroupComponent showGroup, playbackGroup, deviceGroup, appearanceGroup;
+    juce::GroupComponent showGroup, deviceGroup, appearanceGroup;
 
     juce::Label      showNameLabel;
     juce::TextEditor showNameEditor;
     juce::TextButton loadButton, saveButton, importButton;
 
-    juce::Label    contentOrderLabel, conventionLabel;
-    juce::ComboBox contentOrderCombo, conventionCombo;
-
     juce::Label    themeLabel, languageLabel;
     juce::ComboBox themeCombo, languageCombo;
 
-    std::unique_ptr<juce::AudioDeviceSelectorComponent> deviceSelector;
+    // The stock AudioDeviceSelectorComponent is gone (stage 2): device
+    // settings and patching live in the Audio Interface window, which owns
+    // the DeviceHost-routed mutations.
+    juce::TextButton audioInterfaceButton;
+    juce::Label      deviceSummaryLabel, deviceErrorLabel;
+    std::unique_ptr<AudioInterfaceWindow> audioInterfaceWindow;
+
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SystemConfigTab)

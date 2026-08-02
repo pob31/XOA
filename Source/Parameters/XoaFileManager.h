@@ -30,7 +30,7 @@ class XoaFileManager
 public:
     explicit XoaFileManager (XoaValueTreeState& stateToManage);
 
-    enum class Section { config, inputs, speakers, decoder };
+    enum class Section { config, inputs, speakers, decoder, audioPatch };
 
     static constexpr int kBackupKeepCount = 10;
     static constexpr const char* kManifestExtension = ".xoa";
@@ -81,6 +81,12 @@ public:
     bool loadDecoderBackup (int index)         { return loadSectionBackup (Section::decoder, index); }
     bool exportDecoder (const juce::File& f)   { return saveSectionTo (Section::decoder, f, false); }
     bool importDecoder (const juce::File& f)   { return loadSectionFrom (Section::decoder, f); }
+
+    bool saveAudioPatch()                        { return saveSection (Section::audioPatch); }
+    bool loadAudioPatch()                        { return loadSection (Section::audioPatch); }
+    bool loadAudioPatchBackup (int index)        { return loadSectionBackup (Section::audioPatch, index); }
+    bool exportAudioPatch (const juce::File& f)  { return saveSectionTo (Section::audioPatch, f, false); }
+    bool importAudioPatch (const juce::File& f)  { return loadSectionFrom (Section::audioPatch, f); }
 
     //==========================================================================
     // WFS-DIY speaker-layout import (FR-16)

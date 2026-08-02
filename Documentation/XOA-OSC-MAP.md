@@ -1,6 +1,16 @@
 # XOA — OSC Address Map
 
-Version 0.1 — July 2026 — GPL-3.0
+Version 1.1 — August 2026 — GPL-3.0
+
+> **Changelog**
+> - **1.1 (2026-08)** — REMOVED: `/xoa/config/playbackLoop`,
+>   `/xoa/config/playbackContentOrder`, `/xoa/config/playbackConvention`.
+>   The built-in file player was removed (D48/D50): XOA is a processor;
+>   program material is played by external apps and arrives via the device
+>   inputs. A peer sending these addresses now gets the standard
+>   unknown-address ignore. Breaking change, made deliberately against the
+>   frozen-contract rule with a version bump.
+> - **0.1 (2026-07)** — initial frozen map.
 
 This document is the **frozen contract** for XOA's OSC control surface (WP9,
 FR-22 / FR-10 / D18-FR-25). It is written before the network code so the
@@ -162,18 +172,17 @@ smoothed tracker stream uses `/xoa/tracking/position` (§8) instead.
 | `masterGain` | f | dB, [-60, 12] | `masterGain` |
 | `distanceCompMode` | i | 0 off / 1 delay / 2 delay+gain | `distanceCompMode` |
 | `monoInputsEnabled` | i | 0/1 | `monoInputsEnabled` |
-| `playbackLoop` | i | 0/1 | `playbackLoop` |
-| `playbackContentOrder` | i | 0 auto … 10 | `playbackContentOrder` |
-| `playbackConvention` | i | 0 SN3D / 1 N3D / 2 FuMa | `playbackConvention` |
 | `inputCount` | i | [1, max] — structural resize | `inputCount` |
 | `speakerCount` | i | [1, max] — structural resize | `speakerCount` |
+
+*(`playbackLoop`, `playbackContentOrder`, `playbackConvention` were removed in
+map v1.1 — see the changelog; D48/D50.)*
 
 **Transport parameters are read-only over OSC** (`oscEnabled`,
 `oscReceivePort`, `oscSendPort`, `oscSendAddress`, `oscTcpEnabled`,
 `oscTcpPort`, `oscAcceptAnyHost`, `oscFeedbackEnabled`, `oscMeterEnabled`):
 they are reportable via `/xoa/get` but a remote peer may not reconfigure the
-transport out from under itself. `playbackFilePath` and transport play-state
-are likewise not OSC-writable in v1.
+transport out from under itself.
 
 ### `/xoa/rotation/<param>` `(f)deg` — scene orientation (FR-9)
 

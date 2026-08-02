@@ -42,7 +42,7 @@ parameter store +
 XML project I/O (WP2), the SH math core (WP3), SO(3) rotation + mirror (WP4),
 the SAD/mode-matching decoder designer + rV/rE (WP5), and the RT bus engine —
 gather (convention + FR-7 order adaptation) → click-free SO(3) rotation →
-decode GEMM → master gain → device outs — with multichannel file playback, a
+decode GEMM → master gain → device outs — with multichannel file playback (removed later by D48), a
 synthetic order-10 test-scene generator, an offline-render bit-exact harness,
 and a throwaway shell UI (WP6). The `xoa-tests` suite and the
 `xoa-offline-render-smoke` run on all three CI OSes.
@@ -63,7 +63,7 @@ hardware in CI).
 | WP3 | SH math core: evaluation, conventions, order weights | M1 part | P2 | WP1 | M | **DONE** |
 | WP4 | Rotation & mirror | M1 part | P2 | WP3 | M | **DONE** |
 | WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | **DONE** |
-| WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
+| WP6 | RT bus engine, file playback (since removed, D48), minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | **DONE (M3a)** |
 | WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | **DONE (M3)** |
@@ -194,6 +194,100 @@ Recorded here so no work package has to re-litigate them.
   streaming form ships. Deferred to post-v1 (§8): decoder redesign from the
   listener position (the directional correction) and listener position via
   PSN/RTTrP tracker profiles (D3).
+
+**Device-layer adoption (D35–D40)** — stage 1 of
+`XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md` (spatcore::io), post-WP, off the v1
+critical path.
+
+- **D35 — `AudioEngine` implements `juce::AudioSource` directly** (no adapter
+  object). WFS-DIY kept `AudioAppComponent` only to inherit its
+  `deviceManager`; XOA has no such constraint, and the old callback body was
+  already `getNextAudioBlock`-shaped.
+- **D36 — Indexing: handoff §5.3 option A now, option B when stage 2 lands.**
+  Meters and `prepare` counts stay speaker-ordinal-indexed, valid only while
+  the channel masks are contiguous from bit 0 — which `DeviceHost`'s
+  enable-all policy guarantees. Asserted
+  (`jassert (map.isIdentityMapping())` in `prepareToPlay`) so a
+  non-contiguous mask fails loudly instead of misrouting. The stage-2 patch
+  window re-indexes meters by hardware channel (option B) when it arrives.
+- **D37 — The addressing ceiling is `xoa::kMaxHardwareChannels = 512` in
+  `XoaConstants.h`** — the one home for the number handed to `DeviceHost` and
+  `DeviceIoCallback`. A ceiling, not an allocation; distinct from
+  `kMaxSpeakers` (decoder clamp) and `kMaxInputs` (stem count), which keep
+  their meanings.
+- **D38 — `SpeakerId` is owned by spatcore** (spatcore PR #8): ported verbatim
+  into `spatcore::io::TestSignalGenerator`, enum member appended last so
+  consumer ordinals hold. XOA's forked generator becomes a `using` alias once
+  the PR merges and the pin moves past it.
+- **D39 (open) — `DeviceHost` sample-rate/buffer-size/reset setters**: wanted
+  before XOA's stage-2 device panel exists so mask-safety is enforced rather
+  than assumed (WFS-DIY still has three direct `setAudioDeviceSetup` sites).
+  Small spatcore change; take it with stage 2.
+- **D40 — spatcore pins stay bare SHAs**; no v0.2.0 tag gate for the io layer.
+
+**Patch window and multi-format stems (D41–D47)** — stage 2 of the same
+handoff: XOA adopts the shared `spatcore::ui::patch` matrix and builds its own
+shell, and an input stem stops being implicitly mono.
+
+- **D41 — Patching is transport-gated.** XOA has no processing on/off state
+  (the engine decodes whenever the device is open), so the file transport is
+  the gate: while it plays, the Audio Interface window stops its tones, drops
+  to Scrolling and disables its tabs behind a banner. Patching a live rig is
+  how speakers get destroyed; this is the closest equivalent to WFS-DIY's
+  processing gate that XOA's architecture affords.
+- **D42 — Both matrices ship.** Device Settings / Input Patch / Output Patch.
+  Stems stop being identity-mapped from device inputs, which is what makes an
+  interface whose mic lines do not start at channel 1 usable.
+- **D43 — The input matrix rows are FLATTENED stem channels**, one per channel
+  of every input's span, not one per input. The shared matrix is then used
+  untouched (its 1:1 constraint still means one hardware channel per row), and
+  an Ambisonic group may legitimately sit on non-contiguous hardware channels.
+  Rows are labelled `"<name> · ACN <k>"` and share their input's colour, so a
+  group reads as one block.
+- **D44 — `inputFormat` is Mono | HOA order 1–10**, AmbiX (ACN/SN3D) assumed —
+  no per-input convention in v1, matching the project-wide convention. A group
+  merges into the order-10 bus through `weights::orderAdaptGains` (zero-padded
+  upmix) times the input gain, composed into the SAME `liveMatrix` row the mono
+  path uses, so the RT contract (one 121-float row per input) is unchanged.
+  Position, spread, NFC and the conditioning dials are inert for groups and are
+  greyed in the Inputs tab.
+- **D45 — `kMaxStemChannels = 128`** bounds the sum of all input spans (one
+  order-10 group is 121). Over the ceiling, formats step down last-HOA-first.
+- **D46 — The test signal moved to the HARDWARE domain**, injected after the
+  output scatter, so the matrix's Testing mode can reach any open device output
+  including ones no speaker is patched to. Decode and per-speaker comp now run
+  on a speaker-domain scratch sized by the STORE's speaker count, decoupled
+  from the device output count.
+- **D47 — Clusters (linking several stems) are deferred.** Format is per-input
+  and nothing keys on a group's hardware channels being contiguous, so clusters
+  can layer on top without reopening D43/D44.
+
+**XOA is a processor (D48–D50)** — architectural correction: program material
+is played by external apps (Reaper, QLab, …) and arrives through the device
+inputs; there is no cueing mechanism in this app.
+
+- **D48 — The file player is removed** (with its transport UI and
+  `playbackFilePath`/`playbackLoop`). External players feed device inputs;
+  stems and HOA groups (D44) carry the program into the bus. An interactive
+  sampler player (WFS-DIY style) is a possible future feature — a plain file
+  player is not. The bus gather stage, `rt::makeBusParams` and the offline
+  bit-exactness harness are untouched (the no-source shape publishes a
+  zero-channel gather that clears busA); the synthetic test scene stays as
+  the audible-without-hardware fallback, latched from the header.
+- **D49 — The patch-window transport gate is dropped** (supersedes D41's
+  mechanism; the policy died with the transport). An external player's
+  transport cannot be sensed, so a local gate would be theatre. The safety
+  net is the explicit matrix interaction and the generator's universal 500 ms
+  protective ramp; test tones still stop on every exit path.
+- **D50 — `playbackContentOrder` / `playbackConvention` deleted.** Live HOA
+  groups stay AmbiX-only (D44); a per-input convention/order override is
+  deferred to the clusters era (FuMa needs channel reordering inside the
+  group merge). OSC map bumped to v1.1 with a documented removal of the three
+  `/xoa/config/playback*` leaves. The conversion math in `makeBusParams`
+  survives for the test scene / harness and any future per-input override.
+
+D24 ("PatchMatrixComponent not ported; v1 keeps identity channel mapping") is
+superseded by D41–D46; the identity mapping survives only as the default patch.
 
 ---
 
@@ -426,6 +520,10 @@ ill-conditioned layouts (that's what κ reporting is for).
 
 ### WP6 — RT bus engine, file playback, minimal shell — **M1, first audible** (XL)
 
+> **D48 note (2026-08):** the file player shipped here and was later removed —
+> XOA is a processor; program arrives via device inputs. The WP6 text below is
+> kept as the historical record of what M1 built.
+
 **Goal.** The PRD's first audible milestone: an AmbiX file of any order 1–10
 plays through order adaptation → rotation → SAD decode to a real rig,
 CPU-only, click-free — plus the offline-render harness that gates everything
@@ -451,7 +549,7 @@ content is rare" mitigation (test-scene generator) lands here.
 - `Source/DSP/AmbiRtTypes.h` — trivially-copyable POD snapshots (rotation
   state, decoder swap handle), modeled on WFS-DIY
   `Source/DSP/BinauralCalculationEngine.h::RtParams`.
-- `Source/Audio/FilePlayer.{h,cpp}` — multichannel WAV/CAF/FLAC up to
+- `Source/Audio/FilePlayer.{h,cpp}` *(removed by D48)* — multichannel WAV/CAF/FLAC up to
   128 ch, AmbiX metadata detection where present, manual order/convention
   override always available (FR-8).
 - **Spike (early, time-boxed):** verify JUCE `WavAudioFormat`/CAF actually
@@ -831,6 +929,8 @@ xvfb GUI-smoke gate green; all M1/M2/M3 offline baselines unchanged):
 
 **Decisions (D24–D34).**
 - **D24** — PatchMatrixComponent not ported; v1 keeps identity channel mapping.
+  **Superseded by D41–D46** (stage 2 adopts the shared matrix; identity
+  survives as the default patch).
 - **D25** — Network tab exposes the single OSC send-target only; multi-target → WP12.
 - **D26** — Localization ships EN + FR (minimal tier), proving the overlay scaffold.
 - **D27** — A persistent HeaderBar hosts transport/rotation/master/status; StatusBar
@@ -1073,7 +1173,7 @@ spatcore and with the repo's no-new-dependencies posture.
 | FR-5 mono encoding + spread, click-free | WP8 |
 | FR-6 distance / NFC | WP8 |
 | FR-7 HOA stream up/downmix | WP3 (weights) + WP6 (chain) |
-| FR-8 file playback ≤ 128 ch, AmbiX metadata | WP6 |
+| FR-8 external program input (was: file playback, removed by D48) | WP6 (historical) + stage 2 |
 | FR-9 SO(3) rotation (Ivanic–Ruedenberg) | WP4 (math) + WP6 (RT apply) |
 | FR-10 rotation sources: dials / OSC / tracker | WP6 (dials), WP9 (OSC + quaternion), WP10 (full UI) |
 | FR-11 mirror; zoom v1.1 | WP4 (mirror); zoom **parked** §8 |

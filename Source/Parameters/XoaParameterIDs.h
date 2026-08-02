@@ -34,12 +34,20 @@ inline const juce::Identifier encoder    { "Encoder" };
 inline const juce::Identifier eq         { "EQ" };
 inline const juce::Identifier band       { "Band" };
 
+// Audio patch section (stage 2 of the io/patch handoff). Property names match
+// WFS-DIY / spatcore::ui::patch::PatchMatrixIds verbatim so the shared matrix
+// binds without id overrides and a WFS-DIY patch file reads familiarly.
+inline const juce::Identifier audioPatch  { "AudioPatch" };
+inline const juce::Identifier inputPatch  { "InputPatch" };
+inline const juce::Identifier outputPatch { "OutputPatch" };
+
 // Section-file / manifest root node types
-inline const juce::Identifier configFileRoot   { "XOAConfig" };
-inline const juce::Identifier inputsFileRoot   { "XOAInputs" };
-inline const juce::Identifier speakersFileRoot { "XOASpeakers" };
-inline const juce::Identifier decoderFileRoot  { "XOADecoder" };
-inline const juce::Identifier projectManifest  { "XOAProject" };
+inline const juce::Identifier configFileRoot     { "XOAConfig" };
+inline const juce::Identifier inputsFileRoot     { "XOAInputs" };
+inline const juce::Identifier speakersFileRoot   { "XOASpeakers" };
+inline const juce::Identifier decoderFileRoot    { "XOADecoder" };
+inline const juce::Identifier audioPatchFileRoot { "XOAAudioPatch" };
+inline const juce::Identifier projectManifest    { "XOAProject" };
 
 // Bookkeeping properties
 inline const juce::Identifier idProp        { "id" };
@@ -71,13 +79,6 @@ inline const juce::Identifier rotationYaw   { "rotationYaw" };
 inline const juce::Identifier rotationPitch { "rotationPitch" };
 inline const juce::Identifier rotationRoll  { "rotationRoll" };
 
-// Config / Playback (FR-8). Play state and transport position are
-// deliberately runtime-only: persisting them would pollute undo/dirty.
-inline const juce::Identifier playbackFilePath     { "playbackFilePath" };
-inline const juce::Identifier playbackLoop         { "playbackLoop" };
-inline const juce::Identifier playbackContentOrder { "playbackContentOrder" };  // 0 = auto-detect
-inline const juce::Identifier playbackConvention   { "playbackConvention" };    // 0 SN3D, 1 N3D, 2 FuMa
-
 // Config / per-speaker distance compensation (FR-15). "distance*" routes to
 // Config; the per-speaker delay/gain come from speaker positions, not schema.
 inline const juce::Identifier distanceCompMode { "distanceCompMode" };  // 0 off, 1 delay, 2 delay+gain
@@ -97,6 +98,12 @@ inline const juce::Identifier monoInputsEnabled { "monoInputsEnabled" };
 inline const juce::Identifier inputName { "inputName" };
 inline const juce::Identifier inputGain { "inputGain" };
 inline const juce::Identifier inputMute { "inputMute" };
+// Stem format: 0 = mono point source (the encoder path), 1..10 = an AmbiX
+// (ACN/SN3D) Ambisonics group of order N spanning (N+1)^2 stem channels,
+// merged into the bus with order-adapt gains. Position/spread/NFC are inert
+// for group formats. Clusters (linking stems) are a later feature; nothing
+// may assume a group's hardware channels are contiguous.
+inline const juce::Identifier inputFormat { "inputFormat" };
 
 // Input / Position (canonical cartesian meters; mode is display-only)
 inline const juce::Identifier inputPositionX      { "inputPositionX" };
@@ -132,6 +139,16 @@ inline const juce::Identifier eqFrequency      { "eqFrequency" };
 inline const juce::Identifier eqGain           { "eqGain" };
 inline const juce::Identifier eqQ              { "eqQ" };
 inline const juce::Identifier eqSlope          { "eqSlope" };
+
+// AudioPatch / {Input,Output}Patch node properties. These are DIRECT tree
+// properties (the shared matrix and the store write them with explicit
+// ValueTree access), not (id, channelIndex)-addressable parameters — keep
+// them out of the OSC/descriptor surfaces.
+inline const juce::Identifier patchData              { "patchData" };
+inline const juce::Identifier rows                   { "rows" };
+inline const juce::Identifier cols                   { "cols" };
+inline const juce::Identifier activeHardwareInputs   { "activeHardwareInputs" };
+inline const juce::Identifier activeHardwareOutputs  { "activeHardwareOutputs" };
 
 // Decoder
 inline const juce::Identifier decoderType               { "decoderType" };

@@ -49,15 +49,6 @@ constexpr double rotationYawDefault   = 0.0, rotationYawMin   = -180.0, rotation
 constexpr double rotationPitchDefault = 0.0, rotationPitchMin =  -90.0, rotationPitchMax =  90.0;
 constexpr double rotationRollDefault  = 0.0, rotationRollMin  = -180.0, rotationRollMax  = 180.0;
 
-// Config / Playback. Content order 0 means "auto-detect from channel count";
-// the max is the bus order (order-generic rule FR-3).
-inline const juce::String playbackFilePathDefault {};
-constexpr bool   playbackLoopDefault = false;
-constexpr double playbackContentOrderDefault = 0.0, playbackContentOrderMin = 0.0,
-                 playbackContentOrderMax = (double) xoa::kAmbisonicOrder;
-constexpr double playbackConventionDefault = 0.0,
-                 playbackConventionMin = 0.0, playbackConventionMax = 2.0;   // 0 SN3D, 1 N3D, 2 FuMa
-
 // Config / distance compensation (FR-15). Default off preserves M1 behaviour
 // and every existing baseline.
 constexpr double distanceCompModeDefault = 0.0,
@@ -81,6 +72,8 @@ constexpr double inputPositionXDefault = 1.0, inputPositionYDefault = 0.0,
 constexpr double positionMin = -100.0, positionMax = 100.0;                               // meters
 constexpr double coordinateModeDefault = 0.0, coordinateModeMin = 0.0, coordinateModeMax = 2.0;
 constexpr double inputSpreadDefault = 0.0, inputSpreadMin = 0.0, inputSpreadMax = 180.0;  // degrees
+// Stem format: 0 = mono, 1..10 = AmbiX group of that order ((N+1)^2 channels).
+constexpr double inputFormatDefault = 0.0, inputFormatMin = 0.0, inputFormatMax = 10.0;
 constexpr bool   inputNfcEnabledDefault = false;
 // Position conditioning (WP8). maxSpeed 0 = off; the limiter's own clamp is
 // [0.01, 20] m/s. trackingSmooth is the 1-Euro percentage (0 = raw, 100 = max).

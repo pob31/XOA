@@ -47,10 +47,11 @@ const char* XoaFileManager::sectionFileStem (Section s)
 {
     switch (s)
     {
-        case Section::config:   return "config";
-        case Section::inputs:   return "inputs";
-        case Section::speakers: return "speakers";
-        case Section::decoder:  return "decoder";
+        case Section::config:     return "config";
+        case Section::inputs:     return "inputs";
+        case Section::speakers:   return "speakers";
+        case Section::decoder:    return "decoder";
+        case Section::audioPatch: return "audiopatch";
     }
     return "";
 }
@@ -59,10 +60,11 @@ juce::Identifier XoaFileManager::fileRootType (Section s)
 {
     switch (s)
     {
-        case Section::config:   return ids::configFileRoot;
-        case Section::inputs:   return ids::inputsFileRoot;
-        case Section::speakers: return ids::speakersFileRoot;
-        case Section::decoder:  return ids::decoderFileRoot;
+        case Section::config:     return ids::configFileRoot;
+        case Section::inputs:     return ids::inputsFileRoot;
+        case Section::speakers:   return ids::speakersFileRoot;
+        case Section::decoder:    return ids::decoderFileRoot;
+        case Section::audioPatch: return ids::audioPatchFileRoot;
     }
     return {};
 }
@@ -71,10 +73,11 @@ juce::Identifier XoaFileManager::sectionNodeType (Section s)
 {
     switch (s)
     {
-        case Section::config:   return ids::config;
-        case Section::inputs:   return ids::inputs;
-        case Section::speakers: return ids::speakers;
-        case Section::decoder:  return ids::decoder;
+        case Section::config:     return ids::config;
+        case Section::inputs:     return ids::inputs;
+        case Section::speakers:   return ids::speakers;
+        case Section::decoder:    return ids::decoder;
+        case Section::audioPatch: return ids::audioPatch;
     }
     return {};
 }
@@ -83,10 +86,11 @@ juce::ValueTree XoaFileManager::liveSection (Section s) const
 {
     switch (s)
     {
-        case Section::config:   return state.getConfigSection();
-        case Section::inputs:   return state.getInputsSection();
-        case Section::speakers: return state.getSpeakersSection();
-        case Section::decoder:  return state.getDecoderSection();
+        case Section::config:     return state.getConfigSection();
+        case Section::inputs:     return state.getInputsSection();
+        case Section::speakers:   return state.getSpeakersSection();
+        case Section::decoder:    return state.getDecoderSection();
+        case Section::audioPatch: return state.getAudioPatchSection();
     }
     return {};
 }
@@ -95,10 +99,11 @@ int XoaFileManager::undoDomainFor (Section s) const
 {
     switch (s)
     {
-        case Section::config:   return XoaValueTreeState::configDomain;
-        case Section::inputs:   return XoaValueTreeState::inputsDomain;
-        case Section::speakers: return XoaValueTreeState::speakersDomain;
-        case Section::decoder:  return XoaValueTreeState::decoderDomain;
+        case Section::config:     return XoaValueTreeState::configDomain;
+        case Section::inputs:     return XoaValueTreeState::inputsDomain;
+        case Section::speakers:   return XoaValueTreeState::speakersDomain;
+        case Section::decoder:    return XoaValueTreeState::decoderDomain;
+        case Section::audioPatch: return XoaValueTreeState::configDomain;   // patch edits are non-undoable; merges ride the config domain
     }
     return XoaValueTreeState::configDomain;
 }
@@ -163,7 +168,8 @@ bool XoaFileManager::loadProject (const juce::File& manifestOrFolder)
     setProjectFolder (folder);
 
     bool allOk = true;
-    for (auto s : { Section::config, Section::inputs, Section::speakers, Section::decoder })
+    for (auto s : { Section::config, Section::inputs, Section::speakers,
+                    Section::decoder, Section::audioPatch })
     {
         const auto file = fileForSection (s);
         if (file.existsAsFile())
@@ -181,7 +187,8 @@ bool XoaFileManager::saveProject()
         return false;
 
     bool allOk = true;
-    for (auto s : { Section::config, Section::inputs, Section::speakers, Section::decoder })
+    for (auto s : { Section::config, Section::inputs, Section::speakers,
+                    Section::decoder, Section::audioPatch })
         allOk = saveSection (s) && allOk;
     return allOk;
 }
@@ -227,7 +234,7 @@ bool XoaFileManager::saveSectionTo (Section s, const juce::File& file, bool with
 
     if (withBackup)
         XmlPersistence::cleanupBackups (backupFolder(),
-                                        { "config", "inputs", "speakers", "decoder" },
+                                        { "config", "inputs", "speakers", "decoder", "audiopatch" },
                                         kBackupKeepCount);
     return true;
 }
@@ -306,6 +313,11 @@ bool XoaFileManager::loadSectionFrom (Section s, const juce::File& file)
         state.reconcileChannelSection (true, state.getUndoManagerForDomain (domain));
     else if (s == Section::speakers)
         state.reconcileChannelSection (false, state.getUndoManagerForDomain (domain));
+
+    // Any load can invalidate the patch row/span agreement: an inputs file
+    // changes formats/counts, an audiopatch file arrives with foreign rows.
+    if (s == Section::inputs || s == Section::speakers || s == Section::audioPatch)
+        state.reconcileAudioPatch();
 
     return true;
 }

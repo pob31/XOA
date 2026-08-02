@@ -54,7 +54,10 @@ static_assert (std::is_trivially_copyable_v<RotationRtState>,
                "RotationRtState must be a POD for RtSnapshot");
 
 //==============================================================================
-/** Values match ids::playbackConvention. */
+/** HOA channel-normalization/ordering conventions the gather can interpret.
+    (Historically driven by ids::playbackConvention; since D48/D50 only the
+    synthetic test scene and the offline harness feed the gather, both SN3D,
+    but the conversion math stays — a future per-input override reuses it.) */
 enum class ContentConvention { sn3d = 0, n3d = 1, fuma = 2 };
 
 struct BusRtParams
@@ -102,15 +105,50 @@ struct EncoderRtParams
     float referenceRadius = 2.0f;         // rig mean radius (m); design is control-side
     juce::uint32 epoch = 0;               // 0 = never published
 
+    // Stage 2 (D44): per-input stem spans in the FLATTENED stem buffer. Input
+    // i's audio occupies stem rows [stemOffset[i], stemOffset[i] + span) where
+    // span = 1 for a mono point source (stemOrder 0) or (o+1)^2 for an AmbiX
+    // group of order o. A mono input's liveMatrix row carries SH encode
+    // coefficients (broadcast one dry signal into 121 channels); an HOA
+    // input's row carries per-bus-channel order-adapt x gain factors (bus
+    // channel c reads stem row stemOffset + c). NFC never applies to groups.
+    int stemOffset[xoa::kMaxInputs] = {};
+    juce::uint8 stemOrder[xoa::kMaxInputs] = {};
+
     bool nfcEnabled (int i) const noexcept
     {
         return i >= 0 && i < 64 && (nfcMask & (juce::uint64) 1 << i) != 0;
+    }
+
+    int stemSpan (int i) const noexcept
+    {
+        const int o = i >= 0 && i < xoa::kMaxInputs ? (int) stemOrder[i] : 0;
+        return o <= 0 ? 1 : (o + 1) * (o + 1);
     }
 };
 
 static_assert (std::is_trivially_copyable_v<EncoderRtParams>,
                "EncoderRtParams must be a POD for RtSnapshot");
 static_assert (xoa::kMaxInputs <= 64, "EncoderRtParams::nfcMask is a 64-bit mask");
+
+/** All-mono encoder params: input i occupies stem row i, the pre-stage-2
+    contract. Use this rather than aggregate initialisation — brace-init
+    leaves stemOffset all-zero, which points every input at stem row 0. */
+inline EncoderRtParams makeMonoEncoderParams (int numSources, juce::uint64 nfcMask,
+                                              float referenceRadius, juce::uint32 epoch) noexcept
+{
+    EncoderRtParams p;
+    p.numSources      = numSources;
+    p.nfcMask         = nfcMask;
+    p.referenceRadius = referenceRadius;
+    p.epoch           = epoch;
+    for (int i = 0; i < xoa::kMaxInputs; ++i)
+    {
+        p.stemOffset[i] = i;
+        p.stemOrder[i]  = 0;
+    }
+    return p;
+}
 
 //==============================================================================
 // Composers (message thread; also compiled by the harness and tests).
@@ -133,12 +171,13 @@ inline RotationRtState makeRotationState (double yawDeg, double pitchDeg, double
 
 /** Build the gather table for content of the given order and convention.
 
-    @param overrideOrder    ids::playbackContentOrder; <= 0 means "auto" ->
-                            use detectedOrder.
-    @param detectedOrder    FilePlayer's channel-count heuristic (or the true
-                            order for synthetic sources).
-    @param convention       ids::playbackConvention (ContentConvention).
-    @param numFileChannels  channels the input source actually delivers.
+    @param overrideOrder    <= 0 means "auto" -> use detectedOrder.
+    @param detectedOrder    the content's true order (kAmbisonicOrder for the
+                            synthetic test scene).
+    @param convention       ContentConvention ordinal.
+    @param numFileChannels  channels the input source actually delivers;
+                            0 -> every slot -1, the gather clears busA (the
+                            no-source shape, D48).
     @param masterGainDb     ids::masterGain.
     @param warning          optional out: FuMa>3 fallback (PRD sec.9 rejection
                             rule) and missing-channel notes land here.

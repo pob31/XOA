@@ -2,10 +2,12 @@
   ==============================================================================
 
     XOA — tenth-order Ambisonics spatial audio processor.
-    HeaderBar — the persistent top strip (WP10 C5, decision D27): file transport,
-    the three rotation dials (FR-10), master gain, and a live status readout
-    (sample rate / latency / CPU / decoder-rebuild / OSC). These are performance
-    controls that must never sit behind a tab switch.
+    HeaderBar — the persistent top strip (WP10 C5, decision D27): the HOA
+    source latch (none / test scene — program material arrives from external
+    players via the device inputs, D48), the three rotation dials (FR-10),
+    master gain, and a live status readout (sample rate / latency / CPU /
+    decoder-rebuild / OSC). These are performance controls that must never
+    sit behind a tab switch.
 
     This file is part of XOA, released under the GNU General Public License
     v3.0. See LICENSE for details.
@@ -34,24 +36,15 @@ public:
 
     void resized() override;
 
-    /** App timer tick: transport position, status line, loop -> FilePlayer. */
+    /** App timer tick: the live status line. */
     void refresh();
 
 private:
-    void openFileDialog();
-
     AppContext& context;
     BindingSet  bindings;
 
-    // Transport
-    juce::TextButton  openButton  { "Open…" };
-    juce::TextButton  playButton  { "Play" };
-    juce::TextButton  stopButton  { "Stop" };
-    juce::TextButton  loopButton  { "Loop" };   // latching (WFS toggle style)
-    juce::ComboBox    sourceCombo;
-    juce::Label       fileLabel;
-    XoaStandardSlider positionSlider;
-    bool              positionDragging = false;
+    // HOA source (D48): a test-scene latch; no transport, no file.
+    juce::TextButton testSceneButton;
 
     // Rotation (FR-10)
     XoaBasicDial yawDial, pitchDial, rollDial;
@@ -64,8 +57,6 @@ private:
 
     // Live status
     juce::Label statusLabel;
-
-    std::unique_ptr<juce::FileChooser> fileChooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
 };

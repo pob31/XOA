@@ -227,7 +227,8 @@ static void testDefaultSchema()
 }
 
 //==============================================================================
-// T4b — WP6 Config additions: scene rotation + playback parameters
+// T4b — WP6 Config additions: scene rotation parameters
+// (playback ids were removed with the file player, D48/D50)
 //==============================================================================
 static void testWp6ConfigParameters()
 {
@@ -237,26 +238,16 @@ static void testWp6ConfigParameters()
     CHECK (s.getFloatParameter (ids::rotationYaw) == 0.0f);
     CHECK (s.getFloatParameter (ids::rotationPitch) == 0.0f);
     CHECK (s.getFloatParameter (ids::rotationRoll) == 0.0f);
-    CHECK (s.getStringParameter (ids::playbackFilePath).isEmpty());
-    CHECK (! static_cast<bool> (s.getParameter (ids::playbackLoop)));
-    CHECK (s.getIntParameter (ids::playbackContentOrder) == 0);   // auto
-    CHECK (s.getIntParameter (ids::playbackConvention) == 0);     // SN3D
 
     // Gate-1 live clamps from the bounds table
     s.setParameter (ids::rotationYaw, 500.0);
     CHECK (s.getFloatParameter (ids::rotationYaw) == 180.0f);
     s.setParameter (ids::rotationPitch, -123.0);
     CHECK (s.getFloatParameter (ids::rotationPitch) == -90.0f);
-    s.setParameter (ids::playbackContentOrder, 99.0);
-    CHECK (s.getIntParameter (ids::playbackContentOrder) == xoa::kAmbisonicOrder);
 
-    // In-range writes land verbatim; strings/bools stay unbounded
+    // In-range writes land verbatim
     s.setParameter (ids::rotationRoll, -45.0);
     CHECK (s.getFloatParameter (ids::rotationRoll) == -45.0f);
-    s.setParameter (ids::playbackFilePath, "d:/scenes/dome.wav");
-    CHECK (s.getStringParameter (ids::playbackFilePath) == "d:/scenes/dome.wav");
-    s.setParameter (ids::playbackLoop, true);
-    CHECK (static_cast<bool> (s.getParameter (ids::playbackLoop)));
 }
 
 //==============================================================================
@@ -269,6 +260,9 @@ static void testWp6ConfigPersistence()
 
     // Non-default, in-range values load verbatim; an out-of-range angle is
     // clamped by Gate-2 (validateLoadedProperty), not rejected to default.
+    // The file also carries the REMOVED playback ids (a project saved by a
+    // pre-D48 build) — they must merge harmlessly: load succeeds, nothing
+    // reads them, and no live parameter is disturbed.
     const auto cfgFile = tmp.dir.getChildFile ("wp6_config.xml");
     cfgFile.replaceWithText (
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -285,12 +279,8 @@ static void testWp6ConfigPersistence()
     CHECK (s.getFloatParameter (ids::rotationYaw) == 45.0f);        // in-range verbatim
     CHECK (s.getFloatParameter (ids::rotationPitch) == 90.0f);      // 9999 -> clamped to +90
     CHECK (s.getFloatParameter (ids::rotationRoll) == -30.0f);
-    CHECK (s.getStringParameter (ids::playbackFilePath) == "d:/scenes/dome.wav");
-    CHECK (static_cast<bool> (s.getParameter (ids::playbackLoop)));
-    CHECK (s.getIntParameter (ids::playbackContentOrder) == 3);
-    CHECK (s.getIntParameter (ids::playbackConvention) == 2);
 
-    // A legacy config that predates these params must not lose them: the merge
+    // A legacy config that predates newer params must not lose them: the merge
     // leaves each at its default rather than dropping it from the tree.
     const auto legacyFile = tmp.dir.getChildFile ("legacy_config.xml");
     legacyFile.replaceWithText (
@@ -306,9 +296,6 @@ static void testWp6ConfigPersistence()
     CHECK (s2.getStringParameter (ids::showName) == "Legacy");      // file value applied
     CHECK (s2.getConfigSection().hasProperty (ids::rotationYaw));   // param survived the merge
     CHECK (s2.getFloatParameter (ids::rotationYaw) == 0.0f);        // at its default
-    CHECK (s2.getStringParameter (ids::playbackFilePath).isEmpty());
-    CHECK (s2.getIntParameter (ids::playbackContentOrder) == 0);    // auto
-    CHECK (s2.getIntParameter (ids::playbackConvention) == 0);      // SN3D
 }
 
 //==============================================================================
