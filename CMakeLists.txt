@@ -64,7 +64,6 @@ target_sources(XOA PRIVATE
     Source/Main.cpp
     Source/Parameters/XoaValueTreeState.cpp
     Source/Parameters/XoaFileManager.cpp
-    Source/Audio/FilePlayer.cpp
     Source/Audio/AudioEngine.cpp
     Source/DSP/AmbiCalculationEngine.cpp
     Source/DSP/ConvexHull.cpp

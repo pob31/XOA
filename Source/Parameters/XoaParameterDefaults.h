@@ -49,15 +49,6 @@ constexpr double rotationYawDefault   = 0.0, rotationYawMin   = -180.0, rotation
 constexpr double rotationPitchDefault = 0.0, rotationPitchMin =  -90.0, rotationPitchMax =  90.0;
 constexpr double rotationRollDefault  = 0.0, rotationRollMin  = -180.0, rotationRollMax  = 180.0;
 
-// Config / Playback. Content order 0 means "auto-detect from channel count";
-// the max is the bus order (order-generic rule FR-3).
-inline const juce::String playbackFilePathDefault {};
-constexpr bool   playbackLoopDefault = false;
-constexpr double playbackContentOrderDefault = 0.0, playbackContentOrderMin = 0.0,
-                 playbackContentOrderMax = (double) xoa::kAmbisonicOrder;
-constexpr double playbackConventionDefault = 0.0,
-                 playbackConventionMin = 0.0, playbackConventionMax = 2.0;   // 0 SN3D, 1 N3D, 2 FuMa
-
 // Config / distance compensation (FR-15). Default off preserves M1 behaviour
 // and every existing baseline.
 constexpr double distanceCompModeDefault = 0.0,

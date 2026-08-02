@@ -89,9 +89,7 @@ inline const std::vector<Binding>& bindings()
         { Family::config, "masterGain",           i::masterGain,           WireType::f32,     false },
         { Family::config, "distanceCompMode",     i::distanceCompMode,     WireType::i32,     false },
         { Family::config, "monoInputsEnabled",    i::monoInputsEnabled,    WireType::boolean, false },
-        { Family::config, "playbackLoop",         i::playbackLoop,         WireType::boolean, false },
-        { Family::config, "playbackContentOrder", i::playbackContentOrder, WireType::i32,     false },
-        { Family::config, "playbackConvention",   i::playbackConvention,   WireType::i32,     false },
+        // playbackLoop/ContentOrder/Convention removed in map v1.1 (D48/D50).
         { Family::config, "inputCount",           i::inputCount,           WireType::i32,     false },
         { Family::config, "speakerCount",         i::speakerCount,         WireType::i32,     false },
         // rotation

@@ -64,7 +64,7 @@ One HOA bus per project. All inputs are encoded to / adapted to the bus, transfo
 - **FR-7 HOA stream input.** Accept an AmbiX stream (file or network audio) of order M against the fixed order-10 bus:
   - **Upmix (M < 10):** zero-pad higher-order coefficients (standard practice; creates no false spatial detail, preserves compatibility). Optional gentle order-weighting shelf to avoid brightness mismatch.
   - **Downmix (M > 10):** truncate to order 10 with max-rE re-weighting to minimize truncation artifacts.
-- **FR-8 File playback.** Multichannel WAV/CAF/FLAC up to 128 channels, with AmbiX metadata detection where present; manual order/convention override always available.
+- **FR-8 External program input** *(rewritten by D48 — XOA is a processor, not a player)*. Program material is played by external applications (DAW, QLab, …) and arrives through the audio device inputs: mono stems and AmbiX HOA groups (per-input `inputFormat`, D44), routed by the input patch. There is no built-in file player and no cueing mechanism; an interactive sampler player (WFS-DIY style) is a post-v1 candidate. *(Historical v0 scope: multichannel WAV/CAF/FLAC playback up to 128 channels — shipped in M1, removed by D48.)*
 
 ### 4.3 Scene transforms (on the HOA bus)
 

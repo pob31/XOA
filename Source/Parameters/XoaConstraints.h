@@ -45,13 +45,10 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::oscSendPort,    { d::oscPortMin, d::oscPortMax, d::oscSendPortDefault, true } },
         { ids::oscTcpPort,     { d::oscPortMin, d::oscPortMax, d::oscTcpPortDefault, true } },
 
-        // Config / scene rotation + playback (playbackLoop is bool and
-        // playbackFilePath is string -> unbounded by convention)
+        // Config / scene rotation
         { ids::rotationYaw,          { d::rotationYawMin, d::rotationYawMax, d::rotationYawDefault, false } },
         { ids::rotationPitch,        { d::rotationPitchMin, d::rotationPitchMax, d::rotationPitchDefault, false } },
         { ids::rotationRoll,         { d::rotationRollMin, d::rotationRollMax, d::rotationRollDefault, false } },
-        { ids::playbackContentOrder, { d::playbackContentOrderMin, d::playbackContentOrderMax, d::playbackContentOrderDefault, true } },
-        { ids::playbackConvention,   { d::playbackConventionMin, d::playbackConventionMax, d::playbackConventionDefault, true } },
         { ids::distanceCompMode,     { d::distanceCompModeMin, d::distanceCompModeMax, d::distanceCompModeDefault, true } },
         { ids::listenerX,            { d::positionMin, d::positionMax, d::listenerXDefault, false } },
         { ids::listenerY,            { d::positionMin, d::positionMax, d::listenerYDefault, false } },

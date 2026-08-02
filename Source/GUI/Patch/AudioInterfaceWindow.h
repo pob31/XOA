@@ -6,10 +6,11 @@
     Device Settings / Input Patch / Output Patch tabs around the shared
     spatcore patch matrix. XOA-owned shell (deliberately not shared — handoff
     §7), copied in shape from WFS-DIY's AudioInterfaceWindow/AudioPatchTab and
-    reduced: one XoaPatchTab class serves both directions, and the transport
-    gate (D41) replaces WFS-DIY's processing gate — patch edits only while the
-    file transport is stopped; while it runs the content is disabled behind a
-    banner and test tones are stopped.
+    reduced: one XoaPatchTab class serves both directions. There is no
+    processing/transport gate (D49): XOA is a processor whose program comes
+    from external players it cannot sense, so the safety net is the explicit
+    matrix interaction and the generator's 500 ms protective ramp; test tones
+    still stop on every exit path (tab change, mode change, window close).
 
     This file is part of XOA, released under the GNU General Public License
     v3.0. See LICENSE for details.
@@ -140,15 +141,12 @@ private:
 };
 
 //==============================================================================
-/** Info bar + Device Settings / Input Patch / Output Patch tabs, plus the
-    transport gate (D41): while the file transport plays, the content is
-    disabled behind a banner and test tones stop. */
-class AudioInterfaceContent : public juce::Component,
-                              private juce::Timer
+/** Info bar + Device Settings / Input Patch / Output Patch tabs. */
+class AudioInterfaceContent : public juce::Component
 {
 public:
     explicit AudioInterfaceContent (AppContext& ctx);
-    ~AudioInterfaceContent() override;
+    ~AudioInterfaceContent() override = default;
 
     void resized() override;
     void paint (juce::Graphics& g) override;
@@ -158,9 +156,9 @@ public:
 
 private:
     /** Tab switches must stop a running test tone (§7.2 B exit paths). */
-    struct GateTabbedComponent : juce::TabbedComponent
+    struct NotifyingTabbedComponent : juce::TabbedComponent
     {
-        GateTabbedComponent() : juce::TabbedComponent (juce::TabbedButtonBar::TabsAtTop) {}
+        NotifyingTabbedComponent() : juce::TabbedComponent (juce::TabbedButtonBar::TabsAtTop) {}
         std::function<void (int)> onTabChanged;
         void currentTabChanged (int newIndex, const juce::String&) override
         {
@@ -169,20 +167,15 @@ private:
         }
     };
 
-    void timerCallback() override;   // the transport gate poll
-
     AppContext& context;
 
     DeviceInfoBar infoBar;
-    GateTabbedComponent tabs;
-    juce::Label transportBanner;
+    NotifyingTabbedComponent tabs;
 
     // Owned by the TabbedComponent.
     DeviceSettingsPanel* devicePanel = nullptr;
     XoaPatchTab* inputTab = nullptr;
     XoaPatchTab* outputTab = nullptr;
-
-    bool gateActive = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioInterfaceContent)
 };

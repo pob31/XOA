@@ -54,7 +54,10 @@ static_assert (std::is_trivially_copyable_v<RotationRtState>,
                "RotationRtState must be a POD for RtSnapshot");
 
 //==============================================================================
-/** Values match ids::playbackConvention. */
+/** HOA channel-normalization/ordering conventions the gather can interpret.
+    (Historically driven by ids::playbackConvention; since D48/D50 only the
+    synthetic test scene and the offline harness feed the gather, both SN3D,
+    but the conversion math stays — a future per-input override reuses it.) */
 enum class ContentConvention { sn3d = 0, n3d = 1, fuma = 2 };
 
 struct BusRtParams
@@ -168,12 +171,13 @@ inline RotationRtState makeRotationState (double yawDeg, double pitchDeg, double
 
 /** Build the gather table for content of the given order and convention.
 
-    @param overrideOrder    ids::playbackContentOrder; <= 0 means "auto" ->
-                            use detectedOrder.
-    @param detectedOrder    FilePlayer's channel-count heuristic (or the true
-                            order for synthetic sources).
-    @param convention       ids::playbackConvention (ContentConvention).
-    @param numFileChannels  channels the input source actually delivers.
+    @param overrideOrder    <= 0 means "auto" -> use detectedOrder.
+    @param detectedOrder    the content's true order (kAmbisonicOrder for the
+                            synthetic test scene).
+    @param convention       ContentConvention ordinal.
+    @param numFileChannels  channels the input source actually delivers;
+                            0 -> every slot -1, the gather clears busA (the
+                            no-source shape, D48).
     @param masterGainDb     ids::masterGain.
     @param warning          optional out: FuMa>3 fallback (PRD sec.9 rejection
                             rule) and missing-channel notes land here.

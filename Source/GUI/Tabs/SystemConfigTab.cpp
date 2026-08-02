@@ -25,11 +25,9 @@ namespace xoa::ui
 SystemConfigTab::SystemConfigTab (AppContext& ctx) : TabPage (ctx, Surface::systemConfig)
 {
     addAndMakeVisible (showGroup);
-    addAndMakeVisible (playbackGroup);
     addAndMakeVisible (deviceGroup);
     addAndMakeVisible (appearanceGroup);
     showGroup.setText (LOC ("systemConfig.show"));
-    playbackGroup.setText (LOC ("systemConfig.playback"));
     deviceGroup.setText (LOC ("systemConfig.device"));
     appearanceGroup.setText (LOC ("systemConfig.appearance"));
 
@@ -49,18 +47,6 @@ SystemConfigTab::SystemConfigTab (AppContext& ctx) : TabPage (ctx, Surface::syst
     loadButton.onClick   = [this] { loadProjectDialog(); };
     saveButton.onClick   = [this] { saveProjectDialog(); };
     importButton.onClick = [this] { importWfsDialog(); };
-
-    // Playback interpretation
-    contentOrderLabel.setText (LOC ("param.playbackContentOrder"), juce::dontSendNotification);
-    contentOrderLabel.setJustificationType (juce::Justification::centredRight);
-    conventionLabel.setText (LOC ("param.playbackConvention"), juce::dontSendNotification);
-    conventionLabel.setJustificationType (juce::Justification::centredRight);
-    addAndMakeVisible (contentOrderLabel);
-    addAndMakeVisible (conventionLabel);
-    addAndMakeVisible (contentOrderCombo);
-    addAndMakeVisible (conventionCombo);
-    bindings.bindCombo (contentOrderCombo, ids::playbackContentOrder);
-    bindings.bindCombo (conventionCombo, ids::playbackConvention);
 
     // Audio device + patching live in the Audio Interface window (stage 2):
     // every device mutation there routes through DeviceHost, which the stock
@@ -238,15 +224,6 @@ void SystemConfigTab::resized()
         loadButton.setBounds (btns.removeFromLeft (px (120))); btns.removeFromLeft (px (8));
         saveButton.setBounds (btns.removeFromLeft (px (120))); btns.removeFromLeft (px (8));
         importButton.setBounds (btns.removeFromLeft (px (150)));
-    }
-    col.removeFromTop (px (8));
-
-    {
-        auto g = col.removeFromTop (px (120));
-        playbackGroup.setBounds (g);
-        auto inner = g.reduced (px (12), px (22));
-        labelled (inner, contentOrderLabel, contentOrderCombo, px (160));
-        labelled (inner, conventionLabel, conventionCombo, px (160));
     }
     col.removeFromTop (px (8));
 

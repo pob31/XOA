@@ -52,9 +52,7 @@ void AudioEngine::registerListeners()
     store.addParameterListener (ids::rotationPitch, [this] (const juce::var&) { publishRotation(); });
     store.addParameterListener (ids::rotationRoll,  [this] (const juce::var&) { publishRotation(); });
 
-    store.addParameterListener (ids::masterGain,           [this] (const juce::var&) { publishBusParams(); });
-    store.addParameterListener (ids::playbackContentOrder, [this] (const juce::var&) { publishBusParams(); });
-    store.addParameterListener (ids::playbackConvention,   [this] (const juce::var&) { publishBusParams(); });
+    store.addParameterListener (ids::masterGain, [this] (const juce::var&) { publishBusParams(); });
 
     // Distance-comp mode lives in Config, so it needs its own listener (the
     // Speakers subtree listener below only sees per-speaker edits). It changes
@@ -95,8 +93,6 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::rotationPitch);
     store.removeParameterListeners (ids::rotationRoll);
     store.removeParameterListeners (ids::masterGain);
-    store.removeParameterListeners (ids::playbackContentOrder);
-    store.removeParameterListeners (ids::playbackConvention);
     store.removeParameterListeners (ids::distanceCompMode);
     store.removeParameterListeners (ids::listenerX);
     store.removeParameterListeners (ids::listenerY);
@@ -160,20 +156,7 @@ void AudioEngine::closeAudioDevice()
 void AudioEngine::setInputSource (InputSource source)
 {
     inputSource.store (source, std::memory_order_relaxed);
-    publishBusParams();   // the gather differs between file and scene
-}
-
-FilePlayer::OpenResult AudioEngine::openFile (const juce::File& file)
-{
-    auto r = filePlayer.open (file);
-    if (r.ok)
-    {
-        fileNumChannels.store (r.numChannels, std::memory_order_relaxed);
-        fileDetectedOrder.store (r.detectedOrder, std::memory_order_relaxed);
-        store.setParameter (ids::playbackFilePath, file.getFullPathName());
-        setInputSource (InputSource::file);   // recomposes + publishes the gather
-    }
-    return r;
+    publishBusParams();   // the gather differs between none and scene
 }
 
 //==============================================================================
@@ -191,18 +174,18 @@ void AudioEngine::publishBusParams()
 
     if (inputSource.load (std::memory_order_relaxed) == InputSource::testScene)
     {
-        // The synthetic scene is order-10 SN3D; the file content-order/convention
-        // overrides do not apply to it.
+        // The synthetic scene is order-10 SN3D.
         busParamsSnapshot.publish (rt::makeBusParams (0, xoa::kAmbisonicOrder, 0,
                                                       xoa::kNumSHChannels, masterDb, ++busEpoch));
     }
     else
     {
-        const int overrideOrder = store.getIntParameter (ids::playbackContentOrder);
-        const int convention    = store.getIntParameter (ids::playbackConvention);
-        busParamsSnapshot.publish (rt::makeBusParams (
-            overrideOrder, fileDetectedOrder.load (std::memory_order_relaxed), convention,
-            fileNumChannels.load (std::memory_order_relaxed), masterDb, ++busEpoch));
+        // No HOA source (D48): zero input channels makes every gather slot
+        // srcChannel -1, so the gather stage clears busA each block and the
+        // encoder stage (stems / HOA groups from device inputs) accumulates
+        // on top. Master gain still rides this snapshot, so this publisher
+        // must keep running even with no source.
+        busParamsSnapshot.publish (rt::makeBusParams (0, 0, 0, 0, masterDb, ++busEpoch));
     }
 }
 
@@ -451,7 +434,6 @@ void AudioEngine::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
     speakerScratch.setSize (xoa::kMaxSpeakers, block, false, false, true);
     speakerScratch.clear();
     hwWritten.assign ((size_t) xoa::kMaxHardwareChannels, 0);
-    filePlayer.prepareToPlay (sr, block);
 
     algorithm.prepare (xoa::kNumSHChannels, numSpk, sr, block,
                        &decoderBuilder, &rotationSnapshot, &busParamsSnapshot, true,
@@ -470,7 +452,6 @@ void AudioEngine::releaseResources()
 {
     algorithm.releaseResources();
     speakerComp.releaseResources();
-    filePlayer.releaseResources();
     deviceSampleRate.store (0.0, std::memory_order_relaxed);
     deviceBlockSize.store (0, std::memory_order_relaxed);
     numActiveInputs.store (0, std::memory_order_relaxed);
@@ -591,9 +572,9 @@ void AudioEngine::getNextAudioBlock (const juce::AudioSourceChannelInfo& info)
     }
     else
     {
-        filePlayer.renderNextBlock (inputScratch, n);
-        algorithm.processBlock (outInfo, inputScratch,
-                                fileNumChannels.load (std::memory_order_relaxed), numSpk,
+        // No HOA source (D48): the published zero-channel BusRtParams makes
+        // the gather clear busA; the encoder stage supplies all content.
+        algorithm.processBlock (outInfo, inputScratch, 0, numSpk,
                                 stemsPtr, numStems);
     }
 

@@ -41,14 +41,11 @@ private:
     void importWfsDialog();
     void openAudioInterfaceWindow();
 
-    juce::GroupComponent showGroup, playbackGroup, deviceGroup, appearanceGroup;
+    juce::GroupComponent showGroup, deviceGroup, appearanceGroup;
 
     juce::Label      showNameLabel;
     juce::TextEditor showNameEditor;
     juce::TextButton loadButton, saveButton, importButton;
-
-    juce::Label    contentOrderLabel, conventionLabel;
-    juce::ComboBox contentOrderCombo, conventionCombo;
 
     juce::Label    themeLabel, languageLabel;
     juce::ComboBox themeCombo, languageCombo;

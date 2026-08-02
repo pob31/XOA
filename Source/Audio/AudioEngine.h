@@ -13,7 +13,6 @@
 
 #include "XoaConstants.h"
 #include "Audio/DecoderRebuildWorker.h"
-#include "Audio/FilePlayer.h"
 #include "Audio/PatchRouting.h"
 #include "Audio/SpeakerCompParams.h"
 #include "Audio/SpeakerCompProcessor.h"
@@ -36,7 +35,7 @@
 // through three message-thread controllers:
 //
 //   RotationPublisher     rotation params -> RtSnapshot<RotationRtState>
-//   BusParamsPublisher    master gain / playback params + input-source ->
+//   BusParamsPublisher    master gain + input-source (none / test scene) ->
 //                         RtSnapshot<BusRtParams>
 //   DecoderRebuildControl Speakers/Decoder subtree changes -> a 150 ms
 //                         debounce -> DecoderMatrixBuilder rebuild + publish
@@ -58,7 +57,12 @@ class AudioEngine : private juce::AudioSource,
                     private juce::AsyncUpdater
 {
 public:
-    enum class InputSource { file, testScene };
+    /** The HOA bus source. XOA is a PROCESSOR (D48): program material is
+        played by external apps and arrives through the device inputs as
+        stems/HOA groups — `none` means the bus carries only what the encoder
+        stage accumulates. `testScene` is the synthetic order-10 scene, the
+        audible-without-hardware fallback. */
+    enum class InputSource { none, testScene };
 
     /** Where the mono-encoder stems come from: device input channels
         (identity-mapped hw ch i -> input i) or a deterministic internal test
@@ -76,12 +80,11 @@ public:
 
     juce::AudioDeviceManager& getDeviceManager() noexcept { return deviceManager; }
     spatcore::io::DeviceHost& getDeviceHost()    noexcept { return deviceHost; }
-    FilePlayer&               getFilePlayer()    noexcept { return filePlayer; }
     DecoderMatrixBuilder&     getDecoderBuilder() noexcept { return decoderBuilder; }
     TestSignalGenerator&      getTestSignalGenerator() noexcept { return testSignal; }
 
     //==========================================================================
-    // Input source + file (message thread).
+    // Input source (message thread).
     //==========================================================================
     void setInputSource (InputSource source);
     InputSource getInputSource() const noexcept { return inputSource.load (std::memory_order_relaxed); }
@@ -93,10 +96,6 @@ public:
     /** The control-side encoder engine (UI/tests drive tick() and parameters
         through the store; this exposes it for the offline harness and tests). */
     AmbiCalculationEngine& getCalculationEngine() noexcept { return calcEngine; }
-
-    /** Open a file, point the input at it, and persist the path. On success
-        the bus gather is recomposed for the file's channel count/order. */
-    FilePlayer::OpenResult openFile (const juce::File& file);
 
     /** Force the pending decoder rebuild now, synchronously (startup +
         explicit UI + tests). Invalidates any in-flight async rebuild. */
@@ -243,7 +242,6 @@ private:
     spatcore::io::DeviceHost       deviceHost { deviceManager, xoa::kMaxHardwareChannels };
     spatcore::io::DeviceIoCallback ioCallback { *this, xoa::kMaxHardwareChannels };
 
-    FilePlayer               filePlayer;
     DecoderMatrixBuilder     decoderBuilder;
     AmbiCalculationEngine    calcEngine;   // control-side encoder (owns the live matrices)
 
@@ -273,15 +271,13 @@ private:
     // Per-HARDWARE-input meters (patch matrix tinting), pre-gather.
     std::array<std::atomic<float>, xoa::kMaxHardwareChannels> hwInputPeak {};
 
-    juce::AudioBuffer<float> inputScratch;   // [kMaxFileChannels x block]
+    juce::AudioBuffer<float> inputScratch;   // [kMaxFileChannels x block] test-scene HOA render
     juce::AudioBuffer<float> stemScratch;    // [kMaxStemChannels x block] flattened stem channels (D43)
     juce::AudioBuffer<float> speakerScratch; // [kMaxSpeakers x block] decode+comp domain, scattered to hardware
     std::vector<char> hwWritten;             // per-block scatter bookkeeping (sized at prepare)
 
-    std::atomic<InputSource> inputSource { InputSource::file };
+    std::atomic<InputSource> inputSource { InputSource::none };
     std::atomic<StemFeed>    stemFeed { StemFeed::device };
-    std::atomic<int> fileNumChannels { 0 };
-    std::atomic<int> fileDetectedOrder { 0 };
 
     // Epochs advance on the message thread only (one writer per snapshot).
     juce::uint32 rotationEpoch = 0;

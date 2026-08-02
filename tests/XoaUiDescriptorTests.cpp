@@ -38,7 +38,7 @@ using StrSet = std::set<juce::String>;
 // bool/string parameters that carry no numeric bounds and no OSC binding, yet are
 // real v1 parameters a surface must expose (or reach via a system surface).
 const char* const kExtras[] = {
-    "showName", "playbackFilePath",
+    "showName",
     "oscEnabled", "oscTcpEnabled", "oscAcceptAnyHost", "oscFeedbackEnabled",
     "oscMeterEnabled", "oscSendAddress", "audioDeviceState"
 };

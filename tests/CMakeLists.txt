@@ -11,7 +11,7 @@ target_sources(xoa-tests PRIVATE
     XoaShTests.cpp
     XoaRotationTests.cpp
     XoaDecoderTests.cpp
-    XoaFilePlayerTests.cpp
+    XoaFileFormatTests.cpp
     XoaBusTests.cpp
     XoaSceneTests.cpp
     XoaEngineTests.cpp
@@ -30,7 +30,6 @@ target_sources(xoa-tests PRIVATE
     XoaPatchTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
-    ../Source/Audio/FilePlayer.cpp
     ../Source/Audio/AudioEngine.cpp
     ../Source/DSP/AmbiCalculationEngine.cpp
     ../Source/DSP/ConvexHull.cpp
@@ -44,7 +43,7 @@ target_include_directories(xoa-tests PRIVATE
 # The JUCE modules arrive transitively through the libs' PUBLIC link
 # interface (their sources compile into this target, JUCE-module style).
 # juce_audio_utils brings juce_audio_devices (AudioTransportSource) for
-# FilePlayer; harmless headless (no device is opened by the tests).
+# the engine sources; harmless headless (no device is opened by the tests).
 target_link_libraries(xoa-tests PRIVATE
     spatcore-audio
     spatcore-control

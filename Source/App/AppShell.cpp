@@ -264,7 +264,8 @@ void AppShell::resized()
     auto area = getLocalBounds();
     const float sc = XoaLookAndFeel::uiScale;
 
-    header.setBounds (area.removeFromTop (juce::roundToInt (120.0f * sc)));
+    // 90px: the header lost its transport row when the file player left (D48).
+    header.setBounds (area.removeFromTop (juce::roundToInt (90.0f * sc)));
     statusBar.setBounds (area.removeFromBottom (juce::roundToInt (30.0f * sc)));
     tabs.setBounds (area);
 }

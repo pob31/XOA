@@ -51,18 +51,14 @@ inline const std::vector<RegistryRow>& registryRows()
 {
     namespace i = xoa::ids;
     static const std::vector<RegistryRow> rows = {
-        // Persistent header strip (C5): transport + rotation + master.
+        // Persistent header strip (C5): rotation + master (no transport, D48).
         { Surface::header, i::rotationYaw },
         { Surface::header, i::rotationPitch },
         { Surface::header, i::rotationRoll },
         { Surface::header, i::masterGain },
-        { Surface::header, i::playbackLoop },
-        { Surface::header, i::playbackFilePath },
 
         // System Config tab (C5).
         { Surface::systemConfig, i::showName },
-        { Surface::systemConfig, i::playbackContentOrder },
-        { Surface::systemConfig, i::playbackConvention },
         { Surface::systemConfig, i::audioDeviceState },
 
         // Network tab (C5): the WP9 OSC transport schema (single send target).

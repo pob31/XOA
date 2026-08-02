@@ -52,14 +52,12 @@
     "ready": "Ready"
   },
   "header": {
-    "noFile": "No file loaded — use the test scene or open an AmbiX file.",
-    "openTitle": "Open an Ambisonics file",
+    "testScene": "Test scene",
     "deviceStopped": "audio device stopped",
     "rebuilding": "rebuilding…"
   },
   "systemConfig": {
     "show": "Show",
-    "playback": "Playback",
     "device": "Audio device",
     "audioInterface": "Audio Interface…",
     "appearance": "Appearance",
@@ -166,10 +164,6 @@
     "rotationYaw": "Yaw",
     "rotationPitch": "Pitch",
     "rotationRoll": "Roll",
-    "playbackFilePath": "File",
-    "playbackLoop": "Loop",
-    "playbackContentOrder": "Content order",
-    "playbackConvention": "Convention",
     "distanceCompMode": "Distance comp",
     "listenerX": "Listener X",
     "listenerY": "Listener Y",
@@ -222,7 +216,6 @@
     "mode": { "scrolling": "Scroll", "patching": "Patch", "testing": "Test" },
     "unpatchAll": "Unpatch All (hold)",
     "test": { "hold": "Hold" },
-    "transportLocked": "Patching is disabled while the transport is playing — stop playback to edit.",
     "labels": {
       "interfaceInput": "Interface input", "interfaceOutput": "Interface output",
       "processorInputs": "Stem channels", "processorOutputs": "Speakers"
@@ -233,8 +226,6 @@
     }
   },
   "enum": {
-    "contentOrder": { "auto": "Auto" },
-    "convention": { "sn3d": "SN3D", "n3d": "N3D", "fuma": "FuMa" },
     "distanceComp": { "off": "Off", "delay": "Delay", "delayGain": "Delay + Gain" },
     "coordMode": { "cartesian": "Cartesian", "cylindrical": "Cylindrical", "spherical": "Spherical" },
     "inputFormat": {

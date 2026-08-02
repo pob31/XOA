@@ -50,8 +50,10 @@ constexpr int kDefaultSpeakers = 24;   // the M1 24-ring validation fixture
 /** Per-speaker EQ band count (matches spatcore's per-output EQ chain). */
 constexpr int kNumEqBands = 6;
 
-/** FR-8 file-playback ceiling: multichannel WAV/CAF/FLAC up to 128 channels
-    (order 10 needs 121; the headroom matches the PRD's stated cap). */
+/** HOA bus-source channel ceiling (order 10 needs 121, plus headroom). Sizes
+    the test-scene render scratch and clamps rt::makeBusParams. Historically
+    the FR-8 file-playback cap; the file player is gone (D48) but the value is
+    baked into the offline-render baselines, so it keeps its name and value. */
 constexpr int kMaxFileChannels = 128;
 
 /** Speed of sound (m/s), the single project-wide value. Used by the WP7

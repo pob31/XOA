@@ -59,10 +59,6 @@ void XoaValueTreeState::initializeDefaultState()
     config.setProperty (ids::rotationYaw, d::rotationYawDefault, nullptr);
     config.setProperty (ids::rotationPitch, d::rotationPitchDefault, nullptr);
     config.setProperty (ids::rotationRoll, d::rotationRollDefault, nullptr);
-    config.setProperty (ids::playbackFilePath, d::playbackFilePathDefault, nullptr);
-    config.setProperty (ids::playbackLoop, d::playbackLoopDefault, nullptr);
-    config.setProperty (ids::playbackContentOrder, static_cast<int> (d::playbackContentOrderDefault), nullptr);
-    config.setProperty (ids::playbackConvention, static_cast<int> (d::playbackConventionDefault), nullptr);
     config.setProperty (ids::distanceCompMode, static_cast<int> (d::distanceCompModeDefault), nullptr);
     config.setProperty (ids::listenerX, d::listenerXDefault, nullptr);
     config.setProperty (ids::listenerY, d::listenerYDefault, nullptr);

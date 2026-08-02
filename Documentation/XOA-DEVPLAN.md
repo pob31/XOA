@@ -42,7 +42,7 @@ parameter store +
 XML project I/O (WP2), the SH math core (WP3), SO(3) rotation + mirror (WP4),
 the SAD/mode-matching decoder designer + rV/rE (WP5), and the RT bus engine —
 gather (convention + FR-7 order adaptation) → click-free SO(3) rotation →
-decode GEMM → master gain → device outs — with multichannel file playback, a
+decode GEMM → master gain → device outs — with multichannel file playback (removed later by D48), a
 synthetic order-10 test-scene generator, an offline-render bit-exact harness,
 and a throwaway shell UI (WP6). The `xoa-tests` suite and the
 `xoa-offline-render-smoke` run on all three CI OSes.
@@ -63,7 +63,7 @@ hardware in CI).
 | WP3 | SH math core: evaluation, conventions, order weights | M1 part | P2 | WP1 | M | **DONE** |
 | WP4 | Rotation & mirror | M1 part | P2 | WP3 | M | **DONE** |
 | WP5 | Speaker layout & decoder designer v1 (SAD + mode-matching, rV/rE) | M1 part | P2 | WP2, WP3 | L | **DONE** |
-| WP6 | RT bus engine, file playback, minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
+| WP6 | RT bus engine, file playback (since removed, D48), minimal shell — **first audible** | **M1 exit** | P2 + P5 sliver | WP2, WP4, WP5 | XL | **DONE (M1)** |
 | WP7 | AllRAD, dual-band, per-speaker comp, test signals | **M2 exit** | P2 tail | WP6 | XL | **DONE (M2)** |
 | WP8 | Mono encoders, NFC, spread | M3 part | P2 tail | WP6 | L | **DONE (M3a)** |
 | WP9 | OSC & head-tracking (generic quaternion), listener position (D18) | **M3 exit** | P3 (scoped) | WP2, WP4, WP8 | M | **DONE (M3)** |
@@ -261,6 +261,30 @@ shell, and an input stem stops being implicitly mono.
 - **D47 — Clusters (linking several stems) are deferred.** Format is per-input
   and nothing keys on a group's hardware channels being contiguous, so clusters
   can layer on top without reopening D43/D44.
+
+**XOA is a processor (D48–D50)** — architectural correction: program material
+is played by external apps (Reaper, QLab, …) and arrives through the device
+inputs; there is no cueing mechanism in this app.
+
+- **D48 — The file player is removed** (with its transport UI and
+  `playbackFilePath`/`playbackLoop`). External players feed device inputs;
+  stems and HOA groups (D44) carry the program into the bus. An interactive
+  sampler player (WFS-DIY style) is a possible future feature — a plain file
+  player is not. The bus gather stage, `rt::makeBusParams` and the offline
+  bit-exactness harness are untouched (the no-source shape publishes a
+  zero-channel gather that clears busA); the synthetic test scene stays as
+  the audible-without-hardware fallback, latched from the header.
+- **D49 — The patch-window transport gate is dropped** (supersedes D41's
+  mechanism; the policy died with the transport). An external player's
+  transport cannot be sensed, so a local gate would be theatre. The safety
+  net is the explicit matrix interaction and the generator's universal 500 ms
+  protective ramp; test tones still stop on every exit path.
+- **D50 — `playbackContentOrder` / `playbackConvention` deleted.** Live HOA
+  groups stay AmbiX-only (D44); a per-input convention/order override is
+  deferred to the clusters era (FuMa needs channel reordering inside the
+  group merge). OSC map bumped to v1.1 with a documented removal of the three
+  `/xoa/config/playback*` leaves. The conversion math in `makeBusParams`
+  survives for the test scene / harness and any future per-input override.
 
 D24 ("PatchMatrixComponent not ported; v1 keeps identity channel mapping") is
 superseded by D41–D46; the identity mapping survives only as the default patch.
@@ -496,6 +520,10 @@ ill-conditioned layouts (that's what κ reporting is for).
 
 ### WP6 — RT bus engine, file playback, minimal shell — **M1, first audible** (XL)
 
+> **D48 note (2026-08):** the file player shipped here and was later removed —
+> XOA is a processor; program arrives via device inputs. The WP6 text below is
+> kept as the historical record of what M1 built.
+
 **Goal.** The PRD's first audible milestone: an AmbiX file of any order 1–10
 plays through order adaptation → rotation → SAD decode to a real rig,
 CPU-only, click-free — plus the offline-render harness that gates everything
@@ -521,7 +549,7 @@ content is rare" mitigation (test-scene generator) lands here.
 - `Source/DSP/AmbiRtTypes.h` — trivially-copyable POD snapshots (rotation
   state, decoder swap handle), modeled on WFS-DIY
   `Source/DSP/BinauralCalculationEngine.h::RtParams`.
-- `Source/Audio/FilePlayer.{h,cpp}` — multichannel WAV/CAF/FLAC up to
+- `Source/Audio/FilePlayer.{h,cpp}` *(removed by D48)* — multichannel WAV/CAF/FLAC up to
   128 ch, AmbiX metadata detection where present, manual order/convention
   override always available (FR-8).
 - **Spike (early, time-boxed):** verify JUCE `WavAudioFormat`/CAF actually
@@ -1145,7 +1173,7 @@ spatcore and with the repo's no-new-dependencies posture.
 | FR-5 mono encoding + spread, click-free | WP8 |
 | FR-6 distance / NFC | WP8 |
 | FR-7 HOA stream up/downmix | WP3 (weights) + WP6 (chain) |
-| FR-8 file playback ≤ 128 ch, AmbiX metadata | WP6 |
+| FR-8 external program input (was: file playback, removed by D48) | WP6 (historical) + stage 2 |
 | FR-9 SO(3) rotation (Ivanic–Ruedenberg) | WP4 (math) + WP6 (RT apply) |
 | FR-10 rotation sources: dials / OSC / tracker | WP6 (dials), WP9 (OSC + quaternion), WP10 (full UI) |
 | FR-11 mirror; zoom v1.1 | WP4 (mirror); zoom **parked** §8 |

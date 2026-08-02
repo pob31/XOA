@@ -79,13 +79,6 @@ inline const juce::Identifier rotationYaw   { "rotationYaw" };
 inline const juce::Identifier rotationPitch { "rotationPitch" };
 inline const juce::Identifier rotationRoll  { "rotationRoll" };
 
-// Config / Playback (FR-8). Play state and transport position are
-// deliberately runtime-only: persisting them would pollute undo/dirty.
-inline const juce::Identifier playbackFilePath     { "playbackFilePath" };
-inline const juce::Identifier playbackLoop         { "playbackLoop" };
-inline const juce::Identifier playbackContentOrder { "playbackContentOrder" };  // 0 = auto-detect
-inline const juce::Identifier playbackConvention   { "playbackConvention" };    // 0 SN3D, 1 N3D, 2 FuMa
-
 // Config / per-speaker distance compensation (FR-15). "distance*" routes to
 // Config; the per-speaker delay/gain come from speaker positions, not schema.
 inline const juce::Identifier distanceCompMode { "distanceCompMode" };  // 0 off, 1 delay, 2 delay+gain

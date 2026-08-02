@@ -459,44 +459,6 @@ AudioInterfaceContent::AudioInterfaceContent (AppContext& ctx)
         if (inputTab != nullptr)  inputTab->resetMode();
     };
     addAndMakeVisible (tabs);
-
-    transportBanner.setText (LOC ("audioPatch.transportLocked"), juce::dontSendNotification);
-    transportBanner.setJustificationType (juce::Justification::centred);
-    transportBanner.setColour (juce::Label::backgroundColourId,
-                               ColorScheme::accents::mute.withAlpha (0.85f));
-    transportBanner.setColour (juce::Label::textColourId, juce::Colours::white);
-    addChildComponent (transportBanner);
-
-    startTimerHz (8);   // the transport gate poll (D41)
-}
-
-AudioInterfaceContent::~AudioInterfaceContent()
-{
-    stopTimer();
-}
-
-void AudioInterfaceContent::timerCallback()
-{
-    const bool playing = context.engine.getFilePlayer().isPlaying();
-    if (playing == gateActive)
-        return;
-
-    gateActive = playing;
-    if (playing)
-    {
-        // D41: no patch edits on a running transport. Stop tones, drop to
-        // Scrolling, disable everything behind the banner.
-        if (outputTab != nullptr) outputTab->resetMode();
-        if (inputTab != nullptr)  inputTab->resetMode();
-        tabs.setEnabled (false);
-        transportBanner.setVisible (true);
-        transportBanner.toFront (false);
-    }
-    else
-    {
-        tabs.setEnabled (true);
-        transportBanner.setVisible (false);
-    }
 }
 
 void AudioInterfaceContent::windowClosing()
@@ -515,7 +477,6 @@ void AudioInterfaceContent::resized()
     auto area = getLocalBounds();
     infoBar.setBounds (area.removeFromTop (px (28)));
     tabs.setBounds (area);
-    transportBanner.setBounds (getLocalBounds().withTrimmedTop (px (28)).removeFromTop (px (40)));
 }
 
 //==============================================================================
