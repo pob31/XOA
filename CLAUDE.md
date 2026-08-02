@@ -18,7 +18,7 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to **ac45f0f** (post-v0.1.1: GPU
+- `spatcore/` — **submodule**, pinned to **7d293e4** (post-v0.1.1: GPU
   node-parallel SDN, Max-port FR diffusion, MCP protocol negotiation, the
   shared EQ, the `spatcore::io` device layer (`io/`, target `spatcore-io`),
   and the shared patch matrix (`ui/patch/`)). rt/dsp/wfs/reverb/gpu +
