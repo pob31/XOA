@@ -18,7 +18,9 @@ using SignalType = xoa::TestSignalGenerator::SignalType;
 
 //==============================================================================
 // A fixed seed makes pink noise reproducible: two freshly-prepared generators
-// driven identically must produce bit-identical output.
+// driven identically must produce bit-identical output. The shared generator
+// seeds from the wall clock unless told otherwise, so the seed is explicit
+// here — exactly as AudioEngine pins it at construction.
 void testTestSignalDeterminism()
 {
     constexpr int n = 512;
@@ -26,6 +28,7 @@ void testTestSignalDeterminism()
     xoa::TestSignalGenerator a, b;
     for (auto* g : { &a, &b })
     {
+        g->setDeterministicSeed (xoa::kTestSignalSeed);
         g->prepare (48000.0, n);
         g->setSignalType (SignalType::PinkNoise);
         g->setLevel (0.0f);

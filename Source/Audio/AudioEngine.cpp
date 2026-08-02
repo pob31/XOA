@@ -17,6 +17,10 @@ static constexpr int kDecoderDebounceMs = 150;
 AudioEngine::AudioEngine (XoaValueTreeState& s)
     : store (s), calcEngine (s)
 {
+    // The shared generator seeds from the wall clock by default; pin XOA's
+    // fixed seed so renders stay reproducible (applies at each prepare()).
+    testSignal.setDeterministicSeed (kTestSignalSeed);
+
     registerListeners();
 
     // Publish-before-enable: a valid snapshot on every seam before the device
