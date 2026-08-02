@@ -79,7 +79,9 @@ target_sources(XOA PRIVATE
     Source/GUI/Tabs/SpeakersDecoderTab.cpp
     Source/GUI/Tabs/EqTab.cpp
     Source/GUI/Layout/SpeakerLayoutPanel.cpp
-    Source/GUI/Map3D/Map3DView.cpp)
+    Source/GUI/Map3D/Map3DView.cpp
+    # Stage 2: the shared patch matrix behind XOA's config shim.
+    Source/GUI/Patch/XoaPatchMatrixShim.cpp)
 
 # GUI kit (WP10). Headers are picked up via the Source include dir; only
 # translation units need listing here. The macOS dark-title-bar helper is
