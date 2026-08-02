@@ -3,7 +3,7 @@
 Version 0.1 — August 2026 — GPL-3.0
 
 Handoff for the session that migrates XOA off its hand-rolled device handling and onto
-`spatcore::io`, and later onto the Audio Interface window and patch matrix lifted from WFS-DIY.
+`spatcore::io`, and then onto the shared patch matrix with a shell of XOA's own.
 Written 2026-08-02, immediately after the device layer landed on spatcore `main`.
 
 Authority: this document owns the **how** of the migration. Where it conflicts with
@@ -18,15 +18,28 @@ device layer is additive.
 |---|---|---|
 | `spatcore::io` device layer | `spatcore/io/` on spatcore `main` | **AVAILABLE** — merged as `8e0d7e6` (PR #5), CI green on Windows/macOS/Linux |
 | WFS-DIY consuming it | `feat/patch-diagnostics-512ch` in `d:/dev/WFS_DIY_v1` | **DONE, not yet merged** — the reference wiring to copy |
-| Audio Interface window + patch matrix in `spatcore/ui` | — | **NOT STARTED** (Stage 2). Still app-side in WFS-DIY |
+| **Patch matrix** in `spatcore/ui/patch/` | `spatcore` branch `feat/shared-patch-matrix` | **AVAILABLE** — the scrollable grid, fully app-agnostic |
+| Patch tabs + Audio Interface window | app-side in WFS-DIY only | **DELIBERATELY NOT SHARED** — XOA builds its own shell. See §7 |
 
 So this is a **two-stage** migration, and stage 1 does not depend on stage 2:
 
-- **Stage 1 — adopt the device layer.** Available now. Replaces `AudioEngine`'s device open/close
-  and its raw `AudioIODeviceCallback` with `spatcore::io::DeviceHost` + `DeviceIoCallback`, and
-  converges the test-signal generator. Sections 3–6.
-- **Stage 2 — adopt the window.** Blocked on the lift. XOA gains the full Audio Interface window
-  and patch matrix in place of its `juce::AudioDeviceSelectorComponent`. Sections 7–8.
+- **Stage 1 — adopt the device layer.** Replaces `AudioEngine`'s device open/close and its raw
+  `AudioIODeviceCallback` with `spatcore::io::DeviceHost` + `DeviceIoCallback`, and converges the
+  test-signal generator. Sections 3–6.
+- **Stage 2 — adopt the patch matrix and build a shell around it.** The matrix is shared; the two
+  patch tabs and the window that hosts them are **not**, and are not going to be. XOA writes those
+  itself against the shared matrix. Sections 7–8 specify exactly what to build and what behaviour
+  it must have.
+
+**Why the line is drawn there.** The matrix is the part worth sharing: 2,179 lines of scroll,
+hit-testing, drag-patching, 1:1 constraint enforcement, keyboard navigation, accessibility
+announcements and signal-presence tinting, none of which is app-specific once the seams are cut. The
+tabs and the window around it are mostly layout and widget glue — perhaps 700 lines of real logic —
+and sharing them would have dragged three things into spatcore that do not belong there: the app's
+long-press button and slider base (the latter carrying `TTSManager` *and* OSC origin-tagging from
+`Network/`), and `HelpCardSVG`, 3,199 generated lines of one app's signal-flow artwork with
+`ColorScheme` and `LocalizationManager` baked inside. Rebuilding a shell in XOA is cheaper than
+that, and leaves both apps free to lay their own window out.
 
 Pin target for stage 1:
 
@@ -359,63 +372,161 @@ no external SDK and the harness can enumerate real ASIO drivers.
 
 ---
 
-## 7. Stage 2 — the window XOA inherits
+## 7. Stage 2 — the shared matrix, and the shell XOA builds
 
-WFS-DIY's Audio Interface window replaces `juce::AudioDeviceSelectorComponent`
-(`Source/GUI/Tabs/SystemConfigTab.cpp:66-70`, constructed `(mgr, 0, 64, 0, 256, false, false, false,
-false)`). What arrives:
+XOA today configures its device with a stock `juce::AudioDeviceSelectorComponent` embedded in tab 0
+(`Source/GUI/Tabs/SystemConfigTab.cpp:66-70`, constructed
+`(mgr, 0, 64, 0, 256, false, false, false, false)`) and has **no patch concept at all**: stem *i* is
+device input *i* and speaker *s* is device output *s*, by assumption.
 
-- **Device settings** — device type, device, sample rate, buffer size, with all channels enabled
-  automatically on selection.
-- **An input patch matrix and an output patch matrix** — a scrollable grid of app channels ×
-  hardware channels, with Scrolling / Patching / Testing modes, drag-diagonal 1:1 patching, and
-  per-hardware-input **signal-presence tinting** so an operator can see which physical input is
-  live.
-- **Test tones per hardware channel**, click or keyboard, with the 500 ms protective ramp.
-- Keyboard navigation and TTS announcements throughout.
+Stage 2 replaces that with the shared matrix plus a shell XOA owns. Budget for the conceptual change,
+not just the code: speaker *s* stops being hardware output *s* and becomes hardware output
+*patch(s)*. That touches `algorithm.prepare`'s channel count, the meter indexing of §5.3, and
+anything else that assumes speaker ordinal equals device ordinal.
 
-For XOA this is a capability gain, not a refactor: XOA has **no patch concept at all** today, so
-adopting the window means adopting routing it never had. Speaker *s* stops being hardware output *s*
-by assumption and becomes hardware output *patch(s)* by data. Budget for that — it touches
-`algorithm.prepare`'s channel count, the meter indexing (§5.3) and anything that assumes speaker
-ordinal equals device ordinal.
+### 7.1 What is shared: `spatcore::ui::patch::PatchMatrixComponent`
 
-### 7.1 What XOA already has for the provider seams
+`spatcore/ui/patch/` — the scrollable application-channels × hardware-channels grid. It brings, for
+free:
 
-The lifted window will be app-agnostic in the shared-EQ style: `std::function` providers read at use
-time, raw `juce::ValueTree` + `juce::Identifier` for state, and the consuming app keeping a thin
-shim header of `using` aliases plus a config factory. XOA has a near-identical counterpart for
-almost every seam, which is why this lift is worth doing:
+- **Three modes** — Scrolling (drag pans), Patching (click to patch, drag diagonally for sequential
+  1:1 runs), Testing (click a cell, row or column header to send the test tone to that hardware
+  channel). Testing is output-only by convention; the component does not enforce it.
+- **1:1 constraint enforcement** — each application channel maps to at most one hardware channel and
+  vice versa, including during a drag preview.
+- **Overflow gating** — columns at or above the patch tree's `activeHardwareChannels` are drawn
+  dimmed and refuse patching and testing, because the device never opened them.
+- **Signal-presence tinting** — per-hardware-input peak level tints the column header green, so an
+  operator can see which physical input is live. Fed by `setHardwareInputPeakProvider`.
+- **Keyboard navigation and accessibility** — arrows move the selection, space activates,
+  space-hold runs a test tone while held; every move announces what it landed on.
+- **Auto-patch heuristics** — when a channel is added, it detects the existing hardware offset and
+  continues the pattern rather than defaulting to the diagonal.
+
+Construction:
+
+```cpp
+spatcore::ui::patch::PatchMatrixConfig config;
+config.patchTree     = /* your InputPatch or OutputPatch tree */;
+config.channelsTree  = /* your channel list; the matrix only LISTENS to it */;
+config.ids.patchData = ...;    // five property names — see PatchMatrixConfig.h
+config.numChannelsProvider  = [this] { return numSpeakers(); };
+config.channelNameProvider  = [this] (int ch) { return speakerName (ch); };
+config.rowColourProvider    = [this] (int ch) { return speakerColour (ch); };
+config.paletteProvider      = [] { return PatchMatrixPalette { ColorScheme::get().background, ... }; };
+config.translate            = [] (const char* k) { return LOC (k); };
+config.uiScaleProvider      = [] { return XoaLookAndFeel::uiScale; };
+config.announce             = [] (const juce::String& t) { TTSManager::getInstance().announceImmediate (t, ...); };
+
+auto matrix = std::make_unique<spatcore::ui::patch::PatchMatrixComponent> (
+                  std::move (config), /*isInputPatch*/ false, &testSignal);
+```
+
+Every provider is null-checked with a sane fallback, so a config carrying only the trees still
+yields a working matrix — fill them in as you go. None is snapshotted: they are invoked at paint and
+layout time, so theme, language and UI-scale changes land on the next repaint.
+
+**The ValueTree schema you must provide.** The matrix owns `patchData` and reads four other
+properties. XOA has no patch section today, so add one:
+
+```
+AudioPatch
+└── OutputPatch          (and InputPatch if you patch stems too)
+    ├── rows                      int  — application channel count
+    ├── cols                      int  — hardware columns to display
+    ├── activeHardwareChannels    int  — channels the device OPENED (see below)
+    └── patchData                 str  — "1,0,0;0,1,0;..." rows by ';', cols by ','
+```
+
+`activeHardwareChannels` is the load-bearing one and it is where §5.2 and §2.3 come back: feed it
+from `DeviceHost::getNumActiveOutputs()`, **not** from `getOutputChannelNames().size()`. A channel
+the device lists but never opened has no slot in the callback buffer, so metering or testing it is
+silently impossible; that exact confusion is what the WFS-DIY work fixed. `cols` is yours to
+police — WFS-DIY clamps it to `max(64, deviceChannels, highestPatched + 1)` bounded by the
+addressing ceiling, so the matrix widens to the interface and never hides an existing patch.
+
+Reference shim: `d:/dev/WFS_DIY_v1/Source/gui/PatchMatrixComponent.h` and `PatchMatrixShim.cpp` —
+a derived class plus a config factory, ~180 lines total. Copy its shape.
+
+> Note the object-file trap it documents: MSBuild writes every object into one directory, so an
+> app-side `PatchMatrixComponent.cpp` alongside the spatcore one silently overwrites its `.obj` and
+> the link fails with unresolved externals. XOA is CMake-native and less exposed, but give the shim
+> a distinct basename anyway.
+
+### 7.2 What XOA builds: the shell
+
+Not shared, and not planned to be. Roughly 700 lines of real logic. Build it to XOA's own taste —
+this is a behaviour specification, not a design to copy line for line.
+
+**A. Two patch tabs** (WFS-DIY reference: `Source/gui/AudioPatchTab.{h,cpp}`)
+
+Each hosts one matrix plus a button bar:
+
+| Element | Behaviour |
+|---|---|
+| Mode buttons | Scrolling / Patching, plus Testing on the output tab. Setting a mode calls `matrix->setMode()`; the matrix does the rest |
+| Unpatch All | **Long-press guarded** — it is destructive. WFS-DIY uses an 800 ms hold |
+| Header repaint timer | ~20 Hz on the input tab only, calling `matrix->repaintHeaderBand()`. That is what animates the signal-presence tint; without it the tint updates only on other repaints |
+| Test controls (output tab) | signal-type combo, level slider, frequency slider (Tone only), Hold toggle |
+
+**B. Test-signal controls.** The generator is `spatcore::io::TestSignalGenerator` (§5.4). Three
+behaviours are not obvious and matter:
+
+- **Stop the tone on every exit path** — leaving the tab, closing the window, changing mode, and
+  starting processing. WFS-DIY calls `setOutputChannel(-1)` at each. A test tone left running
+  because a window closed is exactly the kind of thing that damages a rig.
+- **The slider mappings are non-linear**, so a linear slider feels wrong. Level:
+  `dB = 20·log10(10^(-92/20) + (1 − 10^(-92/20))·v²)` clamped to [−92, 0]. Frequency:
+  `f = 20·10^(3x)`, i.e. log across 20 Hz–20 kHz.
+- **Combo ids are 1-based, the enum is 0-based.** WFS-DIY maps combo 1→`Off`, 2→`PinkNoise`,
+  3→`Tone`, 4→`Sweep`, 5→`DiracPulse`, while its Stream Deck path casts the raw ordinal. Pick one
+  convention and hold it.
+
+Do **not** port `TestSignalControlPanel` from WFS-DIY: it is ~110 lines of dead code, never
+instantiated anywhere in that repo, superseded by controls inlined into the output tab.
+
+**C. A device settings panel** (reference: `AudioInterfaceWindow.cpp`, `DeviceSettingsPanel`)
+
+Device type, device, sample rate and buffer size combos, plus Control Panel and Reset Device
+buttons. **Route every mutation through `DeviceHost`** — that is the whole point of §2.2. WFS-DIY
+still has three sites that bypass it (`AudioInterfaceWindow.cpp:147`, `:516`, `:546`), which is
+mask-safe only because a prior `DeviceHost` call already cleared the `useDefault*` flags. Do not
+reproduce that; see open decision 5 in §8.
+
+**D. A window to host it.** WFS-DIY uses a `juce::DocumentWindow` with a device info bar on top and
+a tab bar below (Device Settings / Input Patch / Output Patch). XOA may prefer a tab inside the main
+window — nothing in the matrix cares.
+
+**One behaviour to carry over regardless of layout: make it stopped-only.** Patching a live rig is
+how speakers get destroyed. WFS-DIY closes the window when processing starts, blocks reopening while
+it runs with a status message, and applies pending patch edits when processing starts.
+
+### 7.3 What XOA already has for the seams
 
 | Seam | WFS-DIY | XOA |
 |---|---|---|
 | Parameter store | `WFSValueTreeState` | `XoaValueTreeState` — both derive `spatcore::control::state::TreeParameterStore` |
-| Colours | `ColorScheme::get()` + `ColorScheme::Manager` listener | same names |
+| Colours | `ColorScheme::get()` + `Manager` listener | same names |
 | Strings | `LOC()` macro | same |
 | Status line | `StatusBar` | same |
 | Accessibility | `TTSManager` singleton | same |
 | Long-press button | `LongPressButton` | same |
-| Window helpers | `WindowUtils`, `HelpCardSVG` | `WindowUtils`, `HelpCard` |
-| Stream Deck+ pages | `PatchWindowPages` wired in `MainComponent` | **absent** — XOA links `spatcore-controllers` but never includes it |
+| Stream Deck+ pages | `PatchWindowPages` | **absent** — XOA links `spatcore-controllers` but never includes it |
 
-Two consequences worth stating up front:
+Localisation is small: the matrix needs 6 keys and a shell adds roughly 25 more, against XOA's two
+locales (`Resources/lang/{en,fr}.json`, single tier) — about 60 string entries, not the 17-file
+burden WFS-DIY carries across two tiers.
 
-- XOA inherits the window's Stream Deck accessor surface as **unused public API**. That is why the
-  lift cannot trim it; do not treat those accessors as dead code.
-- Localisation cost on the XOA side is small: the window uses ~32 distinct `audioPatch.*` keys, and
-  XOA ships **two** locales (`Resources/lang/en.json`, `fr.json`, single tier) against WFS-DIY's
-  nine across two tiers. ~64 string entries total.
+### 7.4 Sequencing
 
-### 7.2 Sequencing
+1. Merge the spatcore `feat/shared-patch-matrix` branch and re-pin.
+2. XOA: add the `AudioPatch` ValueTree section and feed `activeHardwareChannels` from `DeviceHost`.
+3. XOA: instantiate the matrix behind a config, in a throwaway window, and confirm it patches.
+4. XOA: build the shell of §7.2 around it.
+5. XOA: re-point the decoder at patched hardware channels — the real work, per §7 preamble.
 
-1. WFS-DIY decouples the three GUI files and moves them to `spatcore/ui/patch/` — spatcore PR.
-2. WFS-DIY re-pins and reduces its own files to shims — app PR. Behaviour parity is verified by hand
-   there, not by XOA.
-3. XOA adopts: re-pin, link, replace the device selector, add the patch ValueTree section to its
-   schema, and re-point the decoder at patched hardware channels.
-
-Do **not** start step 3 before step 2 has been through a real show or a full manual pass in WFS-DIY.
-The GUI has no bit-exactness gate, so WFS-DIY's own use is the only regression net the lift gets.
+Steps 2–3 are worth doing on their own before any shell exists; a matrix in a bare window is enough
+to prove the config and the schema.
 
 ---
 
@@ -438,9 +549,13 @@ does.
    from a saved setup, and so the one most exposed to the mask policy), `:516` (sample rate) and
    `:546` (buffer size). All three are mask-safe only because a prior `DeviceHost` call already
    cleared the `useDefault*` flags in the stored setup. Making that an enforced invariant rather
-   than an assumed one is a small spatcore change, best made **before** the window is lifted.
+   than an assumed one is a small spatcore change, and XOA's device panel (§7.2 C) is the second
+   consumer that would otherwise have to remember the rule.
 6. **Does the io layer ship as a tag?** spatcore is tagged only `v0.1.0` / `v0.1.1` while its
    `CMakeLists.txt` declares `VERSION 0.2.0`. Pin a bare SHA (`8e0d7e6`) or tag `v0.2.0` first.
+7. **Does XOA patch its inputs too, or only its outputs?** WFS-DIY has both matrices. XOA's stems
+   are identity-mapped from device inputs today; an input patch is optional and can come later —
+   the matrix is the same component either way, constructed with `isInputPatch = true`.
 
 ---
 
@@ -450,8 +565,10 @@ does.
 |---|---|
 | Device layer | `spatcore/io/{HardwareIndexMap,DeviceIoCallback,DeviceHost,TestSignalGenerator}.h` |
 | Its tests | `spatcore/tests/SpatcoreTests.cpp` (io section, at the end) |
-| CMake target | `spatcore/CMakeLists.txt`, the `SPATCORE_IO` block |
-| Reference consumer | `d:/dev/WFS_DIY_v1`, branch `feat/patch-diagnostics-512ch` |
-| The window to be lifted | `d:/dev/WFS_DIY_v1/Source/gui/{AudioInterfaceWindow,AudioPatchTab,PatchMatrixComponent}.{h,cpp}` |
+| CMake targets | `spatcore/CMakeLists.txt`, the `SPATCORE_IO` and `SPATCORE_UI` blocks |
+| **Shared patch matrix** | `spatcore/ui/patch/{PatchMatrixConfig,PatchMatrixComponent}.h` — read the config header first, it carries the rationale for every seam |
+| Reference consumer | `d:/dev/WFS_DIY_v1`, branch `feat/shared-patch-matrix` (which contains `feat/patch-diagnostics-512ch`) |
+| Matrix shim to copy | `d:/dev/WFS_DIY_v1/Source/gui/PatchMatrixComponent.h` + `PatchMatrixShim.cpp` |
+| Shell to spec against (NOT shared) | `d:/dev/WFS_DIY_v1/Source/gui/{AudioInterfaceWindow,AudioPatchTab}.{h,cpp}` |
 | Shared-component precedent | spatcore `d7967f7` + WFS-DIY `e7ad1c7` (the EQ) |
 | XOA's current device code | `Source/Audio/AudioEngine.{h,cpp}`, `Source/Audio/TestSignalGenerator.h`, `Source/GUI/Tabs/SystemConfigTab.cpp:66-70` |
