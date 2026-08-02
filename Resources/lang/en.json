@@ -179,6 +179,7 @@
     "inputName": "Name",
     "inputGain": "Gain",
     "inputMute": "Mute",
+    "inputFormat": "Format",
     "inputPositionX": "X",
     "inputPositionY": "Y",
     "inputPositionZ": "Z",
@@ -213,6 +214,12 @@
     "convention": { "sn3d": "SN3D", "n3d": "N3D", "fuma": "FuMa" },
     "distanceComp": { "off": "Off", "delay": "Delay", "delayGain": "Delay + Gain" },
     "coordMode": { "cartesian": "Cartesian", "cylindrical": "Cylindrical", "spherical": "Spherical" },
+    "inputFormat": {
+      "mono": "Mono", "hoa1": "HOA 1 (4 ch)", "hoa2": "HOA 2 (9 ch)", "hoa3": "HOA 3 (16 ch)",
+      "hoa4": "HOA 4 (25 ch)", "hoa5": "HOA 5 (36 ch)", "hoa6": "HOA 6 (49 ch)",
+      "hoa7": "HOA 7 (64 ch)", "hoa8": "HOA 8 (81 ch)", "hoa9": "HOA 9 (100 ch)",
+      "hoa10": "HOA 10 (121 ch)"
+    },
     "eqShape": {
       "off": "Off", "lowCut": "Low cut", "lowShelf": "Low shelf", "peak": "Peak",
       "bandPass": "Band pass", "highShelf": "High shelf", "highCut": "High cut", "allPass": "All pass"

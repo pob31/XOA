@@ -81,6 +81,8 @@ constexpr double inputPositionXDefault = 1.0, inputPositionYDefault = 0.0,
 constexpr double positionMin = -100.0, positionMax = 100.0;                               // meters
 constexpr double coordinateModeDefault = 0.0, coordinateModeMin = 0.0, coordinateModeMax = 2.0;
 constexpr double inputSpreadDefault = 0.0, inputSpreadMin = 0.0, inputSpreadMax = 180.0;  // degrees
+// Stem format: 0 = mono, 1..10 = AmbiX group of that order ((N+1)^2 channels).
+constexpr double inputFormatDefault = 0.0, inputFormatMin = 0.0, inputFormatMax = 10.0;
 constexpr bool   inputNfcEnabledDefault = false;
 // Position conditioning (WP8). maxSpeed 0 = off; the limiter's own clamp is
 // [0.01, 20] m/s. trackingSmooth is the 1-Euro percentage (0 = raw, 100 = max).

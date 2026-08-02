@@ -68,6 +68,7 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         { ids::inputPositionZ,      { d::positionMin, d::positionMax, d::inputPositionZDefault, false } },
         { ids::inputCoordinateMode, { d::coordinateModeMin, d::coordinateModeMax, d::coordinateModeDefault, true } },
         { ids::inputSpread,         { d::inputSpreadMin, d::inputSpreadMax, d::inputSpreadDefault, false } },
+        { ids::inputFormat,         { d::inputFormatMin, d::inputFormatMax, d::inputFormatDefault, true } },
         { ids::inputMaxSpeed,       { d::inputMaxSpeedMin, d::inputMaxSpeedMax, d::inputMaxSpeedDefault, false } },
         { ids::inputTrackingSmooth, { d::inputTrackingSmoothMin, d::inputTrackingSmoothMax, d::inputTrackingSmoothDefault, false } },
 

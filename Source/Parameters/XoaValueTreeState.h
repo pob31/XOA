@@ -5,6 +5,7 @@
 #include "XoaParameterIDs.h"
 
 #include <functional>
+#include <vector>
 
 //==============================================================================
 // XOA — the parameter store: schema subclass of spatcore's TreeParameterStore.
@@ -95,6 +96,52 @@ public:
     juce::ValueTree getInputTree (int channelIndex) const;
     juce::ValueTree getSpeakerTree (int channelIndex) const;
 
+    //==========================================================================
+    // Stem formats and channel spans (stage 2, D44/D45). An input's stem is
+    // either mono (1 channel) or an AmbiX group of order N ((N+1)^2 channels);
+    // the flattened span [offset, offset + count) indexes both the input
+    // patch-matrix rows and the engine's stem scratch rows. The store enforces
+    // sum(spans) <= kMaxStemChannels by stepping formats down (last HOA input
+    // first) whenever a format or count write would exceed it.
+    //==========================================================================
+
+    /** 1 for mono (format 0), (format+1)^2 for an HOA group. */
+    static int channelCountForFormat (int format) noexcept;
+
+    int getInputFormat (int inputIndex) const;         // 0 = mono, 1..10 = HOA order
+    int getInputChannelCount (int inputIndex) const;   // span of that input
+    int getStemChannelOffset (int inputIndex) const;   // sum of spans before it
+    int getTotalStemChannels() const;                  // sum over all inputs
+
+    //==========================================================================
+    // Audio patch (stage 2, D41-D43). Two direct-access trees under
+    // AudioPatch, property names shared with the spatcore patch matrix
+    // (patchData/rows/cols/activeHardware*). Patch edits are NOT undoable —
+    // the matrix writes with a null undo manager, matching WFS-DIY.
+    //==========================================================================
+
+    juce::ValueTree getAudioPatchSection() const;
+    juce::ValueTree getInputPatchTree() const;
+    juce::ValueTree getOutputPatchTree() const;
+
+    /** Re-run the column-count policy on both patch trees:
+        cols = clamp(max(64, activeHardware*, highestPatched+1), kMaxHardwareChannels).
+        Called by the matrix after every patch write (via its recomputeColumns
+        provider) and after the active-channel counts change. */
+    void recomputePatchCols();
+
+    /** Truthful active-channel counts from the device layer (DeviceHost) —
+        never from the device's channel-name lists. Feeds the matrices'
+        overflow gating; also re-runs the column policy. */
+    void updateHardwareChannelCount (int activeInputs, int activeOutputs);
+
+    /** Restore patch-tree invariants after anything that changes row
+        identity: input format/count changes remap the input patch rows by
+        per-input block (preserving patches through a format change where the
+        spans overlap), speaker count changes truncate/extend the output patch.
+        Safe to call at any time; no-op when everything already agrees. */
+    void reconcileAudioPatch();
+
     /** Typed shadow of the base RAII domain switch. */
     struct ScopedDomain : ScopedUndoDomain
     {
@@ -133,6 +180,16 @@ private:
     juce::ValueTree createDefaultSpeaker (int index) const;
     void applyChannelCount (juce::ValueTree section, const juce::Identifier& countId,
                             int targetCount, juce::UndoManager* undoManager, bool isInputs);
+
+    juce::ValueTree createDefaultPatchTree (bool isInput, int numRows) const;
+    static juce::String buildIdentityPatchData (int numRows);
+    void clampStemSpans();
+    std::vector<int> currentInputSpans() const;
+
+    // Spans as of the last reconcile — what lets a format change remap the
+    // input-patch rows by per-input block instead of guessing.
+    std::vector<int> lastReconciledSpans;
+    bool reconcilingPatch = false;
 
     PostWriteObserver postWriteObserver;
 

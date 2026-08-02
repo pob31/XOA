@@ -57,6 +57,7 @@ private:
     XoaStandardSlider gainSlider;
     juce::TextEditor  gainEditor;
     juce::TextButton  muteButton { "Mute" };
+    juce::ComboBox    formatCombo;   // Mono / HOA order 1-10 (D44)
     XoaBidirectionalSlider posXSlider, posYSlider, posZSlider;
     juce::TextEditor  posXEditor, posYEditor, posZEditor;
     juce::ComboBox   coordModeCombo;

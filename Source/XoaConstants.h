@@ -38,6 +38,12 @@ constexpr int kMaxSpeakers     = 256;
     clamped to it (D37). Distinct from kMaxSpeakers: the ceiling bounds what
     the device may open, the clamp bounds how many speakers the decoder feeds. */
 constexpr int kMaxHardwareChannels = 512;
+
+/** Total stem-CHANNEL ceiling across all inputs (D45). An input of format
+    Mono occupies 1 stem channel; an HOA-order-N input occupies (N+1)^2, so a
+    single order-10 group takes 121. The store enforces the sum; sized like
+    kMaxFileChannels (one full-order group plus headroom). */
+constexpr int kMaxStemChannels = 128;
 constexpr int kDefaultInputs   = 8;
 constexpr int kDefaultSpeakers = 24;   // the M1 24-ring validation fixture
 

@@ -85,6 +85,7 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::inputs, i::inputPositionX },
         { Surface::inputs, i::inputPositionY },
         { Surface::inputs, i::inputPositionZ },
+        { Surface::inputs, i::inputFormat },
         { Surface::inputs, i::inputCoordinateMode },
         { Surface::inputs, i::inputMaxSpeed },
         { Surface::inputs, i::inputTrackingSmooth },
