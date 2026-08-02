@@ -5,6 +5,7 @@
 #include <array>
 #include <atomic>
 #include <functional>
+#include <vector>
 
 #include "spatcore/io/DeviceHost.h"
 #include "spatcore/io/DeviceIoCallback.h"
@@ -13,6 +14,7 @@
 #include "XoaConstants.h"
 #include "Audio/DecoderRebuildWorker.h"
 #include "Audio/FilePlayer.h"
+#include "Audio/PatchRouting.h"
 #include "Audio/SpeakerCompParams.h"
 #include "Audio/SpeakerCompProcessor.h"
 #include "Audio/TestSignalGenerator.h"
@@ -128,14 +130,28 @@ public:
             return 0.0f;
         return outputPeak[(size_t) channel].load (std::memory_order_relaxed);
     }
-    /** Block-peak of a mono-encoder input stem (0 when the encoder is fed no
-        stems). Observation-only; measured at the stem gather. */
+    /** Block-peak of an input stem (0 when the encoder is fed no stems) -
+        the max across the input's whole span for an HOA group. Observation-
+        only; measured at the stem gather. */
     float  getInputPeakLevel (int channel) const noexcept
     {
         if (channel < 0 || channel >= xoa::kMaxInputs)
             return 0.0f;
         return inputPeak[(size_t) channel].load (std::memory_order_relaxed);
     }
+
+    /** Block-peak of a HARDWARE input channel (pre-gather, straight off the
+        device) - feeds the patch matrix's signal-presence tinting. */
+    float getHwInputPeakLevel (int hardwareChannel) const noexcept
+    {
+        if (hardwareChannel < 0 || hardwareChannel >= xoa::kMaxHardwareChannels)
+            return 0.0f;
+        return hwInputPeak[(size_t) hardwareChannel].load (std::memory_order_relaxed);
+    }
+
+    /** The hardware output speaker `s` is patched to, or -1 (message thread;
+        reads the store). Identity when the patch section is absent. */
+    int getHardwareOutputForSpeaker (int speakerIndex) const;
     double getMeasuredLatencyMs() const noexcept { return measuredLatencyMs.load (std::memory_order_relaxed); }
     double getCpuLoad() const { return deviceManager.getCpuUsage(); }
     double getSampleRate() const noexcept { return deviceSampleRate.load (std::memory_order_relaxed); }
@@ -155,6 +171,11 @@ public:
     const spatcore::rt::RtSnapshot<rt::RotationRtState>& rotationSource() const noexcept { return rotationSnapshot; }
     const spatcore::rt::RtSnapshot<rt::BusRtParams>&     busParamsSource() const noexcept { return busParamsSnapshot; }
     const spatcore::rt::RtSnapshot<SpeakerCompRtParams>& speakerCompSource() const noexcept { return speakerCompSnapshot; }
+    const spatcore::rt::RtSnapshot<rt::PatchRtState>&    patchSource() const noexcept { return patchSnapshot; }
+
+    /** Recompose + publish the patch routing POD now (test seam; also the
+        listener path for patchData/rows edits). */
+    void publishPatchRouting();
 
     /** Recompose + publish the per-speaker comp POD now (test seam; also the
         listener path for gain/delay/mute/solo/distance-mode edits). */
@@ -210,6 +231,7 @@ private:
     // these members keep the registration alive for the engine's lifetime.
     juce::ValueTree speakersSection;
     juce::ValueTree decoderSection;
+    juce::ValueTree audioPatchSection;
 
     juce::AudioDeviceManager deviceManager;
 
@@ -236,6 +258,7 @@ private:
     spatcore::rt::RtSnapshot<rt::RotationRtState> rotationSnapshot;
     spatcore::rt::RtSnapshot<rt::BusRtParams>     busParamsSnapshot;
     spatcore::rt::RtSnapshot<SpeakerCompRtParams> speakerCompSnapshot;
+    spatcore::rt::RtSnapshot<rt::PatchRtState>    patchSnapshot;
     AmbiBusAlgorithm         algorithm;
     SpeakerCompProcessor     speakerComp;
     TestSignalGenerator      testSignal;
@@ -247,8 +270,13 @@ private:
     // Per-input stem meters (WP10 C9), updated per block on the audio thread.
     std::array<std::atomic<float>, xoa::kMaxInputs> inputPeak {};
 
+    // Per-HARDWARE-input meters (patch matrix tinting), pre-gather.
+    std::array<std::atomic<float>, xoa::kMaxHardwareChannels> hwInputPeak {};
+
     juce::AudioBuffer<float> inputScratch;   // [kMaxFileChannels x block]
-    juce::AudioBuffer<float> stemScratch;    // [kMaxInputs x block] mono-encoder stems
+    juce::AudioBuffer<float> stemScratch;    // [kMaxStemChannels x block] flattened stem channels (D43)
+    juce::AudioBuffer<float> speakerScratch; // [kMaxSpeakers x block] decode+comp domain, scattered to hardware
+    std::vector<char> hwWritten;             // per-block scatter bookkeeping (sized at prepare)
 
     std::atomic<InputSource> inputSource { InputSource::file };
     std::atomic<StemFeed>    stemFeed { StemFeed::device };
@@ -259,6 +287,7 @@ private:
     juce::uint32 rotationEpoch = 0;
     juce::uint32 busEpoch = 0;
     juce::uint32 speakerCompEpoch = 0;
+    juce::uint32 patchEpoch = 0;
 
     std::atomic<double> measuredLatencyMs { 0.0 };
     std::atomic<double> deviceSampleRate { 0.0 };
@@ -270,6 +299,11 @@ private:
     // a 64-in/6-out rig it is 64 wide while the speaker count is 6 (§5.2).
     std::atomic<int> numActiveInputs { 0 };
     std::atomic<int> numActiveOutputs { 0 };
+
+    // Speakers the decode/comp stage was prepared for (store count clamped to
+    // kMaxSpeakers) — the speaker domain is decoupled from the device outputs
+    // by the output patch.
+    std::atomic<int> numSpeakersPrepared { 0 };
 
     juce::String lastDeviceError;   // message thread only
 

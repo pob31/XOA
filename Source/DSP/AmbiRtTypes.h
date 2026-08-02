@@ -102,9 +102,25 @@ struct EncoderRtParams
     float referenceRadius = 2.0f;         // rig mean radius (m); design is control-side
     juce::uint32 epoch = 0;               // 0 = never published
 
+    // Stage 2 (D44): per-input stem spans in the FLATTENED stem buffer. Input
+    // i's audio occupies stem rows [stemOffset[i], stemOffset[i] + span) where
+    // span = 1 for a mono point source (stemOrder 0) or (o+1)^2 for an AmbiX
+    // group of order o. A mono input's liveMatrix row carries SH encode
+    // coefficients (broadcast one dry signal into 121 channels); an HOA
+    // input's row carries per-bus-channel order-adapt x gain factors (bus
+    // channel c reads stem row stemOffset + c). NFC never applies to groups.
+    int stemOffset[xoa::kMaxInputs] = {};
+    juce::uint8 stemOrder[xoa::kMaxInputs] = {};
+
     bool nfcEnabled (int i) const noexcept
     {
         return i >= 0 && i < 64 && (nfcMask & (juce::uint64) 1 << i) != 0;
+    }
+
+    int stemSpan (int i) const noexcept
+    {
+        const int o = i >= 0 && i < xoa::kMaxInputs ? (int) stemOrder[i] : 0;
+        return o <= 0 ? 1 : (o + 1) * (o + 1);
     }
 };
 
