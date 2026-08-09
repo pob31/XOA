@@ -36,6 +36,10 @@ AudioEngine::AudioEngine (XoaValueTreeState& s)
 AudioEngine::~AudioEngine()
 {
     closeAudioDevice();
+    // Tracker hardware goes down only after the audio callback has stopped:
+    // the RT stage holds a raw pointer to the active orientation source, so
+    // the source must outlive every block that could still read it.
+    monitoringEngine.stopMonitoring();
     stopTimer();
     rebuildWorker.stop();      // join the worker BEFORE cancelling async updates,
     cancelPendingUpdate();     // so no triggerAsyncUpdate can fire into a dead object
@@ -53,6 +57,14 @@ void AudioEngine::registerListeners()
     store.addParameterListener (ids::rotationRoll,  [this] (const juce::var&) { publishRotation(); });
 
     store.addParameterListener (ids::masterGain, [this] (const juce::var&) { publishBusParams(); });
+
+    // Binaural monitoring (WP15): tracker selection starts/stops hardware, and
+    // a camera-index edit only takes effect on the next start, so it restarts
+    // whatever is running.
+    store.addParameterListener (ids::binauralHeadTracker,
+                                [this] (const juce::var&) { monitoringEngine.applyTrackerSelection(); });
+    store.addParameterListener (ids::binauralCameraIndex,
+                                [this] (const juce::var&) { monitoringEngine.reapplyCameraIndex(); });
 
     // Distance-comp mode lives in Config, so it needs its own listener (the
     // Speakers subtree listener below only sees per-speaker edits). It changes
@@ -97,6 +109,8 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::listenerX);
     store.removeParameterListeners (ids::listenerY);
     store.removeParameterListeners (ids::listenerZ);
+    store.removeParameterListeners (ids::binauralHeadTracker);
+    store.removeParameterListeners (ids::binauralCameraIndex);
 
     speakersSection.removeListener (this);
     decoderSection.removeListener (this);

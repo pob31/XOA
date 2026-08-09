@@ -40,7 +40,11 @@ using StrSet = std::set<juce::String>;
 const char* const kExtras[] = {
     "showName",
     "oscEnabled", "oscTcpEnabled", "oscAcceptAnyHost", "oscFeedbackEnabled",
-    "oscMeterEnabled", "oscSendAddress", "audioDeviceState"
+    "oscMeterEnabled", "oscSendAddress", "audioDeviceState",
+    // Binaural monitoring (WP15). These three are bool/string AND carry no OSC
+    // binding by design (D54: the monitor is GUI-only, the OSC map stays at
+    // v1.1), so the extras list is the only place they can be declared.
+    "binauralEnabled", "binauralSofaFile", "binauralHeadTracker"
 };
 
 StrSet buildUniverse()

@@ -46,6 +46,7 @@ inline const juce::Identifier configFileRoot     { "XOAConfig" };
 inline const juce::Identifier inputsFileRoot     { "XOAInputs" };
 inline const juce::Identifier speakersFileRoot   { "XOASpeakers" };
 inline const juce::Identifier decoderFileRoot    { "XOADecoder" };
+inline const juce::Identifier monitoringFileRoot { "XOAMonitoring" };
 inline const juce::Identifier audioPatchFileRoot { "XOAAudioPatch" };
 inline const juce::Identifier projectManifest    { "XOAProject" };
 
@@ -149,6 +150,21 @@ inline const juce::Identifier rows                   { "rows" };
 inline const juce::Identifier cols                   { "cols" };
 inline const juce::Identifier activeHardwareInputs   { "activeHardwareInputs" };
 inline const juce::Identifier activeHardwareOutputs  { "activeHardwareOutputs" };
+
+// Monitoring / binaural (WP15, D51-D54). "binaural*" routes to the Monitoring
+// section. No OSC bindings by design (D54) — these are GUI/project-file only.
+// The headphone output PAIR is not here: it lives in the AudioPatch binaural
+// tree, like the rest of the patch data.
+inline const juce::Identifier binauralEnabled     { "binauralEnabled" };
+inline const juce::Identifier binauralGain        { "binauralGain" };        // dB
+inline const juce::Identifier binauralSofaFile    { "binauralSofaFile" };    // filename only, "" = built-in
+inline const juce::Identifier binauralHeadTracker { "binauralHeadTracker" }; // stable source id, "manual"
+inline const juce::Identifier binauralCameraIndex { "binauralCameraIndex" };
+// Manual head attitude, degrees, in the SPATCORE sense the user experiences:
+// +yaw turn right, +pitch look up, +roll right ear down (AmbiHeadMapping.h).
+inline const juce::Identifier binauralManualYaw   { "binauralManualYaw" };
+inline const juce::Identifier binauralManualPitch { "binauralManualPitch" };
+inline const juce::Identifier binauralManualRoll  { "binauralManualRoll" };
 
 // Decoder
 inline const juce::Identifier decoderType               { "decoderType" };

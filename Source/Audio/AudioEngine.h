@@ -17,6 +17,7 @@
 #include "Audio/SpeakerCompParams.h"
 #include "Audio/SpeakerCompProcessor.h"
 #include "Audio/TestSignalGenerator.h"
+#include "Audio/XoaMonitoringEngine.h"
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiCalculationEngine.h"
 #include "DSP/AmbiDecoderDesigner.h"
@@ -96,6 +97,10 @@ public:
     /** The control-side encoder engine (UI/tests drive tick() and parameters
         through the store; this exposes it for the offline harness and tests). */
     AmbiCalculationEngine& getCalculationEngine() noexcept { return calcEngine; }
+
+    /** Binaural monitoring controller (WP15): tracker selection, Set Zero and
+        the live head orientation the Monitoring tab displays. */
+    XoaMonitoringEngine& getMonitoringEngine() noexcept { return monitoringEngine; }
 
     /** Force the pending decoder rebuild now, synchronously (startup +
         explicit UI + tests). Invalidates any in-flight async rebuild. */
@@ -244,6 +249,7 @@ private:
 
     DecoderMatrixBuilder     decoderBuilder;
     AmbiCalculationEngine    calcEngine;   // control-side encoder (owns the live matrices)
+    XoaMonitoringEngine      monitoringEngine { store };   // binaural monitoring (WP15)
 
     // Background decoder design. rebuildGeneration is a message-thread-only
     // counter; the worker stamps each job with it and handleAsyncUpdate

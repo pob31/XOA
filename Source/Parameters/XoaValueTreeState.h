@@ -17,10 +17,10 @@
 //   ├── Inputs    {inputCount}  -> Input{id=k+1}  x N {Channel, Position, Encoder}
 //   ├── Speakers  {speakerCount}-> Speaker{id=k+1} x M {Channel, Position, EQ->Band x6}
 //   ├── Decoder   {decoderType, decoderWeighting, decoderDualBandEnabled, ...}
-//   └── Monitoring {}           (reserved, empty)
+//   └── Monitoring {binaural*}  (binaural monitoring, WP15)
 //
 // Addressing: (Identifier, channelIndex). Scope is routed by name prefix
-// ("input*" / "speaker*" / "eq*" / "decoder*" / else Config); the two count
+// ("input*" / "speaker*" / "eq*" / "decoder*" / "binaural*" / else Config); the two count
 // ids are structural and divert to setNumInputs/setNumSpeakers. Per-band EQ
 // properties need two indices and therefore live OUTSIDE this address space —
 // use the get/setEqBandParameter helpers.
@@ -32,14 +32,14 @@ namespace xoa
 class XoaValueTreeState : public spatcore::control::state::TreeParameterStore
 {
 public:
-    /** One undo history per editing surface. Monitoring has no parameters in
-        v1 and deliberately gets no domain. */
+    /** One undo history per editing surface. */
     enum UndoDomain : int
     {
         configDomain = 0,
         inputsDomain,
         speakersDomain,
         decoderDomain,
+        monitoringDomain,   // binaural monitoring (WP15)
         numUndoDomains
     };
 
@@ -172,7 +172,7 @@ protected:
                           const juce::var& value, int channelIndex) override;
 
 private:
-    enum class Scope { config, input, speaker, decoder, structural };
+    enum class Scope { config, input, speaker, decoder, monitoring, structural };
     static Scope getParameterScope (const juce::Identifier& id);
 
     void initializeDefaultState();

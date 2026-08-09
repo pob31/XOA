@@ -64,6 +64,7 @@ void runXoaLayoutGeneratorTests();
 void runXoaRvReViewTests();
 void runXoaPatchTests();
 void runXoaSofaSmokeTests();
+void runXoaHeadMappingTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -138,6 +139,7 @@ int main()
         runXoaRvReViewTests();
         runXoaPatchTests();
         runXoaSofaSmokeTests();
+        runXoaHeadMappingTests();
     }
     catch (const std::exception& e)
     {

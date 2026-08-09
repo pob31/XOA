@@ -117,6 +117,17 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::eq, i::eqGain },
         { Surface::eq, i::eqQ },
         { Surface::eq, i::eqSlope },
+
+        // Monitoring tab (WP15): the binaural monitor group. No OSC surface
+        // for these (D54) — the tab is the only way in.
+        { Surface::monitoring, i::binauralEnabled },
+        { Surface::monitoring, i::binauralGain },
+        { Surface::monitoring, i::binauralSofaFile },
+        { Surface::monitoring, i::binauralHeadTracker },
+        { Surface::monitoring, i::binauralCameraIndex },
+        { Surface::monitoring, i::binauralManualYaw },
+        { Surface::monitoring, i::binauralManualPitch },
+        { Surface::monitoring, i::binauralManualRoll },
     };
     return rows;
 }

@@ -31,7 +31,7 @@ namespace xoa::ui
 /** Undo domain a parameter belongs to. Mirrors XoaValueTreeState::UndoDomain but
     stays store-independent so this header is console-safe; the binding layer maps
     it to the store enum. */
-enum class Domain { config, inputs, speakers, decoder };
+enum class Domain { config, inputs, speakers, decoder, monitoring };
 
 /** How the parameter is presented / edited. `system` = reachable through a
     dedicated surface (device selector, file dialog) rather than a bound widget;
@@ -79,6 +79,19 @@ inline const std::vector<UiDescriptor>& allDescriptors()
         { i::listenerY,        "param.listenerY",        "units.meters", 0.01, Kind::slider, false, false, Domain::config,   {} },
         { i::listenerZ,        "param.listenerZ",        "units.meters", 0.01, Kind::slider, false, false, Domain::config,   {} },
         { i::monoInputsEnabled,"param.monoInputsEnabled","",             0.0,  Kind::toggle, false, false, Domain::config,   {} },
+
+        // ---- Monitoring / binaural (WP15) -----------------------------------
+        // The SOFA set and the tracker are chosen through dedicated surfaces
+        // (file picker / device list), hence Kind::system.
+        { i::binauralEnabled,  "param.binauralEnabled",  "",             0.0,  Kind::toggle, false, false, Domain::monitoring, {} },
+        { i::binauralGain,     "param.binauralGain",     "units.db",     0.1,  Kind::slider, false, false, Domain::monitoring, {} },
+        { i::binauralSofaFile, "param.binauralSofaFile", "",             0.0,  Kind::system, false, false, Domain::monitoring, {} },
+        { i::binauralHeadTracker, "param.binauralHeadTracker", "",       0.0,  Kind::system, false, false, Domain::monitoring, {} },
+        { i::binauralCameraIndex, "param.binauralCameraIndex", "",       1.0,  Kind::text,   false, false, Domain::monitoring, {} },
+        { i::binauralManualYaw,   "param.binauralManualYaw",   "units.degrees", 1.0, Kind::dial, false, false, Domain::monitoring, {} },
+        { i::binauralManualPitch, "param.binauralManualPitch", "units.degrees", 1.0, Kind::dial, false, false, Domain::monitoring, {} },
+        { i::binauralManualRoll,  "param.binauralManualRoll",  "units.degrees", 1.0, Kind::dial, false, false, Domain::monitoring, {} },
+
         { i::inputCount,       "param.inputCount",       "",             1.0,  Kind::text,   false, false, Domain::inputs,   {} },
         { i::speakerCount,     "param.speakerCount",     "",             1.0,  Kind::text,   false, false, Domain::speakers, {} },
 

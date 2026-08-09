@@ -29,6 +29,7 @@ target_sources(xoa-tests PRIVATE
     XoaRvReViewTests.cpp
     XoaPatchTests.cpp
     XoaSofaSmokeTests.cpp
+    XoaHeadMappingTests.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/AudioEngine.cpp
