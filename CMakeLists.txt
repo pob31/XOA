@@ -141,6 +141,15 @@ add_custom_command(TARGET XOA POST_BUILD
             "$<TARGET_FILE_DIR:XOA>/Resources/lang"
     COMMENT "Staging Resources/lang next to the XOA binary")
 
+# Stage the bundled HRTF set (SADIE II KU100) the binaural monitor falls back
+# to when no project SOFA file is chosen (WP15). Same reasoning as the lang
+# staging: XoaMonitoringEngine resolves <exeDir>/Resources/SOFA first.
+add_custom_command(TARGET XOA POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/SOFA"
+            "$<TARGET_FILE_DIR:XOA>/Resources/SOFA"
+    COMMENT "Staging the bundled HRTF set next to the XOA binary")
+
 # ---------------------------------------------------------------------------
 # Tests — the xoa-tests console app, registered with ctest.
 # (After the JUCE/spatcore subdirectories: tests/ needs their targets.)

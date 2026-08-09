@@ -116,6 +116,13 @@ public:
         return activeSource.load (std::memory_order_acquire);
     }
 
+    /** The slot itself, for the RT stage to load from once per block (D53).
+        Stable for this object's lifetime. */
+    const std::atomic<spatcore::binaural::HeadOrientationSource*>* getActiveSourceSlot() const noexcept
+    {
+        return &activeSource;
+    }
+
     /** Last message from the webcam source (load/start failure or success).
         Message thread; empty when nothing has been attempted. */
     juce::String getStatusMessage() const

@@ -116,6 +116,9 @@ void AppShell::applyLoadedProject (const juce::File& folderOrManifest)
 {
     fileManager.loadProject (folderOrManifest);
     engine.flushDecoderRebuild();
+    // The project's HRTF folder moved: binauralSofaFile stores a bare
+    // filename, so the monitor has to be told where to resolve it (WP15).
+    engine.getMonitoringEngine().setProjectSofaFolder (fileManager.getSofaFolder());
     refreshAllTabs();
 }
 

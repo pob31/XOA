@@ -30,27 +30,41 @@
 #pragma once
 
 #include <juce_core/juce_core.h>
+#include <juce_events/juce_events.h>
 
 #include "spatcore/binaural/HeadOrientationSource.h"
+#include "spatcore/rt/RtSnapshot.h"
 
+#include "Audio/BinauralDesignWorker.h"
 #include "Audio/HeadTrackerManager.h"
+#include "DSP/AmbiBinauralFilterBank.h"
+#include "DSP/AmbiBinauralRtTypes.h"
 #include "DSP/AmbiHeadMapping.h"
+#include "Parameters/XoaFileManager.h"
 #include "Parameters/XoaValueTreeState.h"
 
 namespace xoa
 {
 
-class XoaMonitoringEngine
+class XoaMonitoringEngine : private juce::AsyncUpdater
 {
 public:
-    explicit XoaMonitoringEngine (XoaValueTreeState& storeToUse)
+    XoaMonitoringEngine (XoaValueTreeState& storeToUse,
+                         spatcore::rt::RtSnapshot<rt::MonitorRtParams>& snapshotToPublish)
         : store (storeToUse),
+          monitorSnapshot (snapshotToPublish),
           trackers ([this] { return store.getIntParameter (ids::binauralCameraIndex); })
     {
         applyTrackerSelection();
+        publishParams();
     }
 
-    ~XoaMonitoringEngine() { stopMonitoring(); }
+    ~XoaMonitoringEngine() override
+    {
+        designWorker.stop();      // join BEFORE cancelling async updates, so no
+        cancelPendingUpdate();    // triggerAsyncUpdate can fire into a dead object
+        stopMonitoring();
+    }
 
     /** Stop tracker hardware. Must run before anything the sources publish
         into goes away. Message thread. */
@@ -132,10 +146,189 @@ public:
         return getManualOrientation();
     }
 
+    //==========================================================================
+    // Filter bank + SOFA lifecycle
+    //==========================================================================
+
+    const AmbiBinauralFilterBank& getFilterBank() const noexcept { return filterBank; }
+
+    const std::atomic<spatcore::binaural::HeadOrientationSource*>* getActiveSourceSlot() const noexcept
+    {
+        return trackers.getActiveSourceSlot();
+    }
+
+    /** Compose and publish MonitorRtParams. Call on any change to the enable
+        gate, the gain, or the manual attitude. Message thread, ONE writer. */
+    void publishParams()
+    {
+        rt::MonitorRtParams p;
+        p.enabled = (bool) store.getParameter (ids::binauralEnabled);
+        p.monitorGainLinear =
+            juce::Decibels::decibelsToGain (store.getFloatParameter (ids::binauralGain), -60.0f);
+
+        const auto manual = getManualOrientation();
+        p.manualYawRad = manual.yawRad;
+        p.manualPitchRad = manual.pitchRad;
+        p.manualRollRad = manual.rollRad;
+        p.epoch = ++paramsEpoch;
+        monitorSnapshot.publish (p);
+    }
+
+    /** The device opened or changed shape. Re-cooks the existing design for
+        the new block size, and redesigns from scratch when the sample rate
+        moved (the HRIRs are resampled at load). Message thread. */
+    void deviceChanged (double sampleRate, int blockSize)
+    {
+        const bool rateMoved = std::abs (sampleRate - deviceSampleRate) > 1.0e-6;
+        deviceSampleRate = sampleRate;
+        deviceBlockSize = blockSize;
+
+        if (rateMoved || ! currentDesign.isValid())
+        {
+            requestDesign();
+            return;
+        }
+
+        if (filterBank.cook (currentDesign, blockSize))
+            filterBank.publish();
+        else
+            filterBank.publishEmpty();
+    }
+
+    /** Kick a background load+design of the selected HRTF set. Safe to call
+        repeatedly: the worker is latest-wins and a repeat request for the
+        SAME key is dropped, so a failed load does not retry forever. */
+    void requestDesign (bool force = false)
+    {
+        if (deviceSampleRate <= 0.0 || deviceBlockSize <= 0)
+            return;   // nothing to design for yet; prepareToPlay will call back
+
+        const auto file = resolveSofaFile();
+        const juce::String key = file.getFullPathName() + "|" + juce::String (deviceSampleRate);
+        if (! force && key == requestedKey)
+            return;
+        requestedKey = key;
+
+        if (! file.existsAsFile())
+        {
+            statusMessage = "HRTF set not found: " + file.getFullPathName();
+            currentDesign = {};
+            filterBank.publishEmpty();
+            return;
+        }
+
+        BinauralDesignWorker::Job job;
+        job.sofaFile = file;
+        job.sampleRate = deviceSampleRate;
+        job.generation = ++designGeneration;
+        designWorker.submit (job);
+    }
+
+    /** Where the selected HRTF set lives: a bare filename resolves against
+        <project>/sofa, an empty setting means the bundled default staged
+        next to the binary. */
+    juce::File resolveSofaFile() const
+    {
+        const auto name = store.getStringParameter (ids::binauralSofaFile);
+        if (name.isNotEmpty() && projectSofaFolder.isDirectory())
+            return projectSofaFolder.getChildFile (name);
+        if (name.isNotEmpty())
+            return juce::File();
+        return builtInSofaFile();
+    }
+
+    /** The bundled SADIE II KU100 set, staged next to the binary (and read
+        from the source tree in a dev build). */
+    static juce::File builtInSofaFile()
+    {
+        const auto exeDir = juce::File::getSpecialLocation (juce::File::currentExecutableFile)
+                                .getParentDirectory();
+        const auto staged = exeDir.getChildFile ("Resources").getChildFile ("SOFA")
+                                  .getChildFile (kBuiltInSofaName);
+        if (staged.existsAsFile())
+            return staged;
+
+        // Dev fallback: walk up to the repo root's assets/SOFA.
+        for (auto dir = exeDir; dir.exists(); dir = dir.getParentDirectory())
+        {
+            const auto candidate = dir.getChildFile ("assets").getChildFile ("SOFA")
+                                      .getChildFile (kBuiltInSofaName);
+            if (candidate.existsAsFile())
+                return candidate;
+            if (dir.getParentDirectory() == dir)
+                break;
+        }
+        return staged;   // non-existent: the caller reports it
+    }
+
+    /** Point HRTF-set resolution at a project folder. Message thread. */
+    void setProjectSofaFolder (const juce::File& folder)
+    {
+        projectSofaFolder = folder;
+        requestDesign();
+    }
+
+    /** Human-readable state of the HRTF set (load status / failure). */
+    juce::String getSofaStatusMessage() const { return statusMessage; }
+
+    bool isDesignInFlight() const noexcept { return designWorker.isBusy(); }
+
+    /** Headless test seam: block until the worker is idle and adopt whatever
+        it produced (no message loop involved). */
+    void flushDesignForTesting()
+    {
+        designWorker.waitUntilIdle();
+        adoptCompletedDesign();
+    }
+
 private:
+    void handleAsyncUpdate() override { adoptCompletedDesign(); }
+
+    /** Message thread: take the worker's result, cook it for the current
+        block size and publish. Stale generations are discarded. */
+    void adoptCompletedDesign()
+    {
+        BinauralDesignWorker::Result result;
+        while (designWorker.takeCompleted (result))
+        {
+            if (result.generation != designGeneration)
+                continue;   // superseded by a newer request
+
+            statusMessage = result.status;
+
+            if (result.loadFailed || ! result.design.isValid())
+            {
+                currentDesign = {};
+                filterBank.publishEmpty();
+                continue;
+            }
+
+            currentDesign = std::move (result.design);
+            if (deviceBlockSize > 0 && filterBank.cook (currentDesign, deviceBlockSize))
+                filterBank.publish();
+            else
+                filterBank.publishEmpty();
+        }
+    }
+
+    static constexpr const char* kBuiltInSofaName = "D1_48K_24bit_256tap_FIR_SOFA.sofa";
+
     XoaValueTreeState& store;
+    spatcore::rt::RtSnapshot<rt::MonitorRtParams>& monitorSnapshot;
     HeadTrackerManager trackers;
     juce::String appliedTrackerId;
+
+    AmbiBinauralFilterBank filterBank;
+    BinauralDesignWorker designWorker { [this] { triggerAsyncUpdate(); } };
+    binaural::BinauralDesignResult currentDesign;
+
+    juce::File projectSofaFolder;
+    juce::String requestedKey;
+    juce::String statusMessage;
+    double deviceSampleRate = 0.0;
+    int deviceBlockSize = 0;
+    juce::uint64 designGeneration = 0;
+    juce::uint32 paramsEpoch = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XoaMonitoringEngine)
 };

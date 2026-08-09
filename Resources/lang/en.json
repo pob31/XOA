@@ -183,6 +183,7 @@
     "binauralSofaFile": "HRTF set",
     "binauralHeadTracker": "Head tracker",
     "binauralCameraIndex": "Camera index",
+    "binauralOutputChannel": "Headphone output pair",
     "binauralManualYaw": "Head yaw",
     "binauralManualPitch": "Head pitch",
     "binauralManualRoll": "Head roll",

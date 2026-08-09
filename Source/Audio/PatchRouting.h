@@ -32,6 +32,13 @@ struct PatchRtState
     int hwForSpeaker[xoa::kMaxSpeakers] = {};
     int stemOffset[xoa::kMaxInputs] = {};          // per input: first flattened row
     int stemSpan[xoa::kMaxInputs] = {};            // per input: row count
+
+    // Binaural monitor pair (WP15, D52), hardware channels, -1 = not
+    // reserved. Fed in the scatter phase like a speaker, and excluded from
+    // the matrix so nothing else can claim those two outputs.
+    int binauralHwLeft = -1;
+    int binauralHwRight = -1;
+
     juce::uint32 epoch = 0;                        // 0 = never published
 };
 
@@ -91,6 +98,19 @@ inline PatchRtState composePatchRouting (const XoaValueTreeState& store, juce::u
         const int numSpeakers = juce::jmin (store.getNumSpeakers(), xoa::kMaxSpeakers);
         for (int s = 0; s < numSpeakers && s < rows.size(); ++s)
             p.hwForSpeaker[s] = patchRowColumn (rows[s]);
+    }
+
+    // Binaural monitor pair: the stored channel is the FIRST of two adjacent
+    // hardware outputs (0-based, -1 = none). Both must exist for the pair to
+    // be usable — half a pair is worse than none.
+    if (auto monitoring = store.getMonitoringSection(); monitoring.isValid())
+    {
+        const int first = (int) monitoring.getProperty (ids::binauralOutputChannel, -1);
+        if (first >= 0 && first + 1 < xoa::kMaxHardwareChannels)
+        {
+            p.binauralHwLeft = first;
+            p.binauralHwRight = first + 1;
+        }
     }
 
     return p;

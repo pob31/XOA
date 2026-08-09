@@ -47,7 +47,15 @@ XoaPatchMatrix::makeConfig (XoaValueTreeState& store, bool isInputPatch)
     config.ids.cols = ids::cols;
     config.ids.activeHardwareChannels = isInputPatch ? ids::activeHardwareInputs
                                                      : ids::activeHardwareOutputs;
-    // No binaural tree: XOA's binaural monitoring is post-v1 (D2).
+    // Binaural monitoring (WP15, D52): on the OUTPUT patch the Monitoring
+    // section doubles as the matrix's binaural tree, so the reserved
+    // headphone pair is greyed out and no speaker can be patched over it.
+    // The input patch has no such reservation.
+    if (! isInputPatch)
+    {
+        config.binauralTree = store.getMonitoringSection();
+        config.ids.binauralOutputChannel = ids::binauralOutputChannel;
+    }
 
     config.maxHardwareChannels = xoa::kMaxHardwareChannels;
 

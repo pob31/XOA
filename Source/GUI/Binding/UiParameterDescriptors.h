@@ -88,6 +88,7 @@ inline const std::vector<UiDescriptor>& allDescriptors()
         { i::binauralSofaFile, "param.binauralSofaFile", "",             0.0,  Kind::system, false, false, Domain::monitoring, {} },
         { i::binauralHeadTracker, "param.binauralHeadTracker", "",       0.0,  Kind::system, false, false, Domain::monitoring, {} },
         { i::binauralCameraIndex, "param.binauralCameraIndex", "",       1.0,  Kind::text,   false, false, Domain::monitoring, {} },
+        { i::binauralOutputChannel, "param.binauralOutputChannel", "",   1.0,  Kind::system, false, false, Domain::monitoring, {} },
         { i::binauralManualYaw,   "param.binauralManualYaw",   "units.degrees", 1.0, Kind::dial, false, false, Domain::monitoring, {} },
         { i::binauralManualPitch, "param.binauralManualPitch", "units.degrees", 1.0, Kind::dial, false, false, Domain::monitoring, {} },
         { i::binauralManualRoll,  "param.binauralManualRoll",  "units.degrees", 1.0, Kind::dial, false, false, Domain::monitoring, {} },

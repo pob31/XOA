@@ -69,6 +69,11 @@ constexpr bool   binauralEnabledDefault = false;
 constexpr double binauralGainDefault = 0.0, binauralGainMin = -60.0, binauralGainMax = 12.0;   // dB
 constexpr double binauralCameraIndexDefault = 0.0,
                  binauralCameraIndexMin = 0.0, binauralCameraIndexMax = 15.0;
+// Headphone pair: 0-based first hardware output, -1 = none reserved. The max
+// leaves room for the second channel of the pair.
+constexpr double binauralOutputChannelDefault = -1.0,
+                 binauralOutputChannelMin = -1.0,
+                 binauralOutputChannelMax = (double) (xoa::kMaxHardwareChannels - 2);
 constexpr double binauralManualYawDefault   = 0.0, binauralManualYawMin   = -180.0, binauralManualYawMax   = 180.0;
 constexpr double binauralManualPitchDefault = 0.0, binauralManualPitchMin =  -90.0, binauralManualPitchMax =  90.0;
 constexpr double binauralManualRollDefault  = 0.0, binauralManualRollMin  = -180.0, binauralManualRollMax  = 180.0;

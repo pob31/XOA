@@ -98,6 +98,23 @@ struct BinauralDesignResult
     not compensate. */
 constexpr int kBinauralFilterLeadSamples = 16;
 
+/** Longest HRIR the monitor will design from, in taps.
+
+    1024 taps is 21 ms at 48 kHz — far beyond the useful support of any HRIR
+    (measured sets are typically 128-512). A SOFA file longer than this is
+    almost always a BRIR carrying a room response, which is not what a
+    head-tracked monitor decode is for: the room would rotate with the
+    listener's head. Longer sets are truncated with a warning rather than
+    rejected, so such a file still monitors instead of going silent.
+
+    The cap is also what bounds the RT frequency-delay line: 121 channels of
+    (firLength/P) partitions at 2·(2P) floats is ~2 MB at any block size. */
+constexpr int kMaxBinauralHrirTaps = 1024;
+
+/** Upper bound on a designed filter's length — the cap plus the ITD headroom
+    and the kernel lead. Sizes the renderer's FDL allocation. */
+constexpr int kMaxBinauralFirLength = kMaxBinauralHrirTaps + 128;
+
 /** Design the SH→ear bank from a baked HRIR grid. Allocates and takes tens of
     milliseconds at order 10 — background thread only. */
 BinauralDesignResult designShFilters (const spatcore::binaural::HrirDatabase& db,

@@ -90,6 +90,7 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         // binauralHeadTracker are bool+string and carry no numeric bounds.
         { ids::binauralGain,        { d::binauralGainMin, d::binauralGainMax, d::binauralGainDefault, false } },
         { ids::binauralCameraIndex, { d::binauralCameraIndexMin, d::binauralCameraIndexMax, d::binauralCameraIndexDefault, true } },
+        { ids::binauralOutputChannel, { d::binauralOutputChannelMin, d::binauralOutputChannelMax, d::binauralOutputChannelDefault, true } },
         { ids::binauralManualYaw,   { d::binauralManualYawMin, d::binauralManualYawMax, d::binauralManualYawDefault, false } },
         { ids::binauralManualPitch, { d::binauralManualPitchMin, d::binauralManualPitchMax, d::binauralManualPitchDefault, false } },
         { ids::binauralManualRoll,  { d::binauralManualRollMin, d::binauralManualRollMax, d::binauralManualRollDefault, false } },

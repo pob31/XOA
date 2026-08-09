@@ -21,6 +21,8 @@
 #include "DSP/AmbiBusAlgorithm.h"
 #include "DSP/AmbiCalculationEngine.h"
 #include "DSP/AmbiDecoderDesigner.h"
+#include "DSP/AmbiBinauralRenderer.h"
+#include "DSP/AmbiBinauralRtTypes.h"
 #include "DSP/AmbiRtTypes.h"
 #include "DSP/DecoderMatrixBuilder.h"
 #include "Parameters/XoaValueTreeState.h"
@@ -249,7 +251,11 @@ private:
 
     DecoderMatrixBuilder     decoderBuilder;
     AmbiCalculationEngine    calcEngine;   // control-side encoder (owns the live matrices)
-    XoaMonitoringEngine      monitoringEngine { store };   // binaural monitoring (WP15)
+    // Binaural monitoring (WP15). The snapshot is declared before the
+    // engine that publishes into it and the renderer that reads it.
+    spatcore::rt::RtSnapshot<rt::MonitorRtParams> monitorSnapshot;
+    XoaMonitoringEngine      monitoringEngine { store, monitorSnapshot };
+    AmbiBinauralRenderer     monitorRenderer;
 
     // Background decoder design. rebuildGeneration is a message-thread-only
     // counter; the worker stamps each job with it and handleAsyncUpdate

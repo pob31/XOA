@@ -160,6 +160,12 @@ inline const juce::Identifier binauralGain        { "binauralGain" };        // 
 inline const juce::Identifier binauralSofaFile    { "binauralSofaFile" };    // filename only, "" = built-in
 inline const juce::Identifier binauralHeadTracker { "binauralHeadTracker" }; // stable source id, "manual"
 inline const juce::Identifier binauralCameraIndex { "binauralCameraIndex" };
+// First hardware output of the headphone pair (0-based; the pair is this
+// channel and the next). -1 = no pair reserved. Read by the shared patch
+// matrix through its binauralOutputChannel id, which is why the name matches
+// spatcore's verbatim: the matrix greys the pair out so an operator cannot
+// patch a speaker over the monitor.
+inline const juce::Identifier binauralOutputChannel { "binauralOutputChannel" };
 // Manual head attitude, degrees, in the SPATCORE sense the user experiences:
 // +yaw turn right, +pitch look up, +roll right ear down (AmbiHeadMapping.h).
 inline const juce::Identifier binauralManualYaw   { "binauralManualYaw" };

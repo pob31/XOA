@@ -96,6 +96,8 @@ void XoaValueTreeState::initializeDefaultState()
     monitoring.setProperty (ids::binauralHeadTracker, "manual", nullptr);
     monitoring.setProperty (ids::binauralCameraIndex,
                             static_cast<int> (d::binauralCameraIndexDefault), nullptr);
+    monitoring.setProperty (ids::binauralOutputChannel,
+                            static_cast<int> (d::binauralOutputChannelDefault), nullptr);
     monitoring.setProperty (ids::binauralManualYaw, d::binauralManualYawDefault, nullptr);
     monitoring.setProperty (ids::binauralManualPitch, d::binauralManualPitchDefault, nullptr);
     monitoring.setProperty (ids::binauralManualRoll, d::binauralManualRollDefault, nullptr);

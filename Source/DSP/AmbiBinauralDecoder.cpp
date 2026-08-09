@@ -152,8 +152,19 @@ BinauralDesignResult designShFilters (const Db& db, const BinauralDesignOptions&
     for (float d : db.relDelaySec)
         maxDelaySec = juce::jmax (maxDelaySec, (double) d);
 
+    int usableTaps = db.hrirLength;
+    if (usableTaps > kMaxBinauralHrirTaps)
+    {
+        usableTaps = kMaxBinauralHrirTaps;
+        result.warning = "HRIR set is " + juce::String (db.hrirLength)
+                       + " taps — using the first " + juce::String (kMaxBinauralHrirTaps)
+                       + " (a set this long is usually a room response, which a"
+                         " head-tracked monitor decode cannot use)";
+    }
+
     const int maxDelaySamples = (int) std::ceil (maxDelaySec * db.sampleRate);
-    const int firLength = db.hrirLength + maxDelaySamples + 2 * kSincHalf + 1;
+    const int firLength = juce::jmin (usableTaps + maxDelaySamples + 2 * kSincHalf + 1,
+                                      kMaxBinauralFirLength);
 
     result.firLength = firLength;
     result.firs.assign ((size_t) firLength * 2 * (size_t) xoa::kNumSHChannels, 0.0f);
@@ -195,7 +206,7 @@ BinauralDesignResult designShFilters (const Db& db, const BinauralDesignOptions&
                     * db.sampleRate;
 
                 std::fill (delayed.begin(), delayed.end(), 0.0);
-                addDelayed (hrir, db.hrirLength, delaySamples + (double) kFilterLead,
+                addDelayed (hrir, usableTaps, delaySamples + (double) kFilterLead,
                             delayed.data(), firLength);
 
                 for (int c = 0; c < xoa::kNumSHChannels; ++c)

@@ -125,6 +125,7 @@ inline const std::vector<RegistryRow>& registryRows()
         { Surface::monitoring, i::binauralSofaFile },
         { Surface::monitoring, i::binauralHeadTracker },
         { Surface::monitoring, i::binauralCameraIndex },
+        { Surface::monitoring, i::binauralOutputChannel },
         { Surface::monitoring, i::binauralManualYaw },
         { Surface::monitoring, i::binauralManualPitch },
         { Surface::monitoring, i::binauralManualRoll },
