@@ -73,6 +73,7 @@ target_sources(XOA PRIVATE
     Source/Parameters/XoaFileManager.cpp
     Source/Audio/AudioEngine.cpp
     Source/DSP/AmbiCalculationEngine.cpp
+    Source/DSP/AmbiBinauralDecoder.cpp
     Source/DSP/ConvexHull.cpp
     Source/Localization/LocalizationManager.cpp
     Source/Network/OSCManager.cpp

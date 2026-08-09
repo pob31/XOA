@@ -65,6 +65,7 @@ void runXoaRvReViewTests();
 void runXoaPatchTests();
 void runXoaSofaSmokeTests();
 void runXoaHeadMappingTests();
+void runXoaBinauralDecoderTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -140,6 +141,7 @@ int main()
         runXoaPatchTests();
         runXoaSofaSmokeTests();
         runXoaHeadMappingTests();
+        runXoaBinauralDecoderTests();
     }
     catch (const std::exception& e)
     {
