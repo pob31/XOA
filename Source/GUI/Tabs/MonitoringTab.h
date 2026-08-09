@@ -103,7 +103,7 @@ public:
         perfLabel.setBounds (area.removeFromTop (px (24)));
         area.removeFromTop (px (6));
 
-        layoutBinauralControls (area.removeFromTop (px (118)));
+        layoutBinauralControls (area.removeFromTop (px (150)));
         area.removeFromTop (px (8));
         meterArea = area;
 
@@ -145,7 +145,14 @@ private:
         cameraIndexLabel.setBounds (row.removeFromLeft (px (90)));
         cameraIndexEditor.setBounds (row.removeFromLeft (px (50)));
 
-        area.removeFromTop (px (6));
+        area.removeFromTop (px (4));
+        auto sofaRow = area.removeFromTop (px (24));
+        sofaLabel.setBounds (sofaRow.removeFromLeft (px (80)));
+        sofaCombo.setBounds (sofaRow.removeFromLeft (px (260)));
+        sofaRow.removeFromLeft (px (10));
+        sofaStatus.setBounds (sofaRow);
+
+        area.removeFromTop (px (4));
         headingLabel.setBounds (area.removeFromTop (px (16)));
 
         // Row 2: the three manual attitude dials, each over its value label.
@@ -179,6 +186,14 @@ private:
         addAndMakeVisible (gainLabel);
         addAndMakeVisible (gainSlider);
         bindings.bindSlider (gainSlider, ids::binauralGain);
+
+        sofaLabel.setText (LOC ("param.binauralSofaFile"), juce::dontSendNotification);
+        sofaLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (sofaLabel);
+
+        sofaCombo.onPopupAboutToShow = [this] { rebuildSofaList(); };
+        sofaCombo.onChange = [this] { handleSofaSelection(); };
+        addAndMakeVisible (sofaCombo);
 
         trackerLabel.setText (LOC ("param.binauralHeadTracker"), juce::dontSendNotification);
         trackerLabel.setJustificationType (juce::Justification::centredRight);
@@ -228,7 +243,99 @@ private:
         statusLabel.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (statusLabel);
 
+        sofaStatus.setJustificationType (juce::Justification::centredLeft);
+        addAndMakeVisible (sofaStatus);
+
         rebuildTrackerList();
+        rebuildSofaList();
+    }
+
+    /** Item 1 is always the bundled set (stored as an empty filename); the
+        rest are the .sofa files in <project>/sofa, then an Import entry. */
+    void rebuildSofaList()
+    {
+        const juce::String persisted = context.store.getStringParameter (ids::binauralSofaFile);
+
+        sofaCombo.clear (juce::dontSendNotification);
+        sofaNames.clear();
+
+        sofaCombo.addItem (LOC ("monitoring.builtInSofa"), 1);
+        sofaNames.push_back ({});          // empty = built-in
+        int selectedId = 1;
+
+        const auto folder = context.fileManager.getSofaFolder();
+        if (folder.isDirectory())
+        {
+            juce::Array<juce::File> files;
+            folder.findChildFiles (files, juce::File::findFiles, false, "*.sofa");
+            files.sort();
+            for (const auto& f : files)
+            {
+                const int id = (int) sofaNames.size() + 1;
+                sofaCombo.addItem (f.getFileName(), id);
+                sofaNames.push_back (f.getFileName());
+                if (f.getFileName() == persisted)
+                    selectedId = id;
+            }
+        }
+
+        // A persisted set that is no longer in the folder: keep the stored
+        // name (the file may come back) but show what is actually loaded.
+        if (persisted.isNotEmpty() && selectedId == 1)
+        {
+            const int id = (int) sofaNames.size() + 1;
+            sofaCombo.addItem (persisted + " (" + LOC ("monitoring.trackerMissing") + ")", id);
+            sofaNames.push_back (persisted);
+            selectedId = id;
+        }
+
+        sofaCombo.addSeparator();
+        sofaCombo.addItem (LOC ("monitoring.importSofa"), kImportSofaItemId);
+
+        sofaCombo.setSelectedId (selectedId, juce::dontSendNotification);
+    }
+
+    void handleSofaSelection()
+    {
+        const int selected = sofaCombo.getSelectedId();
+
+        if (selected == kImportSofaItemId)
+        {
+            importSofaFile();
+            return;
+        }
+
+        const int index = selected - 1;
+        if (index >= 0 && index < (int) sofaNames.size())
+            context.store.setParameter (ids::binauralSofaFile, sofaNames[(size_t) index]);
+    }
+
+    /** Copy a chosen .sofa into <project>/sofa and select it, so the project
+        stays self-contained and only a bare filename is ever persisted. */
+    void importSofaFile()
+    {
+        const auto folder = context.fileManager.getSofaFolder();
+        if (! folder.isDirectory() && ! folder.createDirectory())
+        {
+            rebuildSofaList();
+            return;
+        }
+
+        sofaChooser = std::make_unique<juce::FileChooser> (LOC ("monitoring.importSofa"),
+                                                           juce::File(), "*.sofa");
+        sofaChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                      | juce::FileBrowserComponent::canSelectFiles,
+                                  [this, folder] (const juce::FileChooser& fc)
+        {
+            const auto chosen = fc.getResult();
+            if (chosen.existsAsFile())
+            {
+                const auto target = folder.getChildFile (chosen.getFileName());
+                if (chosen == target || chosen.copyFileTo (target))
+                    context.store.setParameter (ids::binauralSofaFile, target.getFileName());
+            }
+            rebuildSofaList();
+        });
     }
 
     /** Rebuild the tracker list from the live sources. A persisted id whose
@@ -282,6 +389,13 @@ private:
             text += "   (" + LOC ("monitoring.orientationManual") + ")";
         orientationReadout.setText (text, juce::dontSendNotification);
 
+        const auto sofa = monitor.getSofaStatusMessage();
+        if (sofa != lastSofaStatus)
+        {
+            lastSofaStatus = sofa;
+            sofaStatus.setText (sofa, juce::dontSendNotification);
+        }
+
         const auto status = monitor.getTrackerStatusMessage();
         if (status != lastStatus)
         {
@@ -334,16 +448,20 @@ private:
 
     // Binaural monitor (WP15)
     juce::Label          binauralTitle, gainLabel, trackerLabel, cameraIndexLabel,
-                         headingLabel, orientationReadout, statusLabel;
+                         headingLabel, orientationReadout, statusLabel, sofaStatus;
     juce::ToggleButton   enableButton;
     juce::Slider         gainSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    RefreshableComboBox  trackerCombo;
+    RefreshableComboBox  trackerCombo, sofaCombo;
+    juce::Label          sofaLabel;
+    std::unique_ptr<juce::FileChooser> sofaChooser;
+    std::vector<juce::String> sofaNames;   // combo item index -> stored filename
+    static constexpr int kImportSofaItemId = 9000;
     juce::TextButton     setZeroButton;
     juce::TextEditor     cameraIndexEditor;
     XoaBasicDial         yawDial, pitchDial, rollDial;
     juce::Label          yawValue, pitchValue, rollValue;
     std::vector<juce::String> trackerIds;   // combo item index -> stable source id
-    juce::String         lastStatus;
+    juce::String         lastStatus, lastSofaStatus;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MonitoringTab)
 };
