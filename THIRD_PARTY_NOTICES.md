@@ -176,3 +176,17 @@ The bundled default HRTF set for binaural monitoring
 (`assets/SOFA/D1_48K_24bit_256tap_FIR_SOFA.sofa`, subject D1 = Neumann
 KU100 dummy head, 48 kHz, 256-tap FIRs), repacked losslessly (float64
 preserved, shuffle+deflate) from the SADIE II release.
+
+---
+
+## OpenCV / YuNet (head-tracker plugin only)
+
+- **OpenCV**: https://opencv.org — Apache License 2.0
+- **YuNet face detector** (`face_detection_yunet_2023mar.onnx`, OpenCV Zoo):
+  MIT License, (c) Shiqi Yu and contributors
+
+Used ONLY by the out-of-tree webcam head-tracking plugin in
+`tools/headtrack/`, which the application dlopens through the versioned C ABI
+in `spatcore/binaural/plugin/HeadTrackPluginApi.h`. Neither library is linked
+into XOA itself, and the plugin is optional — without it the binaural monitor
+simply stays on manual head orientation.
