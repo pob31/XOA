@@ -45,6 +45,13 @@ spatcore_add_juce_simpleweb("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/juce_simplew
 juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/roli_blocks_basics")
 spatcore_add_hidapi("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/hidapi")
 
+# libmysofa + zlib subset for spatcore's SOFA loader (binaural monitoring,
+# WP15). Same consumer-provides contract as hidapi: spatcore compiles the
+# sources out of these trees into its spatcore-mysofa target. Both trees are
+# the trimmed subsets vendored from WFS-DIY (which pins the same spatcore).
+set(SPATCORE_LIBMYSOFA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/libmysofa")
+set(SPATCORE_ZLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/zlib")
+
 add_subdirectory(spatcore "${CMAKE_BINARY_DIR}/spatcore")
 
 # ---------------------------------------------------------------------------
@@ -110,6 +117,7 @@ target_link_libraries(XOA PRIVATE
     spatcore-controllers
     spatcore-ui
     spatcore-io
+    spatcore-mysofa
     hidapi::hidapi
     juce::juce_audio_utils
     juce::juce_gui_extra

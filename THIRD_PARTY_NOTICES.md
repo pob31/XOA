@@ -135,3 +135,44 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+---
+
+## libmysofa
+
+- **Website**: https://github.com/hoene/libmysofa
+- **License**: BSD 3-Clause (with an attribution clause for the included
+  test data; the data itself is not shipped)
+- **Copyright**: (c) 2016-2023 Christian Hoene and contributors
+
+Reader for AES69-2015 SOFA (Spatially Oriented Format for Acoustics) HRTF
+files, used by spatcore's SOFA loader for binaural monitoring (WP15).
+Vendored as a trimmed source tree (hrtf/hdf readers + speex resampler,
+copied from the WFS-DIY checkout) at `ThirdParty/libmysofa/`; compiled by
+spatcore's `spatcore-mysofa` target. Full license text in
+`ThirdParty/libmysofa/LICENSE`.
+
+---
+
+## zlib (inflate subset)
+
+- **Website**: https://zlib.net
+- **License**: zlib license
+- **Copyright**: (c) 1995-2024 Jean-loup Gailly and Mark Adler
+
+Decompression subset (inflate + adler32/crc32) required by libmysofa's HDF5
+reader. Vendored as a trimmed source tree at `ThirdParty/zlib/`; compiled
+into `spatcore-mysofa`. Full license text in `ThirdParty/zlib/LICENSE`.
+
+---
+
+## SADIE II Binaural Database (KU100 HRTF set)
+
+- **Website**: https://www.york.ac.uk/sadie-project/database.html
+- **License**: Apache License 2.0
+- **Copyright**: University of York, AudioLab
+
+The bundled default HRTF set for binaural monitoring
+(`assets/SOFA/D1_48K_24bit_256tap_FIR_SOFA.sofa`, subject D1 = Neumann
+KU100 dummy head, 48 kHz, 256-tap FIRs), repacked losslessly (float64
+preserved, shuffle+deflate) from the SADIE II release.

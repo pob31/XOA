@@ -18,13 +18,16 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to **7d293e4** (post-v0.1.1: GPU
+- `spatcore/` — **submodule**, pinned to **d011103** (post-v0.1.1: GPU
   node-parallel SDN, Max-port FR diffusion, MCP protocol negotiation, the
   shared EQ, the `spatcore::io` device layer (`io/`, target `spatcore-io`),
-  and the shared patch matrix (`ui/patch/`)). rt/dsp/wfs/reverb/gpu +
-  control (osc/state/mcp) + controllers + ui + io. Adopting the io layer and
-  patch window in XOA:
-  see `Documentation/XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md`. The CMake wiring comes from
+  the shared patch matrix (`ui/patch/`), and the `binaural/` module —
+  head-orientation sources, head-tracker plugin C ABI, SOFA→HrirDatabase
+  pipeline; header-only, plus the `spatcore-mysofa` target). rt/dsp/wfs/
+  reverb/gpu + control (osc/state/mcp) + controllers + ui + io + binaural.
+  Adopting the io layer and patch window in XOA:
+  see `Documentation/XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md`. Binaural
+  monitoring (WP15): `Documentation/hoa-binaural-handoff.md`. The CMake wiring comes from
   spatcore's `cmake/SpatcoreConsumer.cmake` helper (see CMakeLists.txt).
   Dependency direction is strictly app → spatcore; never modify spatcore from
   here — changes go to the spatcore repo and arrive via a pin bump.
@@ -34,6 +37,11 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
   lib linked into the app via hidapi's own CMake).
 - `ThirdParty/juce_simpleweb`, `ThirdParty/roli_blocks_basics` — vendored JUCE
   modules (copied from WFS-DIY), required by spatcore-control / -controllers.
+- `ThirdParty/libmysofa`, `ThirdParty/zlib` — vendored trimmed trees (copied
+  from WFS-DIY), compiled by spatcore's `spatcore-mysofa` target for the SOFA
+  loader (binaural monitoring, WP15).
+- `assets/SOFA/` — the bundled SADIE II KU100 HRTF set (default binaural
+  monitoring set; also the SOFA smoke-test fixture).
 
 ## Conventions
 
@@ -47,8 +55,8 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Where things are decided
 
 - Roadmap and architecture decisions: `Documentation/XOA-PLAN.md`.
-- Execution order and decision records (numeric D1-D34, plus the named WP8 ones
-  such as `D-NFCstage` / `D-stems`; D35 is the next free number):
+- Execution order and decision records (numeric D1-D54, plus the named WP8 ones
+  such as `D-NFCstage` / `D-stems`; D55 is the next free number):
   `Documentation/XOA-DEVPLAN.md` (it wins over the PRD where they conflict).
   Requirements: `Documentation/XOA_PRD.md`.
   Frozen OSC contract: `Documentation/XOA-OSC-MAP.md`.
