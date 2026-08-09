@@ -67,8 +67,8 @@ void AudioEngine::registerListeners()
         store.addParameterListener (id, [this] (const juce::var&) { monitoringEngine.publishParams(); });
 
     // A different HRTF set means a fresh load + design on the worker.
-    store.addParameterListener (ids::binauralSofaFile,
-                                [this] (const juce::var&) { monitoringEngine.requestDesign(); });
+    for (const auto& id : { ids::binauralSofaFile, ids::binauralDecoderMode })
+        store.addParameterListener (id, [this] (const juce::var&) { monitoringEngine.requestDesign(); });
 
     store.addParameterListener (ids::binauralHeadTracker,
                                 [this] (const juce::var&) { monitoringEngine.applyTrackerSelection(); });
@@ -124,6 +124,7 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::binauralManualPitch);
     store.removeParameterListeners (ids::binauralManualRoll);
     store.removeParameterListeners (ids::binauralSofaFile);
+    store.removeParameterListeners (ids::binauralDecoderMode);
     store.removeParameterListeners (ids::binauralHeadTracker);
     store.removeParameterListeners (ids::binauralCameraIndex);
 

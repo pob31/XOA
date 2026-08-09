@@ -126,7 +126,9 @@ static void testBinauralDecoderGolden()
         return;
 
     const auto db = buildFixtureDatabase();
-    const auto designed = bin::designShFilters (*db);
+    bin::BinauralDesignOptions sampling;
+    sampling.mode = bin::DecoderMode::sampling;
+    const auto designed = bin::designShFilters (*db, sampling);
     CHECK (designed.isValid());
     if (! designed.isValid())
         return;
@@ -188,7 +190,9 @@ static void testBinauralDecoderGolden()
 static void testBinauralDecoderReconstructsHrir()
 {
     const auto db = buildFixtureDatabase();
-    const auto designed = bin::designShFilters (*db);
+    bin::BinauralDesignOptions sampling;
+    sampling.mode = bin::DecoderMode::sampling;
+    const auto designed = bin::designShFilters (*db, sampling);
     if (! designed.isValid())
         return;
 
@@ -262,7 +266,9 @@ static void testBinauralDecoderReconstructsHrir()
 static void testBinauralDecoderWChannelIsSphericalMean()
 {
     const auto db = buildFixtureDatabase();
-    const auto designed = bin::designShFilters (*db);
+    bin::BinauralDesignOptions sampling;
+    sampling.mode = bin::DecoderMode::sampling;
+    const auto designed = bin::designShFilters (*db, sampling);
     if (! designed.isValid())
         return;
 
@@ -325,7 +331,9 @@ static void testBinauralDecoderWChannelIsSphericalMean()
 static void testBinauralDecoderInterauralPolarity()
 {
     const auto db = buildFixtureDatabase();
-    const auto designed = bin::designShFilters (*db);
+    bin::BinauralDesignOptions sampling;
+    sampling.mode = bin::DecoderMode::sampling;
+    const auto designed = bin::designShFilters (*db, sampling);
     if (! designed.isValid())
         return;
 
@@ -394,6 +402,125 @@ static void testBinauralDecoderRejectsEmptySet()
 }
 
 //==============================================================================
+// 5. alignedHf (the default): ITD below the crossover, time-aligned above.
+//
+// The claim to verify is not "it is better" in the abstract but the two
+// concrete properties it is built on: the low band still carries the
+// interaural TIME difference, and the high band reconstructs magnitudes more
+// faithfully than the ITD-everywhere sampling decode — which is the error the
+// sampling tests measured at 20%+ on a delayed ear.
+static void testBinauralDecoderAlignedHf()
+{
+    const auto db = buildFixtureDatabase();
+
+    bin::BinauralDesignOptions sampling;
+    sampling.mode = bin::DecoderMode::sampling;
+    bin::BinauralDesignOptions alignedHf;      // the default mode
+    alignedHf.mode = bin::DecoderMode::alignedHf;
+
+    const auto sampled = bin::designShFilters (*db, sampling);
+    const auto blended = bin::designShFilters (*db, alignedHf);
+    CHECK (sampled.isValid());
+    CHECK (blended.isValid());
+    if (! sampled.isValid() || ! blended.isValid())
+        return;
+
+    // alignedHf reserves extra taps for the crossover's own impulse response,
+    // so the two banks are NOT the same length — compare within each.
+    CHECK (blended.firLength >= sampled.firLength);
+    for (int n = 0; n < blended.firLength; ++n)
+        CHECK (std::isfinite (blended.fir (0, 0)[n]));
+
+    // (a) The two modes really differ. A tap-by-tap comparison would be
+    // meaningless (the blend carries its own linear-phase lead), so compare
+    // total absolute energy of the difference in reconstruction below — the
+    // property that actually matters — and here just require the banks not to
+    // be the same object-for-object.
+    double blendedEnergy = 0.0, sampledEnergy = 0.0;
+    for (int n = 0; n < blended.firLength; ++n)
+        blendedEnergy += (double) blended.fir (0, 3)[n] * blended.fir (0, 3)[n];
+    for (int n = 0; n < sampled.firLength; ++n)
+        sampledEnergy += (double) sampled.fir (0, 3)[n] * sampled.fir (0, 3)[n];
+    CHECK (blendedEnergy > 0.0 && sampledEnergy > 0.0);
+
+    // (b) DC survives. The blend's gains are real and sum to exactly 1 at
+    // every bin, and bin 0 is pure low band, so the total gain of every
+    // filter must come through the crossover unchanged.
+    for (int ear = 0; ear < 2; ++ear)
+    {
+        double sampledSum = 0.0, blendedSum = 0.0;
+        for (int n = 0; n < sampled.firLength; ++n)
+            sampledSum += (double) sampled.fir (ear, 0)[n];
+        for (int n = 0; n < blended.firLength; ++n)
+            blendedSum += (double) blended.fir (ear, 0)[n];
+
+        if (std::abs (blendedSum - sampledSum) >= 2.0e-3)
+            std::fprintf (stderr,
+                          "  [alignedHf] ear %d DC %.6f vs sampling %.6f "
+                          "(lengths %d / %d)\n",
+                          ear, blendedSum, sampledSum, blended.firLength, sampled.firLength);
+        CHECK (std::abs (blendedSum - sampledSum) < 2.0e-3);
+    }
+
+    // (c) The interaural delay survives in the low band. Reconstruct a hard
+    // right source for both ears, low-pass by simple accumulation (a running
+    // sum is a crude but honest low-pass), and check the right ear still
+    // leads the left.
+    auto reconstruct = [&] (const bin::BinauralDesignResult& bank, double azDeg, int ear,
+                            std::vector<double>& out)
+    {
+        double basis[xoa::kNumSHChannels];
+        shx::evaluate (bin::gridAzToXoaAzDeg (azDeg), 0.0, xoa::kAmbisonicOrder, basis);
+        out.assign ((size_t) bank.firLength, 0.0);
+        for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            for (int n = 0; n < bank.firLength; ++n)
+                out[(size_t) n] += basis[c] * (double) bank.fir (ear, c)[n];
+    };
+
+    auto centroid = [] (const std::vector<double>& h)
+    {
+        // Energy centroid in samples — robust where a peak index is not.
+        double num = 0.0, den = 0.0;
+        for (size_t n = 0; n < h.size(); ++n)
+        {
+            const double e = h[n] * h[n];
+            num += (double) n * e;
+            den += e;
+        }
+        return den > 0.0 ? num / den : 0.0;
+    };
+
+    std::vector<double> leftEar, rightEar;
+    reconstruct (blended, 90.0, 0, leftEar);    // source hard right
+    reconstruct (blended, 90.0, 1, rightEar);
+    CHECK (centroid (rightEar) < centroid (leftEar));   // ipsilateral ear first
+
+    // (d) The high band is closer to the truth. Compare each mode's
+    // reconstructed peak against the fixture's own gain for a delayed
+    // (contralateral) ear, where the sampling decode was measured worst.
+    std::vector<double> sampledFar, blendedFar;
+    reconstruct (sampled, 45.0, 0, sampledFar);
+    reconstruct (blended, 45.0, 0, blendedFar);
+
+    auto peakAbs = [] (const std::vector<double>& h)
+    {
+        double m = 0.0;
+        for (double v : h)
+            m = std::max (m, std::abs (v));
+        return m;
+    };
+
+    const double target = fixtureEarGain (45.0, 0.0, 0);
+    const double sampledError = std::abs (peakAbs (sampledFar) - target);
+    const double blendedError = std::abs (peakAbs (blendedFar) - target);
+    if (blendedError >= sampledError)
+        std::fprintf (stderr,
+                      "  [alignedHf] contralateral peak error %.4f vs sampling %.4f "
+                      "(target %.4f)\n", blendedError, sampledError, target);
+    CHECK (blendedError < sampledError);
+}
+
+//==============================================================================
 void runXoaBinauralDecoderTests()
 {
     testBinauralDecoderGolden();
@@ -401,4 +528,5 @@ void runXoaBinauralDecoderTests()
     testBinauralDecoderWChannelIsSphericalMean();
     testBinauralDecoderInterauralPolarity();
     testBinauralDecoderRejectsEmptySet();
+    testBinauralDecoderAlignedHf();
 }

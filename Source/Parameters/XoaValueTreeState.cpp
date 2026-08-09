@@ -93,6 +93,8 @@ void XoaValueTreeState::initializeDefaultState()
     monitoring.setProperty (ids::binauralEnabled, d::binauralEnabledDefault, nullptr);
     monitoring.setProperty (ids::binauralGain, d::binauralGainDefault, nullptr);
     monitoring.setProperty (ids::binauralSofaFile, juce::String(), nullptr);
+    monitoring.setProperty (ids::binauralDecoderMode,
+                            static_cast<int> (d::binauralDecoderModeDefault), nullptr);
     monitoring.setProperty (ids::binauralHeadTracker, "manual", nullptr);
     monitoring.setProperty (ids::binauralCameraIndex,
                             static_cast<int> (d::binauralCameraIndexDefault), nullptr);

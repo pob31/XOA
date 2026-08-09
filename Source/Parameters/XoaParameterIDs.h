@@ -158,6 +158,9 @@ inline const juce::Identifier activeHardwareOutputs  { "activeHardwareOutputs" }
 inline const juce::Identifier binauralEnabled     { "binauralEnabled" };
 inline const juce::Identifier binauralGain        { "binauralGain" };        // dB
 inline const juce::Identifier binauralSofaFile    { "binauralSofaFile" };    // filename only, "" = built-in
+// 0 = sampling (the golden-anchored reference decode), 1 = alignedHf
+// (ITD below the crossover, time-aligned above). See AmbiBinauralDecoder.h.
+inline const juce::Identifier binauralDecoderMode { "binauralDecoderMode" };
 inline const juce::Identifier binauralHeadTracker { "binauralHeadTracker" }; // stable source id, "manual"
 inline const juce::Identifier binauralCameraIndex { "binauralCameraIndex" };
 // First hardware output of the headphone pair (0-based; the pair is this

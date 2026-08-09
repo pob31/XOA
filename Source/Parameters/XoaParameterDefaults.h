@@ -67,6 +67,10 @@ constexpr bool   monoInputsEnabledDefault = false;
 // the scene-rotation ranges (pitch +/-90 so each attitude has one form).
 constexpr bool   binauralEnabledDefault = false;
 constexpr double binauralGainDefault = 0.0, binauralGainMin = -60.0, binauralGainMax = 12.0;   // dB
+// Decoder mode: alignedHf by default (the ITD-everywhere sampling decode
+// smears high-frequency magnitudes; see AmbiBinauralDecoder.h).
+constexpr double binauralDecoderModeDefault = 1.0,
+                 binauralDecoderModeMin = 0.0, binauralDecoderModeMax = 1.0;
 constexpr double binauralCameraIndexDefault = 0.0,
                  binauralCameraIndexMin = 0.0, binauralCameraIndexMax = 15.0;
 // Headphone pair: 0-based first hardware output, -1 = none reserved. The max

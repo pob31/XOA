@@ -42,17 +42,44 @@ namespace xoa::binaural
 {
 
 /** Which solve produces the bank. Values are persisted (binauralDecoderMode)
-    — keep them stable. */
+    — keep them stable.
+
+    `sampling` is the plain SH projection: exact to state, exactly reproducible
+    in Python, and therefore the golden-anchored reference. Its weakness is
+    measured and documented — restoring the ITD makes the HRIR field
+    direction-dependently delayed, a delay is not band-limited in the SH
+    domain, and an order-10 projection consequently smears the peak amplitude
+    of a delayed (contralateral) ear by 20% or more while reproducing its
+    arrival time within a sample.
+
+    `alignedHf` attacks exactly that error where it hurts: it keeps the true
+    phase (and thus the ITD) BELOW a crossover, where the auditory system
+    reads interaural time, and above it uses the time-ALIGNED HRIRs spatcore
+    already provides — removing the very delay the SH truncation cannot
+    represent, so high-frequency magnitudes reconstruct far more faithfully.
+    The two are combined with complementary real per-bin gains that sum to
+    exactly 1, the frequency-domain sibling of the loudspeaker path's
+    dual-band decode.
+
+    This is the same intent as magnitude-least-squares (MagLS) and shares its
+    crossover rationale, but it is NOT MagLS: there is no iterative magnitude
+    fit with phase continuation. That remains future work, and the name here
+    says what the code does. */
 enum class DecoderMode : int
 {
-    sampling = 0,   // SH projection over the HRIR grid
-    magls    = 1,   // magnitude least-squares above the crossover (stage 7)
+    sampling  = 0,   // SH projection over the HRIR grid, ITD restored everywhere
+    alignedHf = 1,   // ITD below the crossover, time-aligned above
 };
 
 struct BinauralDesignOptions
 {
-    DecoderMode mode = DecoderMode::sampling;
-    double magLsCrossoverHz = 2000.0;   // stage 7; ignored by `sampling`
+    DecoderMode mode = DecoderMode::alignedHf;
+
+    /** Centre of the one-octave transition between the ITD-carrying low band
+        and the time-aligned high band. 1.5 kHz sits in the usual region where
+        interaural time cues hand over to level cues. Ignored by `sampling`. */
+    double crossoverHz = 1500.0;
+
     bool diffuseFieldEq = false;        // reserved, not implemented
 };
 

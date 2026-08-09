@@ -204,7 +204,8 @@ public:
             return;   // nothing to design for yet; prepareToPlay will call back
 
         const auto file = resolveSofaFile();
-        const juce::String key = file.getFullPathName() + "|" + juce::String (deviceSampleRate);
+        const juce::String key = file.getFullPathName() + "|" + juce::String (deviceSampleRate)
+                               + "|" + juce::String (store.getIntParameter (ids::binauralDecoderMode));
         if (! force && key == requestedKey)
             return;
         requestedKey = key;
@@ -220,6 +221,8 @@ public:
         BinauralDesignWorker::Job job;
         job.sofaFile = file;
         job.sampleRate = deviceSampleRate;
+        job.options.mode = static_cast<binaural::DecoderMode> (
+            juce::jlimit (0, 1, store.getIntParameter (ids::binauralDecoderMode)));
         job.generation = ++designGeneration;
         designWorker.submit (job);
     }

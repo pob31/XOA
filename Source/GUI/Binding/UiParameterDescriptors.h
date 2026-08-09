@@ -86,6 +86,8 @@ inline const std::vector<UiDescriptor>& allDescriptors()
         { i::binauralEnabled,  "param.binauralEnabled",  "",             0.0,  Kind::toggle, false, false, Domain::monitoring, {} },
         { i::binauralGain,     "param.binauralGain",     "units.db",     0.1,  Kind::slider, false, false, Domain::monitoring, {} },
         { i::binauralSofaFile, "param.binauralSofaFile", "",             0.0,  Kind::system, false, false, Domain::monitoring, {} },
+        { i::binauralDecoderMode, "param.binauralDecoderMode", "",       1.0,  Kind::combo,  false, false, Domain::monitoring,
+            { "enum.binauralMode.sampling", "enum.binauralMode.alignedHf" } },
         { i::binauralHeadTracker, "param.binauralHeadTracker", "",       0.0,  Kind::system, false, false, Domain::monitoring, {} },
         { i::binauralCameraIndex, "param.binauralCameraIndex", "",       1.0,  Kind::text,   false, false, Domain::monitoring, {} },
         { i::binauralOutputChannel, "param.binauralOutputChannel", "",   1.0,  Kind::system, false, false, Domain::monitoring, {} },

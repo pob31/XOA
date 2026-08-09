@@ -149,6 +149,9 @@ private:
         auto sofaRow = area.removeFromTop (px (24));
         sofaLabel.setBounds (sofaRow.removeFromLeft (px (80)));
         sofaCombo.setBounds (sofaRow.removeFromLeft (px (260)));
+        sofaRow.removeFromLeft (px (12));
+        modeLabel.setBounds (sofaRow.removeFromLeft (px (60)));
+        modeCombo.setBounds (sofaRow.removeFromLeft (px (130)));
         sofaRow.removeFromLeft (px (10));
         sofaStatus.setBounds (sofaRow);
 
@@ -194,6 +197,12 @@ private:
         sofaCombo.onPopupAboutToShow = [this] { rebuildSofaList(); };
         sofaCombo.onChange = [this] { handleSofaSelection(); };
         addAndMakeVisible (sofaCombo);
+
+        modeLabel.setText (LOC ("param.binauralDecoderMode"), juce::dontSendNotification);
+        modeLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (modeLabel);
+        addAndMakeVisible (modeCombo);
+        bindings.bindCombo (modeCombo, ids::binauralDecoderMode);
 
         trackerLabel.setText (LOC ("param.binauralHeadTracker"), juce::dontSendNotification);
         trackerLabel.setJustificationType (juce::Justification::centredRight);
@@ -452,7 +461,8 @@ private:
     juce::ToggleButton   enableButton;
     juce::Slider         gainSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     RefreshableComboBox  trackerCombo, sofaCombo;
-    juce::Label          sofaLabel;
+    juce::Label          sofaLabel, modeLabel;
+    juce::ComboBox       modeCombo;
     std::unique_ptr<juce::FileChooser> sofaChooser;
     std::vector<juce::String> sofaNames;   // combo item index -> stored filename
     static constexpr int kImportSofaItemId = 9000;

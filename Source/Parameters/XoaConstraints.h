@@ -89,6 +89,7 @@ inline const std::vector<std::pair<juce::Identifier, Bounds>>& allBounds()
         // Monitoring / binaural (WP15). binauralEnabled / binauralSofaFile /
         // binauralHeadTracker are bool+string and carry no numeric bounds.
         { ids::binauralGain,        { d::binauralGainMin, d::binauralGainMax, d::binauralGainDefault, false } },
+        { ids::binauralDecoderMode, { d::binauralDecoderModeMin, d::binauralDecoderModeMax, d::binauralDecoderModeDefault, true } },
         { ids::binauralCameraIndex, { d::binauralCameraIndexMin, d::binauralCameraIndexMax, d::binauralCameraIndexDefault, true } },
         { ids::binauralOutputChannel, { d::binauralOutputChannelMin, d::binauralOutputChannelMax, d::binauralOutputChannelDefault, true } },
         { ids::binauralManualYaw,   { d::binauralManualYawMin, d::binauralManualYawMax, d::binauralManualYawDefault, false } },

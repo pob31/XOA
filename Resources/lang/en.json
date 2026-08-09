@@ -181,6 +181,7 @@
     "binauralEnabled": "Binaural monitor",
     "binauralGain": "Monitor gain",
     "binauralSofaFile": "HRTF set",
+    "binauralDecoderMode": "Decode",
     "binauralHeadTracker": "Head tracker",
     "binauralCameraIndex": "Camera index",
     "binauralOutputChannel": "Headphone output pair",
@@ -256,6 +257,7 @@
       "off": "Off", "lowCut": "Low cut", "lowShelf": "Low shelf", "peak": "Peak",
       "bandPass": "Band pass", "highShelf": "High shelf", "highCut": "High cut", "allPass": "All pass"
     },
+    "binauralMode": { "sampling": "Sampling", "alignedHf": "Aligned HF" },
     "decoderType": { "sad": "Sampling (SAD)", "modeMatch": "Mode-matching", "allRad": "AllRAD" },
     "decoderWeighting": { "basic": "Basic", "maxRe": "Max-rE" },
     "decoderNormalization": { "amplitude": "Amplitude", "energy": "Energy" },
