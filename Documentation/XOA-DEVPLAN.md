@@ -1209,10 +1209,37 @@ reference (do NOT use the per-source renderer itself).
 
 **Tests & exit criteria.** Head-mapping goldens; decoder bank vs Python
 ≤1e-5; partitioned convolver vs direct time-domain; speaker outputs
-bit-identical with the monitor enabled; offline-render `--binaural` gate
-(+ head-yaw case); SOFA smoke on the bundled set; registry/localization
-gates. Exit: live head-tracked monitoring on hardware; loudspeaker chain
-bit-exact; CPU headroom documented.
+bit-identical with the monitor enabled; SOFA smoke on the bundled set;
+registry/localization gates. Exit: live head-tracked monitoring on hardware;
+loudspeaker chain bit-exact; CPU headroom documented.
+
+**Status (stages 0–8 landed on `feat/hoa-binaural`).** Everything above is
+implemented and tested except the hardware pass, which waits on the same RME
+AoX Dante session as the spatcore-io stages. What the suite proves today:
+the speaker render is byte-identical with the monitor running (asserted
+exactly, both paths checked non-silent), the partitioned convolver matches a
+direct time-domain convolution, the decoder bank matches an independent
+mpmath derivation, and head compensation equals pre-rotating the field.
+
+Measured cost of the monitor on the audio thread at order 10 (Release, dev
+machine, printed by `XoaBinauralPerfTests`): **9.5–15% of real time with the
+head still, 12–18% while the head is moving** (the rotation matrix rebuilds
+per block), across 64/128/256-sample blocks. That is one core fraction on top
+of the decode — usable, and the obvious next lever is SIMD on the complex
+multiply-accumulate, which is the whole inner loop.
+
+**Deviations from the plan, recorded deliberately:**
+- The high-band mode is **`alignedHf`** (true phase below a 1.5 kHz
+  crossover, time-aligned above), NOT MagLS. It shares MagLS's intent and
+  crossover rationale and measurably beats the sampling decode on
+  contralateral magnitude error, but there is no iterative magnitude fit with
+  phase continuation. True MagLS remains open; the mode enum and the design
+  options already have room for it.
+- `sampling` stays selectable as the golden-anchored reference decode.
+- The offline-render harness gained no `--binaural` mode: the monitor's
+  correctness is pinned by the unit suite (convolver vs direct convolution,
+  bank vs Python golden) and by the bit-identical speaker assertion, so a
+  second hashed baseline would add maintenance without adding coverage.
 
 **Risks.** ITD-restoration phase choice for MagLS (mitigated: sampling-mode
 anchor + goldens); the first RT-pulls-from-source seam (mitigated: WFS-DIY

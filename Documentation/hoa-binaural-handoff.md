@@ -1,5 +1,29 @@
 # HOA-to-Binaural — Handoff
 
+> **Status: implemented (WP15, branch `feat/hoa-binaural`).** This document is
+> the ORIGINAL handoff, written from the WFS-DIY side without access to the
+> XOA codebase. It is kept as the record of intent; where it disagrees with
+> what was built, the code and `XOA-DEVPLAN.md` §WP15 win. The corrections
+> found during implementation:
+>
+> - **§2 "Build new: SH rotation (Wigner-D)"** — already existed as
+>   `Source/DSP/AmbiRotation.h` (order-10 Ivanic–Ruedenberg, golden-tested
+>   since WP4). It was reused; only the convention boundary was new
+>   (`Source/DSP/AmbiHeadMapping.h`).
+> - **§2 `binaural/PartitionedFirConvolver.h`** — does not exist in spatcore.
+>   The partitioned-convolution reference is the private `convolveTo()` + FDL
+>   inside `spatcore/binaural/SofaHrtfRenderer.h`.
+> - **§2 "swap `WFSLogger` / `AppSettings` for XOA's equivalents"** — XOA has
+>   neither. Failures surface as status strings in the Monitoring tab, and the
+>   camera index is a project parameter.
+> - **§6 "MagLS vs virtual-speaker"** — shipped as `sampling` (the
+>   golden-anchored reference) plus `alignedHf` (ITD below a 1.5 kHz
+>   crossover, time-aligned above), which is MagLS-adjacent but is NOT MagLS.
+> - **§6 "where the SH rotation lands"** — app-side, per the user's decision.
+> - The OSC map deliberately gained nothing (D54); binaural is GUI-only.
+> - spatcore's SOFA fixture path resolves against the CONSUMER repo, so XOA
+>   committed its own copy of the SADIE II set at `assets/SOFA/`.
+
 Audience: the agent (or human) implementing binaural monitoring in XOA.
 Written 2026-08 right after the WFS-DIY binaural renderer + head tracking
 shipped, so the reuse boundary is captured while it is fresh. Bare paths refer

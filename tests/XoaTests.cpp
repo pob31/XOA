@@ -68,6 +68,7 @@ void runXoaHeadMappingTests();
 void runXoaBinauralDecoderTests();
 void runXoaBinauralRendererTests();
 void runXoaBinauralTapTests();
+void runXoaBinauralPerfTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -146,6 +147,7 @@ int main()
         runXoaBinauralDecoderTests();
         runXoaBinauralRendererTests();
         runXoaBinauralTapTests();
+        runXoaBinauralPerfTests();
     }
     catch (const std::exception& e)
     {

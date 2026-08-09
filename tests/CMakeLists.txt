@@ -33,6 +33,7 @@ target_sources(xoa-tests PRIVATE
     XoaBinauralDecoderTests.cpp
     XoaBinauralRendererTests.cpp
     XoaBinauralTapTests.cpp
+    XoaBinauralPerfTests.cpp
     ../Source/DSP/AmbiBinauralDecoder.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp

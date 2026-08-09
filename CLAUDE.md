@@ -27,7 +27,10 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
   reverb/gpu + control (osc/state/mcp) + controllers + ui + io + binaural.
   Adopting the io layer and patch window in XOA:
   see `Documentation/XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md`. Binaural
-  monitoring (WP15): `Documentation/hoa-binaural-handoff.md`. The CMake wiring comes from
+  monitoring (WP15) is **implemented** — `Documentation/XOA-DEVPLAN.md` §WP15
+  is authoritative; `Documentation/hoa-binaural-handoff.md` is the original
+  handoff kept for intent, with its corrections listed at the top.
+  The CMake wiring comes from
   spatcore's `cmake/SpatcoreConsumer.cmake` helper (see CMakeLists.txt).
   Dependency direction is strictly app → spatcore; never modify spatcore from
   here — changes go to the spatcore repo and arrive via a pin bump.
@@ -50,6 +53,12 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
   `/fp:precise`, `/Ox` Release, LTO on MSVC).
 - Ambisonics: order 10, **ACN** channel ordering, **SN3D** normalization
   (AmbiX) → 121 SH channels. Constants in `Source/XoaConstants.h`.
+- Two frames meet in the binaural path and run in OPPOSITE azimuth senses:
+  XOA's soundfield frame is +X front / **+Y left**, spatcore's HRIR grid and
+  head attitude are SOFA-style (**azimuth positive to the listener's right**).
+  Every conversion lives in `Source/DSP/AmbiHeadMapping.h` and
+  `AmbiBinauralDecoder.h`'s `gridAzToXoaAzDeg` — never inline at a call site
+  (`AmbiRotation.h` states the same policy for the DSP).
 - License GPLv3. Third-party inventory in `THIRD_PARTY_NOTICES.md`.
 
 ## Where things are decided
