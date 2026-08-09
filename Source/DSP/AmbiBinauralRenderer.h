@@ -50,6 +50,8 @@
 #include "DSP/AmbiBinauralDecoder.h"
 #include "DSP/AmbiBinauralFilterBank.h"
 #include "DSP/AmbiBinauralRtTypes.h"
+#include "DSP/AmbiHeadMapping.h"
+#include "DSP/AmbiRotation.h"
 #include "XoaConstants.h"
 
 namespace xoa
@@ -86,6 +88,8 @@ public:
                         * (size_t) spectrumFloats, 0.0f);
         prevBlocks.assign ((size_t) xoa::kNumSHChannels * (size_t) blockSize, 0.0f);
         inputStage.assign ((size_t) xoa::kNumSHChannels * (size_t) blockSize, 0.0f);
+        rotatedBus.setSize (xoa::kNumSHChannels, blockSize, false, false, true);
+        rotationFade.setSize (xoa::kNumSHChannels, blockSize, false, false, true);
         fftWork.assign ((size_t) spectrumFloats, 0.0f);
         accum.assign ((size_t) spectrumFloats, 0.0f);
 
@@ -108,6 +112,9 @@ public:
             std::fill (outFifo[e].begin(), outFifo[e].end(), 0.0f);
             std::fill (outBlock[e].begin(), outBlock[e].end(), 0.0f);
         }
+        hasRotation = false;
+        crossfadeRotation = false;
+        lastYaw = lastPitch = lastRoll = 0.0f;
         fdlPos = 0;
         inputFill = 0;
         outWrite = outRead = outCount = 0;
@@ -189,6 +196,9 @@ public:
             rampGain = 0.0f;   // fade in: enabling must never pop into headphones
         }
 
+        // ---- head compensation: rotate the field, not the listener ---------
+        const juce::AudioBuffer<float>& source = applyHeadRotation (shBus, n, p);
+
         // ---- stage input, running one transform step per full P samples ----
         int consumed = 0;
         while (consumed < n)
@@ -197,7 +207,7 @@ public:
             for (int c = 0; c < xoa::kNumSHChannels; ++c)
                 juce::FloatVectorOperations::copy (
                     inputStage.data() + (size_t) c * blockSize + inputFill,
-                    shBus.getReadPointer (c) + consumed, take);
+                    source.getReadPointer (c) + consumed, take);
 
             inputFill += take;
             consumed += take;
@@ -236,6 +246,106 @@ public:
     }
 
 private:
+    /** AUDIO THREAD. Rotate the field by the inverse of the head attitude, so
+        a fixed set of SH→ear filters keeps pointing where the listener's ears
+        actually are (D51). Returns the buffer the convolution should consume:
+        the ORIGINAL bus when the attitude is identity, so a monitor with no
+        tracker and no manual offset costs nothing and stays bit-exact.
+
+        The attitude is read fresh from the active source every block (D53),
+        bypassing the damped control path entirely; the manual parameters in
+        the snapshot are the fallback whenever no source has a valid pose. */
+    const juce::AudioBuffer<float>& applyHeadRotation (const juce::AudioBuffer<float>& shBus,
+                                                       int n,
+                                                       const rt::MonitorRtParams& p) noexcept
+    {
+        spatcore::binaural::HeadOrientation attitude;
+        attitude.yawRad = p.manualYawRad;
+        attitude.pitchRad = p.manualPitchRad;
+        attitude.rollRad = p.manualRollRad;
+        attitude.valid = true;
+
+        if (activeSource != nullptr)
+        {
+            if (auto* src = activeSource->load (std::memory_order_acquire))
+            {
+                const auto tracked = src->getOrientation();
+                if (tracked.valid)
+                    attitude = tracked;   // a stale or faceless tracker falls back to manual
+            }
+        }
+
+        const bool identity = attitude.yawRad == 0.0f
+                           && attitude.pitchRad == 0.0f
+                           && attitude.rollRad == 0.0f;
+
+        if (identity && ! hasRotation)
+            return shBus;   // nothing to do, and nothing to fade from
+
+        // Rebuild only when the attitude actually moved. The Ivanic-Ruedenberg
+        // recursion is tens of microseconds at order 10 — cheap enough to run
+        // on the audio thread, but not per block for a head that is still.
+        if (attitude.yawRad != lastYaw || attitude.pitchRad != lastPitch
+            || attitude.rollRad != lastRoll)
+        {
+            lastYaw = attitude.yawRad;
+            lastPitch = attitude.pitchRad;
+            lastRoll = attitude.rollRad;
+
+            rot::RotationMatrix built;
+            rot::buildFromCartesian (binaural::headCompensationMatrix (attitude), built);
+
+            std::copy (currentRotation, currentRotation + rot::kNumRotationCoeffs,
+                       previousRotation);
+            for (int i = 0; i < rot::kNumRotationCoeffs; ++i)
+                currentRotation[i] = (float) built.coeffs[i];
+
+            crossfadeRotation = hasRotation;   // no fade into the very first one
+            hasRotation = true;
+        }
+
+        rotate (currentRotation, shBus, rotatedBus, n);
+
+        if (crossfadeRotation)
+        {
+            // One-block linear crossfade old -> new, the same idiom the scene
+            // rotation uses: a head-tracker step between blocks would otherwise
+            // click.
+            rotate (previousRotation, shBus, rotationFade, n);
+            for (int c = 0; c < xoa::kNumSHChannels; ++c)
+            {
+                rotatedBus.applyGainRamp (c, 0, n, 0.0f, 1.0f);
+                rotatedBus.addFromWithRamp (c, 0, rotationFade.getReadPointer (c), n, 1.0f, 0.0f);
+            }
+            crossfadeRotation = false;
+        }
+
+        return rotatedBus;
+    }
+
+    /** out = R · in, block-diagonal per degree (the WP4 layout). */
+    static void rotate (const float* coeffs, const juce::AudioBuffer<float>& in,
+                        juce::AudioBuffer<float>& out, int numSamples) noexcept
+    {
+        for (int l = 0; l <= xoa::kAmbisonicOrder; ++l)
+        {
+            const int blockDim = 2 * l + 1;
+            const int base = l * l;                       // acn(l, -l)
+            const float* blk = coeffs + rot::blockOffset (l);
+
+            for (int i = 0; i < blockDim; ++i)
+            {
+                float* dst = out.getWritePointer (base + i);
+                const float* rowCoeffs = blk + i * blockDim;
+                juce::FloatVectorOperations::copyWithMultiply (
+                    dst, in.getReadPointer (base + 0), rowCoeffs[0], numSamples);
+                for (int j = 1; j < blockDim; ++j)
+                    juce::FloatVectorOperations::addWithMultiply (
+                        dst, in.getReadPointer (base + j), rowCoeffs[j], numSamples);
+            }
+        }
+    }
+
     /** One overlap-save step: transform the staged P samples of every SH
         channel, then accumulate both ears over all channels and partitions. */
     void runTransformStep (const rt::BinauralFilterRtHandle& handle) noexcept
@@ -327,6 +437,15 @@ private:
     std::vector<float> fftWork, accum;
     std::vector<float> outFifo[2];   // 2P ring per ear
     std::vector<float> outBlock[2];  // this block's output, P long
+
+    // Head compensation (D51/D53). The two coefficient sets are the current
+    // and previous rotations, held for the one-block crossfade.
+    juce::AudioBuffer<float> rotatedBus, rotationFade;
+    float currentRotation[rot::kNumRotationCoeffs] = {};
+    float previousRotation[rot::kNumRotationCoeffs] = {};
+    bool hasRotation = false;
+    bool crossfadeRotation = false;
+    float lastYaw = 0.0f, lastPitch = 0.0f, lastRoll = 0.0f;
 
     int fdlPos = 0;
     int inputFill = 0;
