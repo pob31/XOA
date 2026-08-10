@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace rot = xoa::rot;
@@ -464,6 +465,85 @@ static void testBinauralRendererIdentityAttitudeIsExact()
 }
 
 //==============================================================================
+/** A tracker reporting garbage must not reach the SH rotation build.
+
+    The head-track plugin ABI hands over RAW attitude, and a degenerate face
+    box can make the geometric estimator emit inf/NaN. Feeding that to
+    rot::buildFromCartesian yields a non-orthonormal matrix (Debug-asserted on
+    the AUDIO thread) and NaN that would then persist in the convolution FDL
+    forever. The renderer must ignore such a pose and keep producing finite
+    output — this is the regression test for the webcam-selection crash. */
+static void testBinauralRendererRejectsNonFiniteAttitude()
+{
+    struct BadSource : spatcore::binaural::HeadOrientationSource
+    {
+        juce::String getSourceId() const override    { return "test:bad"; }
+        juce::String getDisplayName() const override { return "Bad"; }
+        bool isConnected() const override            { return true; }
+
+        spatcore::binaural::HeadOrientation getOrientation() const noexcept override
+        {
+            spatcore::binaural::HeadOrientation o;
+            o.yawRad   = std::numeric_limits<float>::quiet_NaN();
+            o.pitchRad = std::numeric_limits<float>::infinity();
+            o.rollRad  = 0.0f;
+            o.valid    = true;      // the source believes it is tracking
+            return o;
+        }
+    };
+
+    juce::Random rng (977);
+    constexpr int P = 64;
+    const auto design = makeTestBank (64, rng);
+
+    juce::AudioBuffer<float> input (xoa::kNumSHChannels, P);
+    for (int c = 0; c < xoa::kNumSHChannels; ++c)
+        for (int i = 0; i < P; ++i)
+            input.setSample (c, i, (float) (rng.nextDouble() * 2.0 - 1.0));
+
+    BadSource bad;
+    RendererHarness h;
+    CHECK (h.bank.cook (design, P));
+    h.bank.publish();
+    h.prepare (P);
+    h.publishParams (true);
+    h.source.store (&bad);
+
+    // Several blocks: one NaN leaking into the FDL would poison every
+    // subsequent block, so a single-block check could pass by luck.
+    for (int b = 0; b < 4; ++b)
+    {
+        h.renderer.render (input, P, 1.0f);
+        for (int i = 0; i < P; ++i)
+        {
+            CHECK (std::isfinite (h.renderer.getOutputLeft()[i]));
+            CHECK (std::isfinite (h.renderer.getOutputRight()[i]));
+        }
+    }
+
+    // And a non-finite MANUAL attitude (a corrupt project file) is equally
+    // untrusted — the RT stage owns the final guard.
+    RendererHarness h2;
+    CHECK (h2.bank.cook (design, P));
+    h2.bank.publish();
+    h2.prepare (P);
+
+    rt::MonitorRtParams p;
+    p.enabled = true;
+    p.monitorGainLinear = 1.0f;
+    p.manualYawRad = std::numeric_limits<float>::quiet_NaN();
+    p.epoch = 1;
+    h2.params.publish (p);
+
+    for (int b = 0; b < 4; ++b)
+    {
+        h2.renderer.render (input, P, 1.0f);
+        for (int i = 0; i < P; ++i)
+            CHECK (std::isfinite (h2.renderer.getOutputLeft()[i]));
+    }
+}
+
+//==============================================================================
 void runXoaBinauralRendererTests()
 {
     testBinauralConvolverMatchesDirect (64, 64);     // K == 1
@@ -475,4 +555,5 @@ void runXoaBinauralRendererTests()
     testBinauralRendererHandlesShortBlocks();
     testBinauralRendererHeadRotation();
     testBinauralRendererIdentityAttitudeIsExact();
+    testBinauralRendererRejectsNonFiniteAttitude();
 }

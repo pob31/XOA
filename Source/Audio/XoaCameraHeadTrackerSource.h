@@ -49,6 +49,7 @@
 #include "spatcore/dsp/OneEuroFilter.h"
 
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <functional>
 
@@ -242,6 +243,19 @@ private:
             return;
         }
 
+        // The ABI says the plugin reports RAW attitude, so this is untrusted
+        // input: a degenerate face box makes the geometric estimator divide by
+        // a vanishing eye distance and emit inf/NaN. Anything non-finite is
+        // dropped here rather than allowed downstream, where it would become a
+        // non-orthonormal rotation matrix (and trip the Debug determinant
+        // assert inside the SH rotation build, on the audio thread).
+        if (! (std::isfinite (pose.yawRad) && std::isfinite (pose.pitchRad)
+               && std::isfinite (pose.rollRad)))
+        {
+            publishOrientation ({});
+            return;
+        }
+
         namespace hf = spatcore::binaural::headframe;
 
         float rRaw[9];
@@ -251,11 +265,7 @@ private:
         {
             hf::transpose (rRaw, rZeroInv);
             hasZero = true;
-            filterYaw.reset();
-            filterPitch.reset();
-            filterRoll.reset();
-            prevUnwrappedYaw = 0.0f;
-            hasPrevYaw = false;
+            resetFilters();
         }
 
         float corrected[9];
@@ -287,17 +297,34 @@ private:
         out.pitchRad = filterPitch.filter (pitch, now, kMinCutoffHz, kBeta, kDerivCutoffHz);
         out.rollRad  = filterRoll.filter  (roll,  now, kMinCutoffHz, kBeta, kDerivCutoffHz);
         out.valid    = true;
+
+        // Belt and braces: a filter fed a pathological timestamp could still
+        // produce a non-finite result. Never publish one.
+        if (! (std::isfinite (out.yawRad) && std::isfinite (out.pitchRad)
+               && std::isfinite (out.rollRad)))
+        {
+            resetFilters();
+            publishOrientation ({});
+            return;
+        }
+
         publishOrientation (out);
+    }
+
+    /** Drop the smoothing history and the yaw-unwrap anchor. */
+    void resetFilters()
+    {
+        filterYaw.reset();
+        filterPitch.reset();
+        filterRoll.reset();
+        prevUnwrappedYaw = 0.0f;
+        hasPrevYaw = false;
     }
 
     void resetPublishState()
     {
         hasZero = false;
-        hasPrevYaw = false;
-        prevUnwrappedYaw = 0.0f;
-        filterYaw.reset();
-        filterPitch.reset();
-        filterRoll.reset();
+        resetFilters();
         zeroRequested.store (false, std::memory_order_release);
         lastPoseMs.store (0, std::memory_order_release);
         publishOrientation ({});

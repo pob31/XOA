@@ -270,9 +270,19 @@ private:
             if (auto* src = activeSource->load (std::memory_order_acquire))
             {
                 const auto tracked = src->getOrientation();
-                if (tracked.valid)
+                if (tracked.valid && isFiniteAttitude (tracked))
                     attitude = tracked;   // a stale or faceless tracker falls back to manual
             }
+        }
+
+        // Last line of defence. A non-finite attitude would build a
+        // non-orthonormal SH rotation (Debug-asserted inside buildFromCartesian)
+        // and then poison the convolution state with NaN, which no amount of
+        // downstream ramping recovers from. Sources are supposed to filter
+        // this out; the audio thread does not get to trust them.
+        if (! isFiniteAttitude (attitude))
+        {
+            attitude.yawRad = attitude.pitchRad = attitude.rollRad = 0.0f;
         }
 
         const bool identity = attitude.yawRad == 0.0f
@@ -321,6 +331,12 @@ private:
         }
 
         return rotatedBus;
+    }
+
+    static bool isFiniteAttitude (const spatcore::binaural::HeadOrientation& o) noexcept
+    {
+        return std::isfinite (o.yawRad) && std::isfinite (o.pitchRad)
+            && std::isfinite (o.rollRad);
     }
 
     /** out = R · in, block-diagonal per degree (the WP4 layout). */
