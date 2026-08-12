@@ -27,21 +27,10 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Debug --output-on-failure
 
-      # Head-tracker plugin (WP15). Built OUT of the app tree against its own
-      # OpenCV — that is what keeps OpenCV out of the app build — so nothing
-      # else in this job would ever catch a break here. Compile check only:
-      # runtime behaviour needs a camera and is validated on dev machines.
-      - name: Cache OpenCV prebuilt (head-tracker plugin)
-        uses: actions/cache@v4
-        with:
-          path: tools/headtrack/.opencv
-          key: opencv-win-4.10.0
-
-      # Release even in a Debug CI: the plugin ships Release regardless of the
-      # app config (it crosses a C ABI, so no shared CRT state).
-      - name: Compile-check head-tracker plugin
-        shell: pwsh
-        run: tools\headtrack\build-headtrack-plugin.ps1 -Config Release
+      # Head-tracker plugin (WP15): built out of the app tree against its own
+      # OpenCV, so nothing in this job could catch a break there — and nothing
+      # here can break it either. It moved to the path-filtered
+      # headtrack-plugin.yml, because installing OpenCV dominated this job.
 
   macos:
     runs-on: macos-latest
@@ -59,11 +48,6 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      # See the Windows job for why the head-tracker plugin needs its own step.
-      - name: Compile-check head-tracker plugin
-        run: |
-          brew install opencv
-          bash tools/headtrack/build-headtrack-plugin.sh Release
 
   linux:
     runs-on: ubuntu-latest
@@ -111,8 +95,3 @@ jobs:
           test -n "$XOA_BIN"
           xvfb-run -a "$XOA_BIN" --gui-smoke
 
-      # See the Windows job for why the head-tracker plugin needs its own step.
-      - name: Compile-check head-tracker plugin
-        run: |
-          sudo apt-get install -y libopencv-dev
-          bash tools/headtrack/build-headtrack-plugin.sh Release
