@@ -14,7 +14,11 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUILD="$SCRIPT_DIR/build"
 
 cmake -S "$SCRIPT_DIR" -B "$BUILD" -DCMAKE_BUILD_TYPE="$CONFIG"
-cmake --build "$BUILD" --parallel
+
+# --parallel with no count means unbounded `make -j` under the Makefiles
+# generator, which OOMs small CI runners. Same cap as WFS-DIY's copy.
+NJOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+cmake --build "$BUILD" --parallel "$NJOBS"
 
 if [[ "$(uname)" == "Darwin" ]]; then
     LIB="libwfs_headtrack.dylib"
