@@ -107,7 +107,16 @@
   },
   "monitoring": {
     "inputs": "Input stems",
-    "outputs": "Outputs"
+    "outputs": "Outputs",
+    "binaural": "Binaural monitor",
+    "headOrientation": "Head orientation",
+    "setZero": "Set zero",
+    "trackerManual": "Manual orientation",
+    "trackerMissing": "not connected",
+    "builtInSofa": "Built-in (SADIE II KU100)",
+    "importSofa": "Import SOFA…",
+    "orientationReadout": "yaw {0}°  pitch {1}°  roll {2}°",
+    "orientationManual": "manual"
   },
   "map": {
     "hint": "Drag sources and the listener cross in the plan view. Speakers are read-only. Arrow keys move the selected source (front/back, left/right); PgUp/PgDn move its height. Shift = fine, Ctrl = coarse.",
@@ -169,6 +178,16 @@
     "listenerY": "Listener Y",
     "listenerZ": "Listener Z",
     "monoInputsEnabled": "Mono encoders",
+    "binauralEnabled": "Binaural monitor",
+    "binauralGain": "Monitor gain",
+    "binauralSofaFile": "HRTF set",
+    "binauralDecoderMode": "Decode",
+    "binauralHeadTracker": "Head tracker",
+    "binauralCameraIndex": "Camera index",
+    "binauralOutputChannel": "Headphone output pair",
+    "binauralManualYaw": "Head yaw",
+    "binauralManualPitch": "Head pitch",
+    "binauralManualRoll": "Head roll",
     "inputCount": "Inputs",
     "speakerCount": "Speakers",
     "inputName": "Name",
@@ -238,6 +257,7 @@
       "off": "Off", "lowCut": "Low cut", "lowShelf": "Low shelf", "peak": "Peak",
       "bandPass": "Band pass", "highShelf": "High shelf", "highCut": "High cut", "allPass": "All pass"
     },
+    "binauralMode": { "sampling": "Sampling", "alignedHf": "Aligned HF" },
     "decoderType": { "sad": "Sampling (SAD)", "modeMatch": "Mode-matching", "allRad": "AllRAD" },
     "decoderWeighting": { "basic": "Basic", "maxRe": "Max-rE" },
     "decoderNormalization": { "amplitude": "Amplitude", "energy": "Energy" },

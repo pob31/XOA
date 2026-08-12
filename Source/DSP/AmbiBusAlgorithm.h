@@ -11,6 +11,7 @@
 #include "spatcore/rt/RtSnapshot.h"
 
 #include "XoaConstants.h"
+#include "DSP/AmbiBinauralRenderer.h"
 #include "DSP/AmbiNFCFilter.h"
 #include "DSP/AmbiRotation.h"
 #include "DSP/AmbiRtTypes.h"
@@ -75,9 +76,12 @@ public:
                   bool processingEnabled,
                   const float* encodeMatrix = nullptr,
                   const double* nfcCoeffs = nullptr,
-                  const spatcore::rt::RtSnapshot<rt::EncoderRtParams>* encoderSrc = nullptr)
+                  const spatcore::rt::RtSnapshot<rt::EncoderRtParams>* encoderSrc = nullptr,
+                  AmbiBinauralRenderer* binauralMonitor = nullptr)
     {
         juce::ignoreUnused (maxInputChannels, maxOutputChannels);
+
+        monitor = binauralMonitor;
 
         decoder = decoderSource;
         rotation = rotationSource;
@@ -178,6 +182,8 @@ public:
             for (auto& p : outputPeak)
                 p.store (0.0f, std::memory_order_relaxed);
             activeDecoderEpoch.store (decoderHandle.epoch, std::memory_order_relaxed);
+            if (monitor != nullptr)
+                monitor->markIdle();   // no tap this block — don't leave isActive() stale
             return;
         }
 
@@ -301,6 +307,14 @@ public:
                     std::memcpy (activeHfGain, decoderHandle.hfGain, sizeof (activeHfGain));
             }
         }
+
+        // --- 2.7 Binaural monitor tap (WP15, D52) -----------------------------
+        // Post-dual-band, pre-decode: the monitor hears the same weighted
+        // field the loudspeaker decode is about to consume. The renderer only
+        // READS `rotated` and writes its own buffers, and a null seam leaves
+        // this chain bit-identical to before WP15 existed.
+        if (monitor != nullptr)
+            monitor->render (*rotated, n, busState.masterGainLinear);
 
         // --- 3. Decode GEMM: [L x 121] . bus -> output channels ----------------
         const int L = juce::jmin (decoderHandle.numSpeakers, numOutputChannels, totalOutChannels);
@@ -498,6 +512,7 @@ private:
         }
     }
 
+    AmbiBinauralRenderer* monitor = nullptr;   // WP15 tap; null = no monitor
     const DecoderMatrixBuilder* decoder = nullptr;
     const spatcore::rt::RtSnapshot<rt::RotationRtState>* rotation = nullptr;
     const spatcore::rt::RtSnapshot<rt::BusRtParams>* busParams = nullptr;

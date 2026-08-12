@@ -50,3 +50,4 @@ package each landed in.
 | `gen_tdesign_tables.py` | virtual-layout t-design (Womersley symmetric, t=33, 564 pts; emits `Source/DSP/TDesignTables.h` + `tdesign_data.json`; source cached as `ss033.00564`) | WP7 |
 | `gen_bessel_roots.py` | reverse-Bessel polynomial roots ℓ = 1…10 | WP8 |
 | `gen_nfc_reference.py` | NFC magnitude curves (Daniel) across SR/radius | WP8 |
+| `gen_binaural_reference.py` | SH→binaural sampling-decode bank over a synthetic HRIR grid (projection weights, ACN/SN3D basis, azimuth handedness flip, ITD restoration) | WP15 |

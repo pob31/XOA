@@ -28,6 +28,13 @@ target_sources(xoa-tests PRIVATE
     XoaLayoutGeneratorTests.cpp
     XoaRvReViewTests.cpp
     XoaPatchTests.cpp
+    XoaSofaSmokeTests.cpp
+    XoaHeadMappingTests.cpp
+    XoaBinauralDecoderTests.cpp
+    XoaBinauralRendererTests.cpp
+    XoaBinauralTapTests.cpp
+    XoaBinauralPerfTests.cpp
+    ../Source/DSP/AmbiBinauralDecoder.cpp
     ../Source/Parameters/XoaValueTreeState.cpp
     ../Source/Parameters/XoaFileManager.cpp
     ../Source/Audio/AudioEngine.cpp
@@ -47,6 +54,7 @@ target_include_directories(xoa-tests PRIVATE
 target_link_libraries(xoa-tests PRIVATE
     spatcore-audio
     spatcore-control
+    spatcore-mysofa
     juce::juce_audio_utils)
 
 target_compile_definitions(xoa-tests PRIVATE
@@ -57,7 +65,10 @@ target_compile_definitions(xoa-tests PRIVATE
     # Resources/ dir (containing lang/) read directly from the source tree by
     # XoaLocalizationTests, so the localization scaffold is gated without a
     # staged bundle.
-    XOA_LANG_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Resources")
+    XOA_LANG_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Resources"
+    # WP15: the bundled SADIE II KU100 set, loaded by XoaSofaSmokeTests
+    # straight from the source tree (also the app's built-in default set).
+    XOA_TEST_SOFA_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/../assets/SOFA/D1_48K_24bit_256tap_FIR_SOFA.sofa")
 
 # Test TUs compile under the same transcribed app flags as the app itself
 # (the optimization/FP flags spatcore's bit-exactness gates were baselined

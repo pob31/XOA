@@ -13,7 +13,9 @@
 //   <Folder>/inputs.xml        <XOAInputs schemaVersion>   <- Inputs section
 //   <Folder>/speakers.xml      <XOASpeakers schemaVersion> <- Speakers section
 //   <Folder>/decoder.xml       <XOADecoder schemaVersion>  <- Decoder section
+//   <Folder>/monitoring.xml    <XOAMonitoring schemaVersion> <- Monitoring (WP15)
 //   <Folder>/backups/          per-save rolling backups, keep-last-N
+//   <Folder>/sofa/             user HRTF sets (WP15; binauralSofaFile names one)
 //
 // save/load are headless (folder-relative, no dialogs) — the WFS-DIY pattern
 // that makes the control-replay/test paths trivial. Loading merges into the
@@ -30,7 +32,7 @@ class XoaFileManager
 public:
     explicit XoaFileManager (XoaValueTreeState& stateToManage);
 
-    enum class Section { config, inputs, speakers, decoder, audioPatch };
+    enum class Section { config, inputs, speakers, decoder, monitoring, audioPatch };
 
     static constexpr int kBackupKeepCount = 10;
     static constexpr const char* kManifestExtension = ".xoa";
@@ -81,6 +83,16 @@ public:
     bool loadDecoderBackup (int index)         { return loadSectionBackup (Section::decoder, index); }
     bool exportDecoder (const juce::File& f)   { return saveSectionTo (Section::decoder, f, false); }
     bool importDecoder (const juce::File& f)   { return loadSectionFrom (Section::decoder, f); }
+
+    bool saveMonitoring()                        { return saveSection (Section::monitoring); }
+    bool loadMonitoring()                        { return loadSection (Section::monitoring); }
+    bool loadMonitoringBackup (int index)        { return loadSectionBackup (Section::monitoring, index); }
+    bool exportMonitoring (const juce::File& f)  { return saveSectionTo (Section::monitoring, f, false); }
+    bool importMonitoring (const juce::File& f)  { return loadSectionFrom (Section::monitoring, f); }
+
+    /** <project>/sofa — user HRTF sets (WP15). binauralSofaFile stores a bare
+        filename resolved against this folder; empty means the built-in set. */
+    juce::File getSofaFolder() const             { return projectFolder.getChildFile ("sofa"); }
 
     bool saveAudioPatch()                        { return saveSection (Section::audioPatch); }
     bool loadAudioPatch()                        { return loadSection (Section::audioPatch); }

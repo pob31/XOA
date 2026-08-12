@@ -63,6 +63,12 @@ void runXoaUiDescriptorTests();
 void runXoaLayoutGeneratorTests();
 void runXoaRvReViewTests();
 void runXoaPatchTests();
+void runXoaSofaSmokeTests();
+void runXoaHeadMappingTests();
+void runXoaBinauralDecoderTests();
+void runXoaBinauralRendererTests();
+void runXoaBinauralTapTests();
+void runXoaBinauralPerfTests();
 
 //==============================================================================
 static void testXoaConstants()
@@ -136,6 +142,12 @@ int main()
         runXoaLayoutGeneratorTests();
         runXoaRvReViewTests();
         runXoaPatchTests();
+        runXoaSofaSmokeTests();
+        runXoaHeadMappingTests();
+        runXoaBinauralDecoderTests();
+        runXoaBinauralRendererTests();
+        runXoaBinauralTapTests();
+        runXoaBinauralPerfTests();
     }
     catch (const std::exception& e)
     {

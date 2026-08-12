@@ -86,7 +86,24 @@ void XoaValueTreeState::initializeDefaultState()
     decoder.setProperty (ids::decoderNormalization, static_cast<int> (d::decoderNormalizationDefault), nullptr);
     state.appendChild (decoder, nullptr);
 
-    state.appendChild (juce::ValueTree (ids::monitoring), nullptr);
+    // Monitoring / binaural (WP15). Off by default, built-in HRTF set (empty
+    // filename), manual orientation — a loaded project never starts feeding
+    // someone's headphones on its own.
+    juce::ValueTree monitoring (ids::monitoring);
+    monitoring.setProperty (ids::binauralEnabled, d::binauralEnabledDefault, nullptr);
+    monitoring.setProperty (ids::binauralGain, d::binauralGainDefault, nullptr);
+    monitoring.setProperty (ids::binauralSofaFile, juce::String(), nullptr);
+    monitoring.setProperty (ids::binauralDecoderMode,
+                            static_cast<int> (d::binauralDecoderModeDefault), nullptr);
+    monitoring.setProperty (ids::binauralHeadTracker, "manual", nullptr);
+    monitoring.setProperty (ids::binauralCameraIndex,
+                            static_cast<int> (d::binauralCameraIndexDefault), nullptr);
+    monitoring.setProperty (ids::binauralOutputChannel,
+                            static_cast<int> (d::binauralOutputChannelDefault), nullptr);
+    monitoring.setProperty (ids::binauralManualYaw, d::binauralManualYawDefault, nullptr);
+    monitoring.setProperty (ids::binauralManualPitch, d::binauralManualPitchDefault, nullptr);
+    monitoring.setProperty (ids::binauralManualRoll, d::binauralManualRollDefault, nullptr);
+    state.appendChild (monitoring, nullptr);
 
     // Audio patch (stage 2): identity-diagonal defaults so a fresh project
     // behaves exactly like the pre-patch identity mapping.
@@ -190,6 +207,8 @@ XoaValueTreeState::Scope XoaValueTreeState::getParameterScope (const juce::Ident
         return Scope::speaker;
     if (name.startsWith ("decoder"))
         return Scope::decoder;
+    if (name.startsWith ("binaural"))
+        return Scope::monitoring;
     return Scope::config;
 }
 
@@ -206,6 +225,9 @@ juce::ValueTree XoaValueTreeState::getTreeForParameter (const juce::Identifier& 
 
         case Scope::decoder:
             return getDecoderSection();
+
+        case Scope::monitoring:
+            return getMonitoringSection();
 
         case Scope::input:
         case Scope::speaker:

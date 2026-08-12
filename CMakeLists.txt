@@ -45,6 +45,13 @@ spatcore_add_juce_simpleweb("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/juce_simplew
 juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/roli_blocks_basics")
 spatcore_add_hidapi("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/hidapi")
 
+# libmysofa + zlib subset for spatcore's SOFA loader (binaural monitoring,
+# WP15). Same consumer-provides contract as hidapi: spatcore compiles the
+# sources out of these trees into its spatcore-mysofa target. Both trees are
+# the trimmed subsets vendored from WFS-DIY (which pins the same spatcore).
+set(SPATCORE_LIBMYSOFA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/libmysofa")
+set(SPATCORE_ZLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/zlib")
+
 add_subdirectory(spatcore "${CMAKE_BINARY_DIR}/spatcore")
 
 # ---------------------------------------------------------------------------
@@ -66,6 +73,7 @@ target_sources(XOA PRIVATE
     Source/Parameters/XoaFileManager.cpp
     Source/Audio/AudioEngine.cpp
     Source/DSP/AmbiCalculationEngine.cpp
+    Source/DSP/AmbiBinauralDecoder.cpp
     Source/DSP/ConvexHull.cpp
     Source/Localization/LocalizationManager.cpp
     Source/Network/OSCManager.cpp
@@ -110,6 +118,7 @@ target_link_libraries(XOA PRIVATE
     spatcore-controllers
     spatcore-ui
     spatcore-io
+    spatcore-mysofa
     hidapi::hidapi
     juce::juce_audio_utils
     juce::juce_gui_extra
@@ -131,6 +140,15 @@ add_custom_command(TARGET XOA POST_BUILD
             "${CMAKE_CURRENT_SOURCE_DIR}/Resources/lang"
             "$<TARGET_FILE_DIR:XOA>/Resources/lang"
     COMMENT "Staging Resources/lang next to the XOA binary")
+
+# Stage the bundled HRTF set (SADIE II KU100) the binaural monitor falls back
+# to when no project SOFA file is chosen (WP15). Same reasoning as the lang
+# staging: XoaMonitoringEngine resolves <exeDir>/Resources/SOFA first.
+add_custom_command(TARGET XOA POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/SOFA"
+            "$<TARGET_FILE_DIR:XOA>/Resources/SOFA"
+    COMMENT "Staging the bundled HRTF set next to the XOA binary")
 
 # ---------------------------------------------------------------------------
 # Tests — the xoa-tests console app, registered with ctest.

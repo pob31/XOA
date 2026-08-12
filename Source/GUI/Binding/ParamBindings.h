@@ -49,6 +49,7 @@ inline XoaValueTreeState::UndoDomain toStoreDomain (Domain d)
         case Domain::inputs:   return XoaValueTreeState::inputsDomain;
         case Domain::speakers: return XoaValueTreeState::speakersDomain;
         case Domain::decoder:  return XoaValueTreeState::decoderDomain;
+        case Domain::monitoring: return XoaValueTreeState::monitoringDomain;
         case Domain::config:   break;
     }
     return XoaValueTreeState::configDomain;

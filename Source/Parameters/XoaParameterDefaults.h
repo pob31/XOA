@@ -62,6 +62,26 @@ constexpr double listenerXDefault = 0.0, listenerYDefault = 0.0, listenerZDefaul
 // Config / mono encoders (WP8). Default off keeps the RT bus bit-identical to M2.
 constexpr bool   monoInputsEnabledDefault = false;
 
+// Monitoring / binaural (WP15). Default off: the monitor must never surprise
+// anyone wearing headphones when a project loads. Manual head attitude shares
+// the scene-rotation ranges (pitch +/-90 so each attitude has one form).
+constexpr bool   binauralEnabledDefault = false;
+constexpr double binauralGainDefault = 0.0, binauralGainMin = -60.0, binauralGainMax = 12.0;   // dB
+// Decoder mode: alignedHf by default (the ITD-everywhere sampling decode
+// smears high-frequency magnitudes; see AmbiBinauralDecoder.h).
+constexpr double binauralDecoderModeDefault = 1.0,
+                 binauralDecoderModeMin = 0.0, binauralDecoderModeMax = 1.0;
+constexpr double binauralCameraIndexDefault = 0.0,
+                 binauralCameraIndexMin = 0.0, binauralCameraIndexMax = 15.0;
+// Headphone pair: 0-based first hardware output, -1 = none reserved. The max
+// leaves room for the second channel of the pair.
+constexpr double binauralOutputChannelDefault = -1.0,
+                 binauralOutputChannelMin = -1.0,
+                 binauralOutputChannelMax = (double) (xoa::kMaxHardwareChannels - 2);
+constexpr double binauralManualYawDefault   = 0.0, binauralManualYawMin   = -180.0, binauralManualYawMax   = 180.0;
+constexpr double binauralManualPitchDefault = 0.0, binauralManualPitchMin =  -90.0, binauralManualPitchMax =  90.0;
+constexpr double binauralManualRollDefault  = 0.0, binauralManualRollMin  = -180.0, binauralManualRollMax  = 180.0;
+
 // Inputs ----------------------------------------------------------------
 constexpr double inputGainDefault = 0.0, inputGainMin = -60.0, inputGainMax = 12.0;       // dB
 constexpr bool   inputMuteDefault = false;

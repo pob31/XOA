@@ -299,6 +299,105 @@ static void testWp6ConfigPersistence()
 }
 
 //==============================================================================
+// WP15 — the Monitoring section: scope routing, defaults, its own undo
+// domain, and project persistence (binaural monitoring is GUI+project only,
+// D54 — there is deliberately no OSC path to check).
+//==============================================================================
+static void testMonitoringSection()
+{
+    XoaValueTreeState s;
+
+    // "binaural*" routes to Monitoring, NOT to the catch-all Config section.
+    const auto monitoring = s.getMonitoringSection();
+    CHECK (monitoring.hasProperty (ids::binauralEnabled));
+    CHECK (monitoring.hasProperty (ids::binauralGain));
+    CHECK (monitoring.hasProperty (ids::binauralSofaFile));
+    CHECK (monitoring.hasProperty (ids::binauralHeadTracker));
+    CHECK (monitoring.hasProperty (ids::binauralManualYaw));
+    CHECK (! s.getConfigSection().hasProperty (ids::binauralEnabled));
+
+    // Safety default: the monitor never starts enabled, and the built-in HRTF
+    // set is the empty-filename sentinel.
+    CHECK (! (bool) s.getParameter (ids::binauralEnabled));
+    CHECK (s.getStringParameter (ids::binauralSofaFile).isEmpty());
+    CHECK (s.getStringParameter (ids::binauralHeadTracker) == "manual");
+
+    // Writes land in the Monitoring section and clamp like any other param.
+    s.setParameter (ids::binauralManualYaw, 45.0);
+    CHECK (s.getFloatParameter (ids::binauralManualYaw) == 45.0f);
+    s.setParameter (ids::binauralManualPitch, 9999.0);
+    CHECK (s.getFloatParameter (ids::binauralManualPitch) == 90.0f);   // clamped
+    CHECK (s.getMonitoringSection().hasProperty (ids::binauralManualYaw));
+
+    // Undo is per-domain: undoing Monitoring must not touch Config (the reason
+    // Monitoring got its own domain in WP15).
+    {
+        XoaValueTreeState::ScopedDomain domain (s, XoaValueTreeState::monitoringDomain);
+        s.beginUndoTransaction ("edit monitor gain");
+        s.setParameter (ids::binauralGain, -12.0);
+    }
+    {
+        XoaValueTreeState::ScopedDomain domain (s, XoaValueTreeState::configDomain);
+        s.beginUndoTransaction ("edit scene yaw");
+        s.setParameter (ids::rotationYaw, 20.0);
+    }
+
+    s.setActiveDomain (XoaValueTreeState::monitoringDomain);
+    CHECK (s.canUndo());
+    CHECK (s.undo());
+    CHECK (s.getFloatParameter (ids::binauralGain) == 0.0f);   // monitoring reverted
+    CHECK (s.getFloatParameter (ids::rotationYaw) == 20.0f);   // config untouched
+    s.setActiveDomain (XoaValueTreeState::configDomain);
+}
+
+static void testMonitoringPersistence()
+{
+    ScopedTempDir tmp;
+    const auto projectFolder = tmp.dir.getChildFile ("MonitorShow");
+
+    {
+        XoaValueTreeState s;
+        XoaFileManager fm (s);
+        CHECK (fm.createProject (projectFolder, "Monitor Show"));
+
+        s.setParameter (ids::binauralEnabled, true);
+        s.setParameter (ids::binauralGain, -6.0);
+        s.setParameter (ids::binauralSofaFile, "my_ears.sofa");
+        s.setParameter (ids::binauralHeadTracker, "camera:0");
+        s.setParameter (ids::binauralManualYaw, -33.0);
+        CHECK (fm.saveProject());
+
+        // The section gets its own file, and the project carries a sofa folder
+        // for user HRTF sets.
+        CHECK (projectFolder.getChildFile ("monitoring.xml").existsAsFile());
+        CHECK (fm.getSofaFolder().isDirectory());
+    }
+
+    {
+        XoaValueTreeState s;
+        XoaFileManager fm (s);
+        CHECK (fm.loadProject (projectFolder));
+
+        CHECK ((bool) s.getParameter (ids::binauralEnabled));
+        CHECK (s.getFloatParameter (ids::binauralGain) == -6.0f);
+        CHECK (s.getStringParameter (ids::binauralSofaFile) == "my_ears.sofa");
+        CHECK (s.getStringParameter (ids::binauralHeadTracker) == "camera:0");
+        CHECK (s.getFloatParameter (ids::binauralManualYaw) == -33.0f);
+    }
+
+    // A pre-WP15 project (no monitoring.xml) loads fine and keeps the defaults
+    // — the tracker id in particular must not come back empty.
+    projectFolder.getChildFile ("monitoring.xml").deleteFile();
+    {
+        XoaValueTreeState s;
+        XoaFileManager fm (s);
+        CHECK (fm.loadProject (projectFolder));
+        CHECK (! (bool) s.getParameter (ids::binauralEnabled));
+        CHECK (s.getStringParameter (ids::binauralHeadTracker) == "manual");
+    }
+}
+
+//==============================================================================
 // T5 — typed get/set, addressing, live clamp, EQ helpers
 //==============================================================================
 static void testGetSet()
@@ -776,6 +875,8 @@ void runXoaParameterTests()
     testDefaultSchema();
     testWp6ConfigParameters();
     testWp6ConfigPersistence();
+    testMonitoringSection();
+    testMonitoringPersistence();
     testGetSet();
     testUndoDomains();
     testListenerRegistry();

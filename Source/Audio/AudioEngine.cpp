@@ -36,6 +36,10 @@ AudioEngine::AudioEngine (XoaValueTreeState& s)
 AudioEngine::~AudioEngine()
 {
     closeAudioDevice();
+    // Tracker hardware goes down only after the audio callback has stopped:
+    // the RT stage holds a raw pointer to the active orientation source, so
+    // the source must outlive every block that could still read it.
+    monitoringEngine.stopMonitoring();
     stopTimer();
     rebuildWorker.stop();      // join the worker BEFORE cancelling async updates,
     cancelPendingUpdate();     // so no triggerAsyncUpdate can fire into a dead object
@@ -53,6 +57,23 @@ void AudioEngine::registerListeners()
     store.addParameterListener (ids::rotationRoll,  [this] (const juce::var&) { publishRotation(); });
 
     store.addParameterListener (ids::masterGain, [this] (const juce::var&) { publishBusParams(); });
+
+    // Binaural monitoring (WP15): tracker selection starts/stops hardware, and
+    // a camera-index edit only takes effect on the next start, so it restarts
+    // whatever is running.
+    for (const auto& id : { ids::binauralEnabled, ids::binauralGain,
+                            ids::binauralManualYaw, ids::binauralManualPitch,
+                            ids::binauralManualRoll })
+        store.addParameterListener (id, [this] (const juce::var&) { monitoringEngine.publishParams(); });
+
+    // A different HRTF set means a fresh load + design on the worker.
+    for (const auto& id : { ids::binauralSofaFile, ids::binauralDecoderMode })
+        store.addParameterListener (id, [this] (const juce::var&) { monitoringEngine.requestDesign(); });
+
+    store.addParameterListener (ids::binauralHeadTracker,
+                                [this] (const juce::var&) { monitoringEngine.applyTrackerSelection(); });
+    store.addParameterListener (ids::binauralCameraIndex,
+                                [this] (const juce::var&) { monitoringEngine.reapplyCameraIndex(); });
 
     // Distance-comp mode lives in Config, so it needs its own listener (the
     // Speakers subtree listener below only sees per-speaker edits). It changes
@@ -97,6 +118,15 @@ void AudioEngine::unregisterListeners()
     store.removeParameterListeners (ids::listenerX);
     store.removeParameterListeners (ids::listenerY);
     store.removeParameterListeners (ids::listenerZ);
+    store.removeParameterListeners (ids::binauralEnabled);
+    store.removeParameterListeners (ids::binauralGain);
+    store.removeParameterListeners (ids::binauralManualYaw);
+    store.removeParameterListeners (ids::binauralManualPitch);
+    store.removeParameterListeners (ids::binauralManualRoll);
+    store.removeParameterListeners (ids::binauralSofaFile);
+    store.removeParameterListeners (ids::binauralDecoderMode);
+    store.removeParameterListeners (ids::binauralHeadTracker);
+    store.removeParameterListeners (ids::binauralCameraIndex);
 
     speakersSection.removeListener (this);
     decoderSection.removeListener (this);
@@ -435,9 +465,18 @@ void AudioEngine::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
     speakerScratch.clear();
     hwWritten.assign ((size_t) xoa::kMaxHardwareChannels, 0);
 
+    // Binaural monitor (WP15). Prepared BEFORE the algorithm takes the seam
+    // pointer, and the bank is re-cooked for this block size — a bank cooked
+    // for a different partition size is refused by the renderer, which would
+    // silently mute the monitor after a device change.
+    monitorRenderer.prepare (sr, block, &monitoringEngine.getFilterBank(),
+                             &monitorSnapshot, monitoringEngine.getActiveSourceSlot());
+    monitoringEngine.deviceChanged (sr, block);
+
     algorithm.prepare (xoa::kNumSHChannels, numSpk, sr, block,
                        &decoderBuilder, &rotationSnapshot, &busParamsSnapshot, true,
-                       calcEngine.encodeMatrix(), calcEngine.nfcCoeffs(), &calcEngine.encoderSource());
+                       calcEngine.encodeMatrix(), calcEngine.nfcCoeffs(), &calcEngine.encoderSource(),
+                       &monitorRenderer);
 
     // Per-speaker comp runs after the decode, still per speaker. Seed the RT
     // biquads from the current EQ (the ms-based comp POD is already published
@@ -595,6 +634,27 @@ void AudioEngine::getNextAudioBlock (const juce::AudioSourceChannelInfo& info)
             hwWritten[(size_t) hw] = 1;
         }
     }
+    // Binaural monitor pair (WP15, D52). Written here, INSIDE the scatter
+    // phase: every hardware input was read long ago (the §5.1 aliasing
+    // invariant), and marking the rows keeps the clear loop below from
+    // wiping them. When the monitor is idle the rows stay unmarked and are
+    // cleared to silence — never left replaying the input pre-copied into
+    // them.
+    if (monitorRenderer.isActive())
+    {
+        const int hwL = patch.binauralHwLeft;
+        const int hwR = patch.binauralHwRight;
+        if (hwL >= 0 && hwR >= 0 && hwR < numOutHw)
+        {
+            juce::FloatVectorOperations::copy (ioBuf.getWritePointer (hwL),
+                                               monitorRenderer.getOutputLeft(), n);
+            juce::FloatVectorOperations::copy (ioBuf.getWritePointer (hwR),
+                                               monitorRenderer.getOutputRight(), n);
+            hwWritten[(size_t) hwL] = 1;
+            hwWritten[(size_t) hwR] = 1;
+        }
+    }
+
     for (int h = 0; h < numOutHw; ++h)
         if (! hwWritten[(size_t) h])
             juce::FloatVectorOperations::clear (ioBuf.getWritePointer (h), n);

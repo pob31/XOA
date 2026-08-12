@@ -39,7 +39,7 @@ with CMake (`spatcore-audio`, `spatcore-control`, `spatcore-controllers`).
 ```bash
 sudo apt install build-essential cmake pkg-config libasound2-dev libfreetype6-dev \
     libfontconfig1-dev libgl1-mesa-dev libcurl4-openssl-dev libgtk-3-dev \
-    libwebkit2gtk-4.1-dev libudev-dev
+    libwebkit2gtk-4.1-dev libudev-dev libxi-dev
 ```
 
 ### Clone and bootstrap

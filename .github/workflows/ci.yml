@@ -27,6 +27,22 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Debug --output-on-failure
 
+      # Head-tracker plugin (WP15). Built OUT of the app tree against its own
+      # OpenCV — that is what keeps OpenCV out of the app build — so nothing
+      # else in this job would ever catch a break here. Compile check only:
+      # runtime behaviour needs a camera and is validated on dev machines.
+      - name: Cache OpenCV prebuilt (head-tracker plugin)
+        uses: actions/cache@v4
+        with:
+          path: tools/headtrack/.opencv
+          key: opencv-win-4.10.0
+
+      # Release even in a Debug CI: the plugin ships Release regardless of the
+      # app config (it crosses a C ABI, so no shared CRT state).
+      - name: Compile-check head-tracker plugin
+        shell: pwsh
+        run: tools\headtrack\build-headtrack-plugin.ps1 -Config Release
+
   macos:
     runs-on: macos-latest
     steps:
@@ -43,6 +59,12 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+      # See the Windows job for why the head-tracker plugin needs its own step.
+      - name: Compile-check head-tracker plugin
+        run: |
+          brew install opencv
+          bash tools/headtrack/build-headtrack-plugin.sh Release
+
   linux:
     runs-on: ubuntu-latest
     steps:
@@ -53,10 +75,13 @@ jobs:
       - name: Install JUCE build deps
         run: |
           sudo apt-get update
+          # libxi-dev: XInput2 headers, required since JUCE 9 (native multitouch).
+          # It comes in transitively via libgtk-3-dev today; listed explicitly so
+          # the build does not depend on that, matching spatcore's own CI.
           sudo apt-get install -y build-essential cmake pkg-config libasound2-dev \
               libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev libegl-dev \
               libcurl4-openssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libudev-dev \
-              libjack-jackd2-dev xvfb
+              libjack-jackd2-dev libxi-dev xvfb
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -85,3 +110,9 @@ jobs:
           echo "GUI smoke binary: $XOA_BIN"
           test -n "$XOA_BIN"
           xvfb-run -a "$XOA_BIN" --gui-smoke
+
+      # See the Windows job for why the head-tracker plugin needs its own step.
+      - name: Compile-check head-tracker plugin
+        run: |
+          sudo apt-get install -y libopencv-dev
+          bash tools/headtrack/build-headtrack-plugin.sh Release

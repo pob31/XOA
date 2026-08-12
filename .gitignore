@@ -3,6 +3,12 @@ build/
 Builds/
 out/
 
+# Head-tracker plugin (tools/headtrack): the OpenCV prebuilt the Windows build
+# script downloads and caches (~180 MB). Its CMake build tree is already caught
+# by the build/ rule above. The vendored YuNet model IS tracked (models/*.onnx)
+# — it ships with the app.
+tools/headtrack/.opencv/
+
 # Compiled binaries
 *.exe
 *.dll

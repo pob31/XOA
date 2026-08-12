@@ -72,8 +72,9 @@ hardware in CI).
 | WP12 | MCP server + AI undo | M5 part | P4 | WP2, WP9, WP10 (UI bits) | M | |
 | WP13 | Acceptance, hardening, performance — **v1.0** | **M5 exit** | — | all | L | |
 | WP14 | Ship: installers, release CI, docs | — | P8 | WP13 | M | |
+| WP15 | Binaural monitoring (D51-D54): SH→binaural decode, head tracking | post-v1 | P6 | WP4, WP9, patch window (D41-D46) | XL | |
 
-Parked to post-v1 (see §8): binaural monitoring (was P6), zoom/focus warping
+Parked to post-v1 (see §8): zoom/focus warping
 (FR-11 v1.1), PSN/RTTrP/MQTT tracker profiles + OSCQuery (P3 tail),
 decoder redesign from the listener position (D18 tail), SH-domain reverb,
 A→B conversion, `spatcore/ambi/` extraction.
@@ -288,6 +289,44 @@ inputs; there is no cueing mechanism in this app.
 
 D24 ("PatchMatrixComponent not ported; v1 keeps identity channel mapping") is
 superseded by D41–D46; the identity mapping survives only as the default patch.
+
+**Binaural monitoring (D51–D54) — WP15** — promotes §8 backlog item 1 into a
+numbered package (supersedes D2's parking; the WP13 "utility monitor decode"
+stretch is absorbed). Architecture fixed by
+`Documentation/hoa-binaural-handoff.md`; exploration findings that override
+the handoff where they drifted are recorded here.
+
+- **D51 — HOA-native binaural path.** The monitor renders the SH bus, not
+  per-source: SH-domain head-compensation rotation (XOA's existing
+  `AmbiRotation` — the handoff's "build new: Wigner-D" already exists and is
+  golden-tested) followed by a static 2×121 SH→ear FIR bank computed once at
+  SOFA-load time (sampling decode first, MagLS default later — both behind
+  `binauralDecoderMode`). spatcore's per-source `BinauralEngine`/
+  `SofaHrtfRenderer` are deliberately NOT used; reuse stops at
+  `SofaLoader`→`HrirDatabase` (the per-direction `CookedHrirSet` partition
+  cook is the wrong shape for an SH bank). The spatcore↔XOA angle-convention
+  mapping lives in a dedicated boundary header (`AmbiHeadMapping.h`), never
+  inside the DSP (AmbiRotation's stated policy).
+- **D52 — Tap point: post-dual-band, pre-decode.** The monitor taps the
+  `rotated` bus between the dual-band stage and the decode GEMM, so
+  headphones hear the same weighted field the speaker decode consumes
+  (toggling dual-band/max-rE is audible in the monitor). The tap is
+  read-only and the null seam is bit-identical to the pre-WP15 chain —
+  the loudspeaker render is provably unaffected. Output is a reserved
+  hardware pair via the shared patch matrix's binaural tree (the
+  `XoaPatchMatrixShim` D2-era opt-out is withdrawn), written in the
+  scatter phase under the same aliasing/clear invariants as speakers.
+- **D53 — Head attitude bypasses the damped control path.** The RT stage
+  reads `activeSource->getOrientation()` fresh every block (XOA's first
+  RT-pulls-from-source seam; manual orientation falls back through the
+  `MonitorRtParams` snapshot). Scene rotation (`/xoa/tracking/quaternion`)
+  and monitor head-tracking are separate rotations: the existing OSC route
+  keeps rotating the loudspeaker field; the head tracker rotates only the
+  monitor tap.
+- **D54 — No OSC surface for binaural yet.** The OSC map stays frozen at
+  v1.1; all binaural monitoring controls are GUI-only (params persist in
+  the project's Monitoring section — no app-level settings store is
+  introduced). Revisit with a v1.2 bump when a show-control need appears.
 
 ---
 
@@ -1127,6 +1166,88 @@ machine installs and runs; GPU plugins load from the installed layout.
 
 ---
 
+### WP15 — Binaural monitoring (XL, post-v1, D51–D54)
+
+**Goal.** Head-tracked binaural monitoring of the SH bus on a reserved
+hardware output pair, with the loudspeaker render bit-unaffected.
+
+**Architecture.** `Documentation/hoa-binaural-handoff.md` + D51–D54. Signal
+path: `rotated` bus (post-dual-band, D52) → head-compensation SH rotation
+(reused `AmbiRotation`, transpose, spatcore↔XOA convention mapping in
+`AmbiHeadMapping.h`) → static 2×121 partitioned-FIR bank (designed at
+SOFA-load on a `DecoderRebuildWorker`-style worker) → L/R in the scatter
+phase.
+
+**Tasks (stages, each committable).**
+0. spatcore pin d011103; vendor `ThirdParty/libmysofa`+`zlib`
+   (`spatcore-mysofa`); bundle SADIE II KU100 at `assets/SOFA`; docs.
+1. Orientation plumbing: `HeadTrackerManager` + `XoaCameraHeadTrackerSource`
+   (WFS-DIY copy-adapt; spatcore `HeadOrientationSource`/plugin ABI/
+   OneEuroFilter), Monitoring params scope+undo domain, MonitoringTab
+   tracker UI + live ypr readout. No audio-path change.
+2. `AmbiBinauralDecoder` sampling mode + Python goldens
+   (`tools/reference/gen_binaural_reference.py`).
+3. Static render end-to-end: `AmbiBinauralRtTypes/FilterBank/Renderer`,
+   `AmbiBusAlgorithm` monitor seam, scatter-phase pair via the patch
+   binaural tree, SOFA load worker, bundled-set staging.
+4. Head rotation in the monitor (manual ypr first).
+5. SOFA UX: `<project>/sofa/`, picker, fallback, re-cook paths.
+6. `tools/headtrack/` webcam plugin end-to-end + Set Zero UX.
+7. MagLS mode, made default.
+8. Performance pass (order-10 at 64/128/256), notices, closeout.
+
+**Port sources.** WFS-DIY `Source/DSP/CameraHeadTrackerSource.h`,
+`HeadTrackerManager.h`, `BinauralProcessor.h::processBlockHrtf` (pattern),
+`Source/gui/RefreshableComboBox.h`, `tools/headtrack/`,
+`tools/repack_sofa.py`.
+
+**spatcore assets.** `binaural/{HeadOrientationSource,BinauralTypes,
+HeadFrame,SofaLoader,HrirSet}.h`, `binaural/plugin/HeadTrackPluginApi.h`,
+`dsp/OneEuroFilter.h`, `gpu/PlatformDynLib.h`, `rt/RtSnapshot.h`;
+`SofaHtrfRenderer.h`'s private FDL/convolveTo as the partitioned-convolution
+reference (do NOT use the per-source renderer itself).
+
+**Tests & exit criteria.** Head-mapping goldens; decoder bank vs Python
+≤1e-5; partitioned convolver vs direct time-domain; speaker outputs
+bit-identical with the monitor enabled; SOFA smoke on the bundled set;
+registry/localization gates. Exit: live head-tracked monitoring on hardware;
+loudspeaker chain bit-exact; CPU headroom documented.
+
+**Status (stages 0–8 landed on `feat/hoa-binaural`).** Everything above is
+implemented and tested except the hardware pass, which waits on the same RME
+AoX Dante session as the spatcore-io stages. What the suite proves today:
+the speaker render is byte-identical with the monitor running (asserted
+exactly, both paths checked non-silent), the partitioned convolver matches a
+direct time-domain convolution, the decoder bank matches an independent
+mpmath derivation, and head compensation equals pre-rotating the field.
+
+Measured cost of the monitor on the audio thread at order 10 (Release, dev
+machine, printed by `XoaBinauralPerfTests`): **9.5–15% of real time with the
+head still, 12–18% while the head is moving** (the rotation matrix rebuilds
+per block), across 64/128/256-sample blocks. That is one core fraction on top
+of the decode — usable, and the obvious next lever is SIMD on the complex
+multiply-accumulate, which is the whole inner loop.
+
+**Deviations from the plan, recorded deliberately:**
+- The high-band mode is **`alignedHf`** (true phase below a 1.5 kHz
+  crossover, time-aligned above), NOT MagLS. It shares MagLS's intent and
+  crossover rationale and measurably beats the sampling decode on
+  contralateral magnitude error, but there is no iterative magnitude fit with
+  phase continuation. True MagLS remains open; the mode enum and the design
+  options already have room for it.
+- `sampling` stays selectable as the golden-anchored reference decode.
+- The offline-render harness gained no `--binaural` mode: the monitor's
+  correctness is pinned by the unit suite (convolver vs direct convolution,
+  bank vs Python golden) and by the bit-identical speaker assertion, so a
+  second hashed baseline would add maintenance without adding coverage.
+
+**Risks.** ITD-restoration phase choice for MagLS (mitigated: sampling-mode
+anchor + goldens); the first RT-pulls-from-source seam (mitigated: WFS-DIY
+pattern, staleness fallback); patch-pair vs clear-loop interaction
+(mitigated: engine test asserts fed/cleared rows).
+
+---
+
 ## 6. Test & CI evolution timeline
 
 | Stage | Introduced in | CI change |
@@ -1192,7 +1313,8 @@ spatcore and with the repo's no-new-dependencies posture.
 | FR-24 project files (XML per D1), WFS-compatible layout | WP2 |
 | FR-25 listener-position sweet-spot shift (D18) | WP9 (delay/gain re-reference); decoder-redesign tail **parked** §8 |
 
-Binaural monitoring (PRD non-goal / XOA-PLAN P6) is **parked** — see §8.
+Binaural monitoring (PRD non-goal / XOA-PLAN P6) is **WP15** (D51-D54),
+promoted from §8 item 1.
 
 ---
 
@@ -1200,8 +1322,7 @@ Binaural monitoring (PRD non-goal / XOA-PLAN P6) is **parked** — see §8.
 
 In rough priority order:
 
-1. **Binaural monitoring** (was P6): magLS or HRTF convolution of a virtual
-   layout, SOFA loading, head-tracked via the WP9 `RtSnapshot` seam.
+1. ~~Binaural monitoring~~ — **promoted to WP15** (D51-D54).
 2. **Zoom/focus warping** (FR-11 v1.1): order-weighted soundfield warping.
 3. **Tracker profiles + OSCQuery** (P3 tail): PSN/RTTrP/MQTT receivers
    (vendor PSN-CPP when needed), OSCQuery server. Listener position via
