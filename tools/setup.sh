@@ -24,7 +24,8 @@ case "$(uname -s)" in
         echo "   Linux build deps (Debian/Ubuntu):"
         echo "     sudo apt install build-essential cmake pkg-config libasound2-dev \\"
         echo "         libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev \\"
-        echo "         libcurl4-openssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libudev-dev"
+        echo "         libcurl4-openssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libudev-dev \\"
+        echo "         libxi-dev"
         ;;
     Darwin*)
         echo "   (macOS: add -G Xcode for an Xcode project)"

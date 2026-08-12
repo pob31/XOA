@@ -18,7 +18,7 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to **d011103** (post-v0.1.1: GPU
+- `spatcore/` — **submodule**, pinned to **47b1ae5** (tag `v0.2.0`: GPU
   node-parallel SDN, Max-port FR diffusion, MCP protocol negotiation, the
   shared EQ, the `spatcore::io` device layer (`io/`, target `spatcore-io`),
   the shared patch matrix (`ui/patch/`), and the `binaural/` module —
@@ -34,7 +34,7 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
   spatcore's `cmake/SpatcoreConsumer.cmake` helper (see CMakeLists.txt).
   Dependency direction is strictly app → spatcore; never modify spatcore from
   here — changes go to the spatcore repo and arrive via a pin bump.
-- `ThirdParty/JUCE` — submodule (JUCE 9.0.0, tag `9.0.0`; same major as
+- `ThirdParty/JUCE` — submodule (JUCE 9.0.1, tag `9.0.1`; same major as
   WFS-DIY).
 - `ThirdParty/hidapi` — submodule (headers for spatcore-controllers; static
   lib linked into the app via hidapi's own CMake).
