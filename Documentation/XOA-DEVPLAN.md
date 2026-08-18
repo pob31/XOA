@@ -71,7 +71,7 @@ hardware in CI).
 | WP11 | GPU decode path (two tracks, cross-repo) | **M4 exit** | P7 | WP7 (+ spatcore track) | XL | |
 | WP12 | MCP server + AI undo | M5 part | P4 | WP2, WP9, WP10 (UI bits) | M | |
 | WP13 | Acceptance, hardening, performance — **v1.0** | **M5 exit** | — | all | L | |
-| WP14 | Ship: installers, release CI, docs | — | P8 | WP13 | M | |
+| WP14 | Ship: installers, release CI, docs | — | P8 | WP13 | M | **PARTIAL — release CI + packaging in place (D55); docs/user-manual pass outstanding** |
 | WP15 | Binaural monitoring (D51-D54): SH→binaural decode, head tracking | post-v1 | P6 | WP4, WP9, patch window (D41-D46) | XL | |
 
 Parked to post-v1 (see §8): zoom/focus warping
@@ -327,6 +327,36 @@ the handoff where they drifted are recorded here.
   v1.1; all binaural monitoring controls are GUI-only (params persist in
   the project's Monitoring section — no app-level settings store is
   introduced). Revisit with a v1.2 bump when a show-control need appears.
+
+- **D55 — Release packaging: one signed lane, two plain ones.** A published
+  GitHub Release builds three assets (`.github/workflows/release.yml`):
+  a **notarized arm64 `.dmg`** on macOS, an **unsigned Inno Setup `.exe`**
+  on Windows, and a **`.tar.gz` with `install.sh` / `uninstall.sh`** on
+  Linux. The shape follows WFS-DIY's, with four XOA-specific calls:
+  (a) the **packaging logic lives in scripts** (`tools/ci/build-macos-release.sh`,
+  `tools/linux/build-app-tarball.sh`, `Installer/XOA-Installer.iss`), not in
+  the YAML, so every lane runs identically on a developer machine;
+  (b) the version's single source of truth is **`project(XOA VERSION …)`**
+  in CMakeLists.txt, and a `verify-version` job refuses a tag that disagrees
+  before any build minutes are spent;
+  (c) **arm64 only** on macOS — Intel Macs are not a target and the second
+  slice roughly doubles the job (`ARCHS="arm64;x86_64"` still produces a
+  universal DMG on demand);
+  (d) the signing secrets live in the **protected `xoa` environment**, not at
+  repo level — the repository is public, and the environment's reviewer rule
+  is the boundary that keeps the Developer ID key away from untrusted refs.
+  Consequence: every release pauses for a manual approval.
+  The webcam head-tracker plugin ships on **Windows only** (there it is a
+  self-contained DLL plus prebuilt OpenCV; macOS/Linux would need the static
+  `WFS_HEADTRACK_BUNDLED_OPENCV` build ported from WFS-DIY). No GPU-plugin
+  packaging until WP11 lands. The Linux tarball carries
+  `assets/linux/70-xoa.rules` (Stream Deck+ / SpaceMouse hidraw access)
+  **ahead of the controller support itself** — the rules only relax device
+  permissions, so they are inert until that work lands and the packaging does
+  not have to be revisited when it does.
+  A `dry_run` dispatch input builds, signs and packages every lane into workflow
+  artifacts without touching a Release, so the pipeline can be proven before
+  there is a v1 to cut. Full runbook: `Documentation/XOA-RELEASE.md`.
 
 ---
 
@@ -1145,21 +1175,40 @@ order-10 content (already solved by the WP6 generator).
 
 ---
 
-### WP14 — Ship (M)
+### WP14 — Ship (M) — **PARTIAL** (packaging done, docs pass open)
 
 **Goal.** Tagged releases produce installable artifacts on all three OSes.
 
-**Tasks.**
-- `Installer/XOA-Installer.iss` — adapt WFS-DIY's Inno Setup 6 script
-  (version via `/DMyAppVersion`, GPL page, x64).
-- macOS notarized pkg (adapt `Scripts/ci/build-macos-release.sh` pattern);
-  Linux tarball (port `tools/linux/build-app-tarball.sh`).
-- `.github/workflows/release.yml` — port and adapt from WFS-DIY.
+**Done (D55).** Runbook: `Documentation/XOA-RELEASE.md`.
+- `.github/workflows/release.yml` — `verify-version` (tag == `project(XOA
+  VERSION …)`) then three packaging jobs, on Release-published or manual
+  dispatch against a tag.
+- `tools/ci/build-macos-release.sh` + `tools/ci/release-entitlements.plist` —
+  Release build (arm64), hardened-runtime re-sign, DMG, notarize, staple,
+  checksum. Ships a **DMG, not a pkg** (supersedes the "notarized pkg" line
+  below): drag-to-Applications needs only the Developer ID *Application*
+  identity, so the release carries one signing credential instead of two.
+- `Installer/XOA-Installer.iss` — Inno Setup 6, version via `/DMyAppVersion`,
+  GPL license page, x64, `.xoa` file association, `Resources/lang` +
+  `Resources/SOFA` staged in the layout the app resolves beside its exe.
+- `tools/linux/build-app-tarball.sh` — tarball with `install.sh` /
+  `uninstall.sh` (per-user `~/.local` or system `/opt/xoa`), a prefix-baked
+  uninstaller, and a `.desktop` entry.
+- `tools/ci/set-macos-cert-secret.sh` — verifies a `.p12` really holds a
+  Developer ID Application certificate *and* its private key, then sets
+  `MACOS_CERT_P12_BASE64` + `MACOS_CERT_PASSWORD` together in the protected
+  `xoa` environment.
+
+**Remaining.**
+- README / user manual, `THIRD_PARTY_NOTICES.md` final pass.
 - GPU plugin packaging: per-vendor `libwfs_<vendor>` plugins via the
   spatcore `tools/gpu/build-gpu-plugins.*` scripts, installed to the
-  layout the `GpuBackendFactory` dlopen expects.
-- README / user manual, `THIRD_PARTY_NOTICES.md` final pass, version
-  stamping from the CMake project version.
+  layout the `GpuBackendFactory` dlopen expects. Blocked on WP11.
+- Head-tracker plugin on macOS/Linux: needs WFS-DIY's
+  `WFS_HEADTRACK_BUNDLED_OPENCV` (static OpenCV via FetchContent) ported into
+  `tools/headtrack/CMakeLists.txt`. Windows already ships it.
+- First real release run: the artefact paths and the `xoa` environment
+  approval flow have not been exercised end to end yet.
 
 **Exit.** A tag produces installers/tarballs on the three OSes; a clean
 machine installs and runs; GPU plugins load from the installed layout.

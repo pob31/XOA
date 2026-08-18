@@ -1,0 +1,304 @@
+name: Release
+
+# Build distributable packages for each desktop OS and attach them to the GitHub
+# Release. Runs when a Release is published, or on manual dispatch against an
+# existing tag.
+#
+#   macOS    signed + notarized + stapled .dmg (arm64)
+#   Windows  unsigned Inno Setup .exe installer (x64)
+#   Linux    .tar.gz with install.sh / uninstall.sh (x86_64)
+#
+# Only macOS is signed: there is no Windows code-signing certificate for this
+# project. The Apple Developer ID cert and the App Store Connect notary key live
+# in the protected `xoa` environment, which is what keeps them out of reach of
+# anything running off an untrusted ref in this public repo.
+#
+# Dry run: Actions -> Release -> Run workflow, leave `tag` empty and tick
+# `dry_run`. Every job builds and packages exactly as it would for a release,
+# but the assets go to workflow artifacts and no Release is touched - which is
+# how you prove this pipeline works before there is a v1 to cut.
+#
+# Setup, secrets and the release ritual: Documentation/XOA-RELEASE.md.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach to (e.g. v0.1.0). Leave empty for a dry run."
+        required: false
+      dry_run:
+        description: "Build and package only - upload as workflow artifacts, touch no Release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.event.inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  # Empty on a dry run with no tag given; each job then falls back to
+  # v<project version> for the asset names.
+  RELEASE_TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+
+jobs:
+  # Refuse to publish a mislabelled build before spending build minutes on it.
+  # Single source of truth for the version: project(XOA VERSION ...) in
+  # CMakeLists.txt, which also feeds XOA_VERSION_STRING and the bundle version.
+  verify-version:
+    name: verify tag == project version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Explicit ref: on workflow_dispatch the default checkout is the
+          # dispatch branch, not the tag being released, and the version check
+          # would then pass against a tree nobody is shipping.
+          ref: ${{ env.RELEASE_TAG }}
+      - run: |
+          VERSION="$(sed -nE 's/^project\(XOA VERSION ([0-9][^ )]*).*/\1/p' CMakeLists.txt | head -n1)"
+          if [ -z "$VERSION" ]; then
+            echo "::error::could not read the version from CMakeLists.txt"
+            exit 1
+          fi
+          # A dry run has nothing to be consistent WITH - it packages whatever
+          # ref was dispatched and attaches to no Release.
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "dry run: packaging v$VERSION from ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+          if [ "$RELEASE_TAG" != "v$VERSION" ]; then
+            echo "::error::release tag '$RELEASE_TAG' != project version 'v$VERSION'"
+            exit 1
+          fi
+          echo "ok: $RELEASE_TAG == v$VERSION"
+
+  macos:
+    name: macOS DMG (signed + notarized)
+    needs: verify-version
+    runs-on: macos-latest
+    # The signing cert and notary key live in this protected environment. It has
+    # a required-reviewer rule, so this job waits for an approval before it can
+    # read them - that pause in the Actions UI is expected, not a hang.
+    environment: xoa
+    env:
+      NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+      NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Import Developer ID signing certificate
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.MACOS_CERT_PASSWORD }}
+
+      - name: Materialize the App Store Connect API key
+        run: |
+          mkdir -p "$RUNNER_TEMP/notary"
+          KEY="$RUNNER_TEMP/notary/AuthKey.p8"
+          echo "${{ secrets.NOTARY_API_KEY_BASE64 }}" | base64 --decode > "$KEY"
+          echo "NOTARY_API_KEY=$KEY" >> "$GITHUB_ENV"
+
+      # Build (arm64), sign with the hardened runtime + our entitlements, build
+      # the DMG, notarize, staple, checksum. The same script runs locally.
+      - name: Build, sign, notarize, staple, package
+        run: tools/ci/build-macos-release.sh
+        env:
+          ARCHS: arm64
+
+      - name: Attach DMG to the release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/XOA-v*-macos-arm64.dmg
+            dist/XOA-v*-macos-arm64.dmg.sha256
+
+      - name: Upload DMG as a workflow artifact (dry run)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          if-no-files-found: error
+          path: |
+            dist/XOA-v*-macos-arm64.dmg
+            dist/XOA-v*-macos-arm64.dmg.sha256
+
+  windows:
+    name: Windows installer (unsigned)
+    needs: verify-version
+    # windows-2025 = the VS2026 image, the same pin ci.yml uses. Explicit, not
+    # windows-latest, so an image repoint stays a deliberate choice.
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Configure
+        run: cmake -S . -B build-release
+
+      - name: Build (Release)
+        run: cmake --build build-release --config Release --parallel
+
+      - name: Cache OpenCV prebuilt (head-tracker plugin)
+        uses: actions/cache@v4
+        with:
+          path: tools/headtrack/.opencv
+          key: opencv-win-4.10.0
+
+      # Webcam head tracking for the binaural monitor. Built out of tree against
+      # the prebuilt OpenCV and staged next to the exe, where the app dlopens it.
+      # Deliberately NOT fatal: the plugin is an optional feature built against a
+      # third-party prebuilt that the app itself never links, and a break there
+      # must not hold up a release. The .iss marks every plugin file
+      # skipifsourcedoesntexist, and the step below reports what actually shipped.
+      - name: Build head-tracker plugin (wfs_headtrack.dll)
+        id: headtrack
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          tools\headtrack\build-headtrack-plugin.ps1 -Config Release `
+              -StageDir "build-release\XOA_artefacts\Release"
+
+      - name: Report head-tracker status
+        shell: pwsh
+        run: |
+          $app = "build-release\XOA_artefacts\Release"
+          $dll = Test-Path "$app\wfs_headtrack.dll"
+          $cv  = Test-Path "$app\opencv_world4100.dll"
+          $mdl = Test-Path "$app\face_detection_yunet_2023mar.onnx"
+          if ($dll -and $cv -and $mdl) {
+            "Head-tracker plugin: INCLUDED in the installer." | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          } else {
+            "Head-tracker plugin: **NOT included** (dll=$dll opencv=$cv model=$mdl). " +
+            "The installer is still valid; webcam head tracking will be unavailable." |
+              Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+            Write-Warning "head-tracker plugin missing - shipping without webcam tracking"
+          }
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          # AppVersion and the asset filename both come from the tag, so a
+          # published installer can never claim a different version than the
+          # release it hangs off. verify-version already tied the tag to
+          # CMakeLists.txt.
+          # On a dry run no tag is given; fall back to the project version so
+          # the artifact is still named like a real one.
+          $tag = "${{ env.RELEASE_TAG }}"
+          if (-not $tag) {
+            $m = Select-String -Path CMakeLists.txt -Pattern '^project\(XOA VERSION ([0-9][^ )]*)'
+            $tag = "v" + $m.Matches[0].Groups[1].Value
+          }
+          $ver  = $tag -replace '^v',''
+          $base = "XOA-$tag-windows-x64-Setup"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          choco install innosetup -y --no-progress
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+          & $iscc "/DMyAppVersion=$ver" "/Odist" "/F$base" "Installer\XOA-Installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed ($LASTEXITCODE)" }
+          $exe = "dist\$base.exe"
+          if (-not (Test-Path $exe)) { throw "Installer not produced: $exe" }
+          (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower() | Out-File "$exe.sha256" -NoNewline
+
+      - name: Attach installer to the release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/XOA-*-windows-x64-Setup.exe
+            dist/XOA-*-windows-x64-Setup.exe.sha256
+
+      - name: Upload installer as a workflow artifact (dry run)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          if-no-files-found: error
+          path: |
+            dist/XOA-*-windows-x64-Setup.exe
+            dist/XOA-*-windows-x64-Setup.exe.sha256
+
+  linux:
+    name: Linux tar.gz
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install JUCE build deps
+        # Same set as ci.yml, minus xvfb (nothing is run here). libxi-dev is
+        # listed explicitly rather than relied on transitively via libgtk-3-dev:
+        # JUCE 9 needs the XInput2 headers.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libasound2-dev \
+              libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev libegl-dev \
+              libcurl4-openssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libudev-dev \
+              libjack-jackd2-dev libxi-dev
+
+      - name: Configure
+        run: cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+
+      # Bounded -j: bare `--parallel` hands gmake an UNBOUNDED -j, which
+      # OOM-killed the runner on the Debug TU set (see ci.yml). Release is
+      # heavier still per TU.
+      - name: Build (Release)
+        run: cmake --build build-release --parallel "$(nproc)"
+
+      - name: Package
+        run: |
+          # build-app-tarball.sh is the single source of truth for the Linux
+          # package layout (binary + Resources/ + install.sh / uninstall.sh +
+          # .desktop). Override the output dir and name so the asset matches the
+          # convention shared with the DMG and the Windows installer.
+          mkdir -p dist
+          # On a dry run no tag is given; fall back to the project version so
+          # the artifact is still named like a real one.
+          TAG="$RELEASE_TAG"
+          if [ -z "$TAG" ]; then
+            TAG="v$(sed -nE 's/^project\(XOA VERSION ([0-9][^ )]*).*/\1/p' CMakeLists.txt | head -n1)"
+          fi
+          OUTPUT_DIR="$PWD/dist" \
+          TARBALL_NAME="XOA-${TAG}-linux-x86_64" \
+            tools/linux/build-app-tarball.sh
+          TAR="dist/XOA-${TAG}-linux-x86_64.tar.gz"
+          sha256sum "$TAR" | awk '{print $1}' > "$TAR.sha256"
+
+      - name: Attach tar.gz to the release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/XOA-*-linux-x86_64.tar.gz
+            dist/XOA-*-linux-x86_64.tar.gz.sha256
+
+      - name: Upload tar.gz as a workflow artifact (dry run)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball
+          if-no-files-found: error
+          path: |
+            dist/XOA-*-linux-x86_64.tar.gz
+            dist/XOA-*-linux-x86_64.tar.gz.sha256

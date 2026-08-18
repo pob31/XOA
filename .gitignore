@@ -1,7 +1,13 @@
 # Build outputs
 build/
+build-release/
 Builds/
 out/
+
+# Release packaging output (tools/ci/build-macos-release.sh,
+# tools/linux/build-app-tarball.sh, Inno Setup).
+dist/
+Installer/Output/
 
 # Head-tracker plugin (tools/headtrack): the OpenCV prebuilt the Windows build
 # script downloads and caches (~180 MB). Its CMake build tree is already caught
