@@ -131,24 +131,40 @@ target_link_libraries(XOA PRIVATE
 spatcore_apply_compile_flags(XOA)
 
 # Stage the localization files (loose JSON, WP10 C3) next to the binary so
-# LocalizationManager's default resource-dir resolution (<exeDir>/Resources/lang)
-# finds them. WFS-DIY relied on Projucer bundle copying; the CMake app stages
-# them here. The unit test reads them from the source tree instead
-# (XOA_LANG_SOURCE_DIR), so this staging is a runtime convenience, not a test dep.
+# LocalizationManager's default resource-dir resolution finds them. WFS-DIY
+# relied on Projucer bundle copying; the CMake app stages them here. The unit
+# test reads them from the source tree instead (XOA_LANG_SOURCE_DIR), so this
+# staging is a runtime convenience, not a test dep.
+#
+# WHERE they go is platform-specific and NOT interchangeable:
+#   Windows/Linux  <exeDir>/Resources/...          (beside the binary)
+#   macOS          XOA.app/Contents/Resources/...  (the bundle's resource dir)
+# On macOS, Contents/MacOS is the directory codesign treats as CODE: staging
+# data files there makes `codesign --verify --strict` fail with "code object is
+# not signed at all" on each of them, which fails notarization and Gatekeeper.
+# It is also where LocalizationManager already looks on macOS
+# (currentApplicationFile/Contents/Resources), so this is the single location
+# that satisfies both the signer and the app.
+if(APPLE)
+    set(XOA_STAGED_RESOURCE_DIR "$<TARGET_BUNDLE_CONTENT_DIR:XOA>/Resources")
+else()
+    set(XOA_STAGED_RESOURCE_DIR "$<TARGET_FILE_DIR:XOA>/Resources")
+endif()
+
 add_custom_command(TARGET XOA POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/Resources/lang"
-            "$<TARGET_FILE_DIR:XOA>/Resources/lang"
-    COMMENT "Staging Resources/lang next to the XOA binary")
+            "${XOA_STAGED_RESOURCE_DIR}/lang"
+    COMMENT "Staging Resources/lang into the XOA resource dir")
 
 # Stage the bundled HRTF set (SADIE II KU100) the binaural monitor falls back
-# to when no project SOFA file is chosen (WP15). Same reasoning as the lang
-# staging: XoaMonitoringEngine resolves <exeDir>/Resources/SOFA first.
+# to when no project SOFA file is chosen (WP15). Same location rules as the
+# lang staging above; XoaMonitoringEngine::builtInSofaFile() mirrors them.
 add_custom_command(TARGET XOA POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/assets/SOFA"
-            "$<TARGET_FILE_DIR:XOA>/Resources/SOFA"
-    COMMENT "Staging the bundled HRTF set next to the XOA binary")
+            "${XOA_STAGED_RESOURCE_DIR}/SOFA"
+    COMMENT "Staging the bundled HRTF set into the XOA resource dir")
 
 # ---------------------------------------------------------------------------
 # Tests — the xoa-tests console app, registered with ctest.
