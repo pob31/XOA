@@ -1,0 +1,26 @@
+# udev rules granting non-root access to the HID controllers XOA drives through
+# spatcore-controllers (hidapi / hidraw).
+#
+# These rules ship AHEAD of the app's controller support: the Stream Deck+ and
+# SpaceMouse surfaces are planned, not wired up yet. The rules are inert until
+# then — they only relax device permissions, they do not make anything run.
+#
+# Install with:
+#   sudo cp assets/linux/70-xoa.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+# (Or unplug and replug the device after reloading.) The Linux release
+# tarball's install.sh offers to do this for you.
+#
+# TAG+="uaccess" grants the active console user a dynamic ACL on
+# systemd-logind systems. GROUP="plugdev" is the older fallback — add your user
+# to the plugdev group on distros without uaccess.
+
+# Elgato Stream Deck+ (VID 0fd9, PID 0084)
+SUBSYSTEM=="usb",  ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0084", MODE="0660", TAG+="uaccess", GROUP="plugdev"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0084", MODE="0660", TAG+="uaccess", GROUP="plugdev"
+
+# 3Dconnexion SpaceMouse — the current generation shares VID 256f. The PID is
+# left unmatched so every SpaceMouse model is covered.
+SUBSYSTEM=="usb",  ATTRS{idVendor}=="256f", MODE="0660", TAG+="uaccess", GROUP="plugdev"
+KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", TAG+="uaccess", GROUP="plugdev"

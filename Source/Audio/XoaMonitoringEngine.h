@@ -240,14 +240,26 @@ public:
         return builtInSofaFile();
     }
 
-    /** The bundled SADIE II KU100 set, staged next to the binary (and read
-        from the source tree in a dev build). */
+    /** The bundled SADIE II KU100 set, staged in the app's resource dir (and
+        read from the source tree in a dev build).
+
+        The staged location is platform-specific and must match the POST_BUILD
+        staging in CMakeLists.txt: Contents/Resources inside the bundle on
+        macOS, beside the binary elsewhere. Data files may NOT live in
+        Contents/MacOS on macOS - codesign treats that directory as code and
+        `--verify --strict` rejects each unsigned file there, which fails
+        notarization. LocalizationManager resolves its lang dir the same way. */
     static juce::File builtInSofaFile()
     {
         const auto exeDir = juce::File::getSpecialLocation (juce::File::currentExecutableFile)
                                 .getParentDirectory();
-        const auto staged = exeDir.getChildFile ("Resources").getChildFile ("SOFA")
-                                  .getChildFile (kBuiltInSofaName);
+       #if JUCE_MAC
+        const auto resourceDir = juce::File::getSpecialLocation (juce::File::currentApplicationFile)
+                                     .getChildFile ("Contents/Resources");
+       #else
+        const auto resourceDir = exeDir.getChildFile ("Resources");
+       #endif
+        const auto staged = resourceDir.getChildFile ("SOFA").getChildFile (kBuiltInSofaName);
         if (staged.existsAsFile())
             return staged;
 

@@ -59,16 +59,29 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
   Every conversion lives in `Source/DSP/AmbiHeadMapping.h` and
   `AmbiBinauralDecoder.h`'s `gridAzToXoaAzDeg` — never inline at a call site
   (`AmbiRotation.h` states the same policy for the DSP).
+- Runtime data files (`Resources/lang`, the bundled `Resources/SOFA` HRTF set)
+  are staged by CMake POST_BUILD into a **platform-specific** location:
+  `XOA.app/Contents/Resources` on macOS, `<exeDir>/Resources` elsewhere. Never
+  stage data into `Contents/MacOS` — codesign treats that directory as code and
+  `--verify --strict` rejects every unsigned file in it, failing notarization.
+  Three places must agree: the POST_BUILD commands in CMakeLists.txt,
+  `LocalizationManager::getResourceDirectory()`, and
+  `XoaMonitoringEngine::builtInSofaFile()`. The installer/tarball recipes copy
+  the same layout.
 - License GPLv3. Third-party inventory in `THIRD_PARTY_NOTICES.md`.
 
 ## Where things are decided
 
 - Roadmap and architecture decisions: `Documentation/XOA-PLAN.md`.
-- Execution order and decision records (numeric D1-D54, plus the named WP8 ones
-  such as `D-NFCstage` / `D-stems`; D55 is the next free number):
+- Execution order and decision records (numeric D1-D55, plus the named WP8 ones
+  such as `D-NFCstage` / `D-stems`; D56 is the next free number):
   `Documentation/XOA-DEVPLAN.md` (it wins over the PRD where they conflict).
   Requirements: `Documentation/XOA_PRD.md`.
   Frozen OSC contract: `Documentation/XOA-OSC-MAP.md`.
+- Releasing: signing/notarization credentials, the three packaging lanes and
+  the tag ritual: `Documentation/XOA-RELEASE.md` (decision record D55). The
+  packaging logic lives in `tools/ci/`, `tools/linux/` and `Installer/`, not in
+  the workflow YAML, so each lane runs the same locally.
 - Migrating the audio device layer onto `spatcore::io`, and later adopting the
   Audio Interface window and patch matrix lifted from WFS-DIY:
   `Documentation/XOA-AUDIO-DEVICE-AND-PATCH-HANDOFF.md`. Read it before
