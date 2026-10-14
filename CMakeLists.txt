@@ -41,6 +41,16 @@ endif()
 # spatcore. JUCE and roli_blocks_basics need no fixups.
 # ---------------------------------------------------------------------------
 add_subdirectory(ThirdParty/JUCE "${CMAKE_BINARY_DIR}/juce" EXCLUDE_FROM_ALL)
+
+# Opus audio and WebP images are on by default since JUCE 9.0.3; XOA reads
+# neither, and they add ~100k lines of C to every target that compiles the
+# modules (WFS-DIY switches them off too). Set on the module targets rather
+# than on XOA's: spatcore's static libraries link the modules PUBLIC and so
+# compile their own copies of the module TUs, which a define on the app
+# targets would not reach.
+target_compile_definitions(juce_audio_formats INTERFACE JUCE_USE_OPUS=0)
+target_compile_definitions(juce_graphics INTERFACE JUCE_USE_WEBP=0)
+
 spatcore_add_juce_simpleweb("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/juce_simpleweb")
 juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/roli_blocks_basics")
 spatcore_add_hidapi("${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/hidapi")
