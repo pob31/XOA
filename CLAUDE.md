@@ -18,7 +18,11 @@ Binary: `build/XOA_artefacts/<config>/XOA.exe`. After a fresh clone run
 ## Repo shape
 
 - `Source/` — the XOA application (JUCE gui app). App layer only.
-- `spatcore/` — **submodule**, pinned to **47b1ae5** (tag `v0.2.0`: GPU
+- `spatcore/` — **submodule**, pinned to **c139a97** (`v0.4.0-30`, the same
+  commit WFS-DIY pins; past v0.2.0 it adds the effects engine XOA does not use,
+  hardened OSC/MCP/state code — a save lands whole or not at all, and a backup
+  that fails stops the save — and macOS touch, whose JUCE patch XOA does not
+  need because it reads no touch panel). Through v0.2.0: GPU
   node-parallel SDN, Max-port FR diffusion, MCP protocol negotiation, the
   shared EQ, the `spatcore::io` device layer (`io/`, target `spatcore-io`),
   the shared patch matrix (`ui/patch/`), and the `binaural/` module —

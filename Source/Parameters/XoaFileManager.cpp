@@ -225,8 +225,12 @@ bool XoaFileManager::saveSection (Section s)
 
 bool XoaFileManager::saveSectionTo (Section s, const juce::File& file, bool withBackup)
 {
-    if (withBackup && file.existsAsFile())
-        XmlPersistence::createBackup (file, backupFolder());
+    // No backup, no overwrite: the version this save would replace has no
+    // other copy (XmlPersistence::backUpFile's contract).
+    if (withBackup && file.existsAsFile()
+        && ! XmlPersistence::createBackup (file, backupFolder()))
+        return fail ("Could not back up " + file.getFullPathName()
+                     + " - not saving over it");
 
     juce::ValueTree fileRoot (fileRootType (s));
     fileRoot.setProperty (ids::schemaVersion, defaults::kSchemaVersion, nullptr);

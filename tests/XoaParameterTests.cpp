@@ -716,7 +716,7 @@ static void testBackupsAndManifest()
     CHECK (fm.saveConfig());   // backs up the -1.0 file
 
     const auto backups = XmlPersistence::listBackups (fm.backupFolder(), "config");
-    CHECK (backups.size() >= 1);   // saves within one second may collide on name
+    CHECK (backups.size() == 2);   // two saves within one second keep both backups
 
     // Newest backup = the state before the last save
     CHECK (fm.loadConfigBackup (0));
@@ -737,6 +737,17 @@ static void testBackupsAndManifest()
     XoaFileManager fm3 (s3);
     CHECK (fm3.loadProject (fm.manifestFile()));
     CHECK (s3.getStringParameter (ids::showName) == "Backup Show");
+
+    // A save whose backup fails is refused, and the file is left as it was:
+    // a plain file where the backups folder should be makes every backup fail.
+    const auto configFile = fm.fileForSection (XoaFileManager::Section::config);
+    const auto savedBefore = configFile.loadFileAsString();
+    CHECK (fm.backupFolder().deleteRecursively());
+    CHECK (fm.backupFolder().replaceWithText ("not a folder"));
+    s.setParameter (ids::masterGain, -3.0);
+    CHECK (! fm.saveConfig());
+    CHECK (fm.getLastError().contains ("back up"));
+    CHECK (configFile.loadFileAsString() == savedBefore);
 }
 
 //==============================================================================
