@@ -42,8 +42,13 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
+      # Explicit job count, as on Linux: bare `--parallel` hands make an
+      # UNBOUNDED -j. The 3-core / 7 GB runner does not get OOM-killed, it
+      # swaps: those builds sat silent for 15-18 min and took 50-90 min where
+      # the same build on a roomier runner takes 2 (runs 33929389285,
+      # 33186562704, 38536917773).
       - name: Build (Debug)
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel "$(sysctl -n hw.ncpu)"
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
